@@ -56,9 +56,23 @@ def find_branches(tree):
 
 def instrument_code(source_code, branches):
     """Insert __coverage_hit(id) at each branch"""
-    # TODO: Insert Instrumentation calls
-    # TODO: Be careful with byte offsets!
-    pass
+    
+    # Sort branches by position
+    # Insert from END to START so offsets don't shift
+    sorted_branches = sorted(branches, key=lambda b: b['start_byte'], reverse=True)
+    
+    # Convert bytes to string for easier manipulation
+    code = source_code.decode('utf-8')
+    
+    # Insert instrumentation for each branch (from end to start)
+    for branch_id, branch in enumerate(sorted_branches, 1):
+        pos = branch['start_byte']
+        
+        # Insert __coverage_hit(id) before the branch
+        instrumentation = f"__coverage_hit({branch_id}); "
+        code = code[:pos] + instrumentation + code[pos:]
+    
+    return code
 
 def main():
     # Check command line arguments
@@ -69,7 +83,6 @@ def main():
     input_file = sys.argv[1]
     output_file = sys.argv[2]
     
-    # TODO: Call the functions
     print(f"Instrumenting {input_file}...")
     
     # Parse the file
@@ -83,9 +96,17 @@ def main():
     for i, branch in enumerate(branches, 1):
         line = branch['start_point'][0] + 1 # +1 because rows start at 0
         print(f"    {i}. {branch['type']} at line {line}")
-    # instrumented = instrument_code(source_code, branches)
-    # write output
-    print(f"Done! Wrote {output_file}")
+    
+    # Instrument the code
+    instrumented_code = instrument_code(source_code, branches)
+    print(f"✓ Instrumented code generated")
+    
+    # Write output file
+    with open(output_file, 'w') as f:
+        f.write(instrumented_code)
+    print(f"✓ Wrote {output_file}")
+    
+    print(f"\nDone! Successfully instrumented {len(branches)} branches.")
 
 # Entry point for the instrumentation script
 if __name__ == "__main__":
