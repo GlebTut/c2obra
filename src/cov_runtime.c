@@ -1,7 +1,7 @@
 // Implementation of C Testing Coverage Tool runtime library
 // Provides coverage data collection and JSON output generation
 
-#include "cov_runtime.h"    // Include our header file
+#include "cov_runtime.h"    
 #include <stdio.h> 
 #include <inttypes.h>         
 
@@ -21,7 +21,7 @@ void dump_coverage(void){
     }
 
     // Write JSON header
-    fprintf(f, "{\n \"branches\": [\n]}");
+    fprintf(f, "{\n \"branches\": [\n");
 
     // Track the first entry
     int first = 1;

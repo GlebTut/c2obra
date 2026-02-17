@@ -1,8 +1,8 @@
 // Header file for C Testing Coverage Tool runtime library
 // Provides the cover() macro and coverage tracking functionality
 
-#ifndef COV_RUNTIME_H   // Include guard - prevents multiple inclusion
-#define COV_RUNTIME_H   // Define the guard
+#ifndef COV_RUNTIME_H
+#define COV_RUNTIME_H
 
 #include <stdint.h>
 
@@ -13,7 +13,7 @@
 extern uint64_t branch_counters[MAX_BRANCHES];
 
 // cover() macro - wraps branch conditions to track true/false paths
-#define cover(expr, branch_id) \ 
+#define cover(expr, branch_id) \
     ((expr) ? (branch_counters[(branch_id) * 2]++, 1) \
             : (branch_counters[(branch_id) * 2 + 1]++, 0))
 

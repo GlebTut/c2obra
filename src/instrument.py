@@ -105,7 +105,7 @@ def instrument_code(source_code, branches):
                 code = code[:cond_start] + new_condition + code[cond_end:]
     
     # Add #include at the top of the file
-    code = '#include "src/cov_runtime.h"\n\n' + code
+    code = '#include "cov_runtime.h"\n\n' + code
     
     return code
 
