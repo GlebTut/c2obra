@@ -6,3 +6,22 @@ simple_test
 *.o
 tests/simple_test
 output/*.o
+# Generated files
+output/*.c
+output/*_inst.c
+build/
+coverage.json
+*.o
+
+# Test executables
+test_all
+test_for
+simple_test
+problem18_test
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temporary files
+help

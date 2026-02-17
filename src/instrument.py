@@ -44,7 +44,7 @@ def find_branches(tree):
                 'start_point': node.start_point, # (row, column)
                 'end_point': node.end_point
             })
-            
+        
         # Recursively visit all children
         for child in node.children:
             walk_tree(child)
@@ -63,6 +63,31 @@ def get_condition_node(branch_node):
             return child
     
     return None
+
+def get_for_condition_node(for_node):
+    """Extract the condition from a for loop"""
+    
+    # Look for the condition expression between semicolons
+    semicolon_count = 0
+    condition_start = None
+    condition_end = None
+    
+    for child in for_node.children:
+        if child.type == ';':
+            semicolon_count += 1
+            if semicolon_count == 1:
+                # After first semicolon condition starts
+                condition_start = child.end_byte
+            elif semicolon_count == 2:
+                # Before second semicolon, condition ends
+                condition_end = child.start_byte
+                break
+    
+    # If we found both semicolons, extract the condition between them
+    if condition_start is not None and condition_end is not None:
+        return (condition_start, condition_end)
+    
+    return None                
 
 def instrument_code(source_code, branches):
     """Wrap branch conditions with cover() macro"""
@@ -97,12 +122,29 @@ def instrument_code(source_code, branches):
                     inner_condition = condition_text[1:-1]
                 else:
                     inner_condition = condition_text
-                    
+                
                 # Create the new wrapped condition
                 new_condition = f"(cover({inner_condition}, {branch_id}))"
                 
                 # Replace in code
                 code = code[:cond_start] + new_condition + code[cond_end:]
+        # ? Handle for loops
+        elif branch_type == 'for_statement':
+            # Get the condition from the for loop
+            condition_range = get_for_condition_node(node)
+            
+            if condition_range:
+                cond_start, cond_end = condition_range
+                
+                # Extract the condition text
+                condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
+                
+                if condition_text:
+                    # Create the new condition
+                    new_condition = f" cover({condition_text}, {branch_id}) "
+                    
+                    # Replace in code
+                    code = code[:cond_start] + new_condition + code[cond_end:]
     
     # Add #include at the top of the file
     code = '#include "cov_runtime.h"\n\n' + code
