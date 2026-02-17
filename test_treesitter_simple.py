@@ -13,7 +13,7 @@ print("="*70)
 
 # Step 1: Read file
 print("\n1. Reading file...")
-with open('Problem08_label20.c', 'rb') as f:
+with open('Problem18.c', 'rb') as f:
     source_code = f.read()
 
 print(f"   Size: {len(source_code):,} bytes")

@@ -54,6 +54,15 @@ def find_branches(tree):
     # Return branches
     return branches
 
+def get_condition_node(branch_node):
+    """Extract the condition node from an if/for/while statement"""
+    
+    for child in branch_node.children:
+        if child.type == 'parenthesized_expression':
+            return child
+    
+    return None
+
 def instrument_code(source_code, branches):
     """Insert __coverage_hit(id) at each branch"""
     
@@ -64,13 +73,16 @@ def instrument_code(source_code, branches):
     # Convert bytes to string for easier manipulation
     code = source_code.decode('utf-8')
     
-    # Insert instrumentation for each branch (from end to start)
+    # Process each branch (from end to start)
     for branch_id, branch in enumerate(sorted_branches, 1):
         pos = branch['start_byte']
         
         # Insert __coverage_hit(id) before the branch
         instrumentation = f"__coverage_hit({branch_id}); "
         code = code[:pos] + instrumentation + code[pos:]
+    
+    # Add #include at the top of the file
+    code = '#include "cov_runtime.h"\n\n' + code
     
     return code
 
