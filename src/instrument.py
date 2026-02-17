@@ -38,6 +38,7 @@ def find_branches(tree):
             # Store the node info
             branches.append({
                 'type': node.type,
+                'node': node,
                 'start_byte': node.start_byte,
                 'end_byte': node.end_byte,
                 'start_point': node.start_point, # (row, column)
@@ -64,7 +65,7 @@ def get_condition_node(branch_node):
     return None
 
 def instrument_code(source_code, branches):
-    """Insert __coverage_hit(id) at each branch"""
+    """Wrap branch conditions with cover() macro"""
     
     # Sort branches by position
     # Insert from END to START so offsets don't shift
@@ -75,14 +76,36 @@ def instrument_code(source_code, branches):
     
     # Process each branch (from end to start)
     for branch_id, branch in enumerate(sorted_branches, 1):
-        pos = branch['start_byte']
+        branch_type = branch['type']
+        node = branch['node']
         
-        # Insert __coverage_hit(id) before the branch
-        instrumentation = f"__coverage_hit({branch_id}); "
-        code = code[:pos] + instrumentation + code[pos:]
+        # ? Only handle if/else statement
+        if branch_type in ['if_statement', 'while_statement']:
+            # Get the condition node
+            condition_node = get_condition_node(node)
+            
+            if condition_node:
+                # Get the start and end positions
+                cond_start = condition_node.start_byte
+                cond_end = condition_node.end_byte
+                
+                # Extract the condition text
+                condition_text = source_code[cond_start:cond_end].decode('utf-8')
+                
+                # Remove outer parentheses if present
+                if condition_text.startswith('(') and condition_text.endswith(')'):
+                    inner_condition = condition_text[1:-1]
+                else:
+                    inner_condition = condition_text
+                    
+                # Create the new wrapped condition
+                new_condition = f"(cover({inner_condition}, {branch_id}))"
+                
+                # Replace in code
+                code = code[:cond_start] + new_condition + code[cond_end:]
     
     # Add #include at the top of the file
-    code = '#include "cov_runtime.h"\n\n' + code
+    code = '#include "src/cov_runtime.h"\n\n' + code
     
     return code
 

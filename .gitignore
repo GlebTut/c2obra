@@ -1,3 +1,8 @@
 *.Identifier
 *:Zone.Identifier
 Zone.Identifier
+coverage.json
+simple_test
+*.o
+tests/simple_test
+output/*.o

@@ -1,3 +1,5 @@
+#include "cov_runtime.h"
+
 #include <stdio.h>
 
 /*
@@ -7,11 +9,11 @@ Simple Test file with if and for statement
 int main() {
     int x = 5;
     
-    __coverage_hit(2); if (x > 0) {
+    if (cover(x > 0, 2)) {
         printf("positive\n");
     }
     
-    __coverage_hit(1); for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         printf("%d\n", i);
     }
     

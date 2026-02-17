@@ -2,7 +2,8 @@
 // Provides coverage data collection and JSON output generation
 
 #include "cov_runtime.h"    // Include our header file
-#include <stdio.h>          
+#include <stdio.h> 
+#include <inttypes.h>         
 
 // Global array that stores hit counts
 uint64_t branch_counters[MAX_BRANCHES] = {0};
@@ -35,7 +36,7 @@ void dump_coverage(void){
             }
 
             // Write branch data
-            fprintf(f, "    {\"id\": %d, \"true\": %llu, \"false\": %llu}",
+            fprintf(f, "    {\"id\": %d, \"true\": %" PRIu64 ", \"false\": %" PRIu64 "}",
                 i / 2,                  // Branch ID (2 counters per branch)
                 branch_counters[i],     // True hits
                 branch_counters[i + 1]  // False hits
