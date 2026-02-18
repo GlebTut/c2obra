@@ -3,8 +3,8 @@
 ## High Priority
 - [x] Fix runtime library bugs
 - [x] Fix JSON output format
-- [ ] Implement for_statement instrumentation
-- [ ] Test while_statement instrumentation
+- [x] Implement for_statement instrumentation
+- [x] Test while_statement instrumentation
 - [ ] Test on 10 Test-COMP programs
 
 ## Medium Priority

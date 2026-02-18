@@ -67,26 +67,23 @@ def get_condition_node(branch_node):
 def get_for_condition_node(for_node):
     """Extract the condition from a for loop"""
     
-    # Look for the condition expression between semicolons
-    semicolon_count = 0
-    condition_start = None
-    condition_end = None
-    
+    # The condition in a for loop is typically the second child (after initialization)
+    cond = for_node.child_by_field_name("condition")
+    if cond is not None:
+        return cond
+
     for child in for_node.children:
-        if child.type == ';':
-            semicolon_count += 1
-            if semicolon_count == 1:
-                # After first semicolon condition starts
-                condition_start = child.end_byte
-            elif semicolon_count == 2:
-                # Before second semicolon, condition ends
-                condition_end = child.start_byte
-                break
-    
-    # If we found both semicolons, extract the condition between them
-    if condition_start is not None and condition_end is not None:
-        return (condition_start, condition_end)
-    
+        if child.type in (
+            "binary_expression",
+            "identifier",
+            "call_expression",
+            "parenthesized_expression",
+            "relational_expression",
+            "logical_expression",
+            "update_expression",
+            "assignment_expression",
+        ):
+            return child
     return None                
 
 def instrument_code(source_code, branches):
@@ -130,21 +127,17 @@ def instrument_code(source_code, branches):
                 code = code[:cond_start] + new_condition + code[cond_end:]
         # ? Handle for loops
         elif branch_type == 'for_statement':
-            # Get the condition from the for loop
-            condition_range = get_for_condition_node(node)
-            
-            if condition_range:
-                cond_start, cond_end = condition_range
-                
-                # Extract the condition text
-                condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
-                
+            condition_node = get_for_condition_node(node)
+            if condition_node:
+                cond_start = condition_node.start_byte
+                cond_end = condition_node.end_byte
+
+                condition_text = source_code[cond_start:cond_end].decode("utf-8").strip()
+
                 if condition_text:
-                    # Create the new condition
                     new_condition = f" cover({condition_text}, {branch_id}) "
-                    
-                    # Replace in code
                     code = code[:cond_start] + new_condition + code[cond_end:]
+
     
     # Add #include at the top of the file
     code = '#include "cov_runtime.h"\n\n' + code
