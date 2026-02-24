@@ -31,3 +31,4 @@ test_input.txt
 coverage.json
 output/
 build/
+coverage_report.json

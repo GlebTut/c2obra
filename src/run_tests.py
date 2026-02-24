@@ -10,20 +10,16 @@ def parse_inputs(xml_file):
 def run_test(binary, inputs, test_name):
     with open("test_input.txt", "w") as f:
         f.write("\n".join(inputs))
-
     result = subprocess.run([binary], capture_output=True, text=True)
-
     try:
         with open("coverage.json") as f:
             coverage = json.load(f)
     except:
         coverage = {"branches": []}
-
     print(f"\n=== {test_name} ===")
     print(f"Inputs: {inputs}")
     print(f"Exit code: {result.returncode}")
     print(f"Coverage: {json.dumps(coverage, indent=2)}")
-
     return coverage
 
 def merge_coverage(all_coverages):
@@ -38,7 +34,6 @@ def merge_coverage(all_coverages):
     return merged
 
 def load_branch_map(map_file):
-    """Load branch map JSON"""
     try:
         with open(map_file) as f:
             data = json.load(f)
@@ -55,11 +50,12 @@ def print_summary(merged, branch_map={}):
 
     total = len(merged)
     fully_covered = 0
+    report_branches = []
 
     for bid in sorted(merged.keys()):
         b = merged[bid]
         meta = branch_map.get(bid, {})
-        line = meta.get('line', '?')
+        line  = meta.get('line', '?')
         btype = meta.get('type', '?').replace('_statement', '').replace('_', '-')
         t = "✅" if b["true"]  > 0 else "❌"
         f = "✅" if b["false"] > 0 else "❌"
@@ -68,12 +64,31 @@ def print_summary(merged, branch_map={}):
             fully_covered += 1
         status = "FULL" if covered else "PARTIAL"
         print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {status:>10}")
+        report_branches.append({
+            "id": bid,
+            "line": line,
+            "type": meta.get("type", "?"),
+            "true": b["true"],
+            "false": b["false"],
+            "covered": covered
+        })
 
     print("-"*65)
-    print(f"Fully covered: {fully_covered}/{total} branches")
     pct = (fully_covered / total * 100) if total > 0 else 0
+    print(f"Fully covered: {fully_covered}/{total} branches")
     print(f"Branch coverage: {pct:.1f}%")
 
+    report = {
+        "summary": {
+            "total_branches": total,
+            "covered_branches": fully_covered,
+            "branch_coverage_pct": round(pct, 1)
+        },
+        "branches": report_branches
+    }
+    with open("coverage_report.json", "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"\nFull report written to coverage_report.json")
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
@@ -82,9 +97,9 @@ if __name__ == "__main__":
 
     binary    = sys.argv[1]
     suite_dir = sys.argv[2]
-    map_file  = sys.argv[3] if len(sys.argv) > 3 else None      # ← ADD THIS
+    map_file  = sys.argv[3] if len(sys.argv) > 3 else None
 
-    branch_map = load_branch_map(map_file) if map_file else {}   # ← ADD THIS
+    branch_map = load_branch_map(map_file) if map_file else {}
 
     xml_files = sorted(glob.glob(f"{suite_dir}/test_input-*.xml"))
     print(f"Found {len(xml_files)} test cases")
