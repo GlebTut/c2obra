@@ -95,13 +95,15 @@ def instrument_code(source_code, branches):
     
     # Convert bytes to string for easier manipulation
     code = source_code.decode('utf-8')
+    total = len(branches)
     
     # Process each branch (from end to start)
     for branch_id, branch in enumerate(sorted_branches, 1):
+        actual_id = total - branch_id + 1
         branch_type = branch['type']
         node = branch['node']
-        
-        # ? Only handle if/else statement
+    
+        # ? Only handle if/else, while statement
         if branch_type in ['if_statement', 'while_statement']:
             # Get the condition node
             condition_node = get_condition_node(node)
@@ -121,7 +123,7 @@ def instrument_code(source_code, branches):
                     inner_condition = condition_text
                 
                 # Create the new wrapped condition
-                new_condition = f"(cover({inner_condition}, {branch_id}))"
+                new_condition = f"(cover({inner_condition}, {actual_id}))"
                 
                 # Replace in code
                 code = code[:cond_start] + new_condition + code[cond_end:]
@@ -135,7 +137,7 @@ def instrument_code(source_code, branches):
                 condition_text = source_code[cond_start:cond_end].decode("utf-8").strip()
 
                 if condition_text:
-                    new_condition = f" cover({condition_text}, {branch_id}) "
+                    new_condition = f" cover({condition_text}, {actual_id}) "
                     code = code[:cond_start] + new_condition + code[cond_end:]
 
     
