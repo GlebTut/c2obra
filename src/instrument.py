@@ -7,6 +7,7 @@ Iteration 1: Basic branch instrumentation
 import sys
 from tree_sitter import Language, Parser
 import tree_sitter_c
+import json
 
 def parse_c_file(filename):
     """Parse C source file with tree-sitter"""
@@ -141,6 +142,21 @@ def instrument_code(source_code, branches):
     code = rewriter.apply()
     return '#include "cov_runtime.h"\n\n' + code
 
+def write_branch_map(branches, output_file):
+    """Write branch metadata (id, line, condition) to branch_map.json"""
+    total = len(branches)
+    sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
+    branch_map = []
+    for i, branch in enumerate(sorted_branches, 1):
+        branch_map.append({
+            "id": i,
+            "line": branch['start_point'][0] + 1,
+            "type": branch['type']
+        })
+    with open(output_file, 'w') as f:
+        json.dump({"branches": branch_map}, f, indent=2)
+    print(f"✓ Wrote branch map to {output_file}")
+    
 def main():
     # Check command line arguments
     if len(sys.argv) != 3:
@@ -172,6 +188,9 @@ def main():
     with open(output_file, 'w') as f:
         f.write(instrumented_code)
     print(f"✓ Wrote {output_file}")
+    
+    map_file = output_file.replace('.c', '_branch_map.json')
+    write_branch_map(branches, map_file)
     
     print(f"\nDone! Successfully instrumented {len(branches)} branches.")
 

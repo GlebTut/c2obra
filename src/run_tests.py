@@ -37,38 +37,54 @@ def merge_coverage(all_coverages):
             merged[bid]["false"] += branch["false"]
     return merged
 
-def print_summary(merged):
-    print("\n" + "="*50)
+def load_branch_map(map_file):
+    """Load branch map JSON"""
+    try:
+        with open(map_file) as f:
+            data = json.load(f)
+            return {b['id']: b for b in data['branches']}
+    except:
+        return {}
+
+def print_summary(merged, branch_map={}):
+    print("\n" + "="*65)
     print("AGGREGATED COVERAGE SUMMARY")
-    print("="*50)
-    print(f"{'Branch':<10} {'Condition':<10} {'True':>6} {'False':>7} {'Status':>10}")
-    print("-"*50)
+    print("="*65)
+    print(f"{'ID':<6} {'Line':<8} {'Type':<18} {'True':>6} {'False':>7} {'Status':>10}")
+    print("-"*65)
 
     total = len(merged)
     fully_covered = 0
 
     for bid in sorted(merged.keys()):
         b = merged[bid]
+        meta = branch_map.get(bid, {})
+        line = meta.get('line', '?')
+        btype = meta.get('type', '?').replace('_statement', '').replace('_', '-')
         t = "✅" if b["true"]  > 0 else "❌"
         f = "✅" if b["false"] > 0 else "❌"
         covered = b["true"] > 0 and b["false"] > 0
         if covered:
             fully_covered += 1
         status = "FULL" if covered else "PARTIAL"
-        print(f"{bid:<10} {'':10} {t:>6} {f:>7} {status:>10}")
+        print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {status:>10}")
 
-    print("-"*50)
+    print("-"*65)
     print(f"Fully covered: {fully_covered}/{total} branches")
     pct = (fully_covered / total * 100) if total > 0 else 0
     print(f"Branch coverage: {pct:.1f}%")
 
+
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python3 src/run_tests.py <binary> <test-suite-dir>")
+        print("Usage: python3 src/run_tests.py <binary> <test-suite-dir> [branch_map.json]")
         sys.exit(1)
 
-    binary = sys.argv[1]
+    binary    = sys.argv[1]
     suite_dir = sys.argv[2]
+    map_file  = sys.argv[3] if len(sys.argv) > 3 else None      # ← ADD THIS
+
+    branch_map = load_branch_map(map_file) if map_file else {}   # ← ADD THIS
 
     xml_files = sorted(glob.glob(f"{suite_dir}/test_input-*.xml"))
     print(f"Found {len(xml_files)} test cases")
@@ -80,4 +96,4 @@ if __name__ == "__main__":
         all_coverages.append(cov)
 
     merged = merge_coverage(all_coverages)
-    print_summary(merged)
+    print_summary(merged, branch_map)
