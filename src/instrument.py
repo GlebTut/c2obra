@@ -35,7 +35,7 @@ def find_branches(tree):
         """Recursively walk the tree and find branches"""
         
         # Check if this node is a branch point
-        if node.type in ['if_statement', 'for_statement', 'while_statement', 'switch_statement']:
+        if node.type in ['if_statement', 'for_statement', 'while_statement', 'switch_statement', 'do_statement']:
             # Store the node info
             branches.append({
                 'type': node.type,
@@ -116,7 +116,7 @@ def instrument_code(source_code, branches):
         branch_type = branch['type']
         node = branch['node']
 
-        if branch_type in ['if_statement', 'while_statement']:
+        if branch_type in ['if_statement', 'while_statement', 'do_statement']:
             condition_node = get_condition_node(node)
             if condition_node:
                 cond_start = condition_node.start_byte
