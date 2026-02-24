@@ -86,65 +86,60 @@ def get_for_condition_node(for_node):
             return child
     return None                
 
+class SourceRewriter:
+    """Collects source edits and applies them safely end-to-start"""
+
+    def __init__(self, source: bytes):
+        self.source = source
+        self.edits = []  # list of (start_byte, end_byte, replacement_str)
+
+    def replace(self, start, end, text):
+        self.edits.append((start, end, text))
+
+    def apply(self):
+        result = self.source
+        for start, end, text in sorted(self.edits, key=lambda e: e[0], reverse=True):
+            result = result[:start] + text.encode() + result[end:]
+        return result.decode('utf-8')
+    
 def instrument_code(source_code, branches):
     """Wrap branch conditions with cover() macro"""
-    
-    # Sort branches by position
-    # Insert from END to START so offsets don't shift
-    sorted_branches = sorted(branches, key=lambda b: b['start_byte'], reverse=True)
-    
-    # Convert bytes to string for easier manipulation
-    code = source_code.decode('utf-8')
+
     total = len(branches)
-    
-    # Process each branch (from end to start)
-    for branch_id, branch in enumerate(sorted_branches, 1):
-        actual_id = total - branch_id + 1
+    rewriter = SourceRewriter(source_code)
+
+    for i, branch in enumerate(
+        sorted(branches, key=lambda b: b['start_byte'], reverse=True), 1
+    ):
+        actual_id = total - i + 1
         branch_type = branch['type']
         node = branch['node']
-    
-        # ? Only handle if/else, while statement
+
         if branch_type in ['if_statement', 'while_statement']:
-            # Get the condition node
             condition_node = get_condition_node(node)
-            
             if condition_node:
-                # Get the start and end positions
                 cond_start = condition_node.start_byte
                 cond_end = condition_node.end_byte
-                
-                # Extract the condition text
                 condition_text = source_code[cond_start:cond_end].decode('utf-8')
-                
-                # Remove outer parentheses if present
+
                 if condition_text.startswith('(') and condition_text.endswith(')'):
-                    inner_condition = condition_text[1:-1]
+                    inner = condition_text[1:-1]
                 else:
-                    inner_condition = condition_text
-                
-                # Create the new wrapped condition
-                new_condition = f"(cover({inner_condition}, {actual_id}))"
-                
-                # Replace in code
-                code = code[:cond_start] + new_condition + code[cond_end:]
-        # ? Handle for loops
+                    inner = condition_text
+
+                rewriter.replace(cond_start, cond_end, f"(cover({inner}, {actual_id}))")
+
         elif branch_type == 'for_statement':
             condition_node = get_for_condition_node(node)
             if condition_node:
                 cond_start = condition_node.start_byte
                 cond_end = condition_node.end_byte
-
-                condition_text = source_code[cond_start:cond_end].decode("utf-8").strip()
-
+                condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    new_condition = f" cover({condition_text}, {actual_id}) "
-                    code = code[:cond_start] + new_condition + code[cond_end:]
+                    rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {actual_id}) ")
 
-    
-    # Add #include at the top of the file
-    code = '#include "cov_runtime.h"\n\n' + code
-    
-    return code
+    code = rewriter.apply()
+    return '#include "cov_runtime.h"\n\n' + code
 
 def main():
     # Check command line arguments
