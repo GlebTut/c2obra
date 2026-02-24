@@ -16,3 +16,12 @@
 - [ ] switch_statement instrumentation
 - [ ] Better error handling
 - [ ] Add more unit tests
+
+## Iteration 2 - Planned
+
+- [ ] switch statement per-case instrumentation (cov_branch() approach)
+- [ ] do-while already done ✅
+- [ ] Multi-file processing
+- [ ] Resource limits (setrlimit)
+- [ ] HTML/CSV report output
+- [ ] Better error handling
