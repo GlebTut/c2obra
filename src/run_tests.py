@@ -14,6 +14,7 @@ def run_test(binary, inputs, test_name):
     try:
         with open("coverage.json") as f:
             coverage = json.load(f)
+        os.remove("coverage.json")
     except:
         coverage = {"branches": []}
     print(f"\n=== {test_name} ===")
