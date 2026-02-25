@@ -92,23 +92,30 @@ def print_summary(merged, branch_map={}):
     print(f"\nFull report written to coverage_report.json")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python3 src/run_tests.py <binary> <test-suite-dir> [branch_map.json]")
+    if len(sys.argv) < 2:
+        print("Usage: python3 src/run_tests.py BINARY [suite_dir or -] [branch_map.json]")
         sys.exit(1)
 
-    binary    = sys.argv[1]
-    suite_dir = sys.argv[2]
-    map_file  = sys.argv[3] if len(sys.argv) > 3 else None
+    binary = sys.argv[1]
+    suite_dir = sys.argv[2] if len(sys.argv) > 2 else "-"
+    map_file = sys.argv[3] if len(sys.argv) > 3 else None
 
     branch_map = load_branch_map(map_file) if map_file else {}
 
-    xml_files = sorted(glob.glob(f"{suite_dir}/test_input-*.xml"))
-    print(f"Found {len(xml_files)} test cases")
-
     all_coverages = []
-    for xml_file in xml_files:
-        inputs = parse_inputs(xml_file)
-        cov = run_test(binary, inputs, os.path.basename(xml_file))
+
+    if suite_dir != "-":
+        # normal Sikraken mode
+        xml_files = sorted(glob.glob(f"{suite_dir}/test_input-*.xml"))
+        print(f"Found {len(xml_files)} test cases")
+        for xml_file in xml_files:
+            inputs = parse_inputs(xml_file)
+            cov = run_test(binary, inputs, os.path.basename(xml_file))
+            all_coverages.append(cov)
+    else:
+        # no-input mode: single run, empty input list
+        print("No test-suite provided, running binary once with no inputs")
+        cov = run_test(binary, [], "no_inputs")
         all_coverages.append(cov)
 
     merged = merge_coverage(all_coverages)
