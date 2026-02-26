@@ -33,25 +33,9 @@ pip install -r requirements.txt
 ## Usage
 
 ### Run the full pipeline on a single file
-```bash
-bash run_pipeline.sh tests/benchmark01_conjunctive.c
-```
-
-### Run tests on all benchmarks
-```bash
-source venv/bin/activate
-python3 src/run_tests.py
-```
-
-### Batch test
-```bash
-bash batch_test.sh
-```
-
-### Run the full pipeline on a single file
 
 ```bash
-bash run_pipeline.sh tests/benchmark01_conjunctive.c
+bash run_pipeline.sh filePATH/fileNAME
 ```
 
 The pipeline runs these steps automatically:
@@ -73,6 +57,17 @@ The pipeline runs these steps automatically:
 ```
 
 > **Note:** Sikraken must be installed at `~/sikraken/` — see the Sikraken section below.
+
+### Run tests on all benchmarks
+```bash
+source venv/bin/activate
+python3 src/run_tests.py
+```
+
+### Batch test
+```bash
+bash batch_test.sh
+```
 
 ## Project Structure
 
@@ -108,8 +103,8 @@ C_Testing_Coverage_Tool/
 This tool uses **Sikraken** for symbolic execution and automatic test input generation.
 
 - Download: https://zenodo.org/records/18062402
-- Extract the zip and make the script executable:
+- Extract the zip to `~/sikraken/` so the script is at `~/sikraken/bin/sikraken.sh`
+- Make the script executable:
 
 ```bash
-chmod +x bin/sikraken.sh
-```
+chmod +x ~/sikraken/bin/sikraken.sh
