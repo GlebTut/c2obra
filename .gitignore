@@ -32,3 +32,4 @@ coverage.json
 output/
 build/
 coverage_report.json
+venv/
