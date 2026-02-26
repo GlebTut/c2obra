@@ -23,20 +23,22 @@ are executed during testing, then reports coverage results.
 
 ## Setup
 
-### 1. Install system dependencies
-
-```bash
-sudo apt install python3.12-venv gcc-multilib
-```
-
-> **Note:** `python3-venv` is required to create virtual environments on Debian/Ubuntu systems — it is not included by default. `gcc-multilib` is required for Sikraken's 32-bit (`-m32`) compilation mode.
-
-### 2. Clone and set up the project
-
+### Option A — Quick install (recommended)
 ```bash
 git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
 cd C_Testing_Coverage_Tool
+bash install.sh
+```
 
+### Option B — Manual setup
+#### 1. Install system dependencies
+```bash
+sudo apt install python3.12-venv gcc-multilib
+```
+#### 2. Clone and set up the project
+```bash
+git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
+cd C_Testing_Coverage_Tool
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -100,6 +102,7 @@ C_Testing_Coverage_Tool/
 │   └── testing-notes/      # Manual testing logs
 ├── run_pipeline.sh         # End-to-end pipeline script
 ├── batch_test.sh           # Batch test runner
+├── install.sh              # One-command installer
 └── requirements.txt
 ```
 
