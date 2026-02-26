@@ -17,9 +17,21 @@ are executed during testing, then reports coverage results.
 
 - Python 3.10+
 - GCC
+- gcc-multilib (for 32-bit compilation support used by Sikraken)
+- python3-venv
 - tree-sitter, tree-sitter-c (see `requirements.txt`)
 
 ## Setup
+
+### 1. Install system dependencies
+
+```bash
+sudo apt install python3.12-venv gcc-multilib
+```
+
+> **Note:** `python3-venv` is required to create virtual environments on Debian/Ubuntu systems — it is not included by default. `gcc-multilib` is required for Sikraken's 32-bit (`-m32`) compilation mode.
+
+### 2. Clone and set up the project
 
 ```bash
 git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
@@ -83,7 +95,7 @@ C_Testing_Coverage_Tool/
 │   ├── loop-simple/        # Loop-focused test cases
 │   └── *.c                 # Conjunctive / linear / disjunctive benchmarks
 ├── output/                 # Instrumented files (generated, not tracked)
-├── parsers_testing/        # Exploratory parser benchmarking scripts
+├── build/                  # Compiled test binaries (generated, not tracked)
 ├── docs/
 │   └── testing-notes/      # Manual testing logs
 ├── run_pipeline.sh         # End-to-end pipeline script
@@ -104,7 +116,43 @@ This tool uses **Sikraken** for symbolic execution and automatic test input gene
 
 - Download: https://zenodo.org/records/18062402
 - Extract the zip to `~/sikraken/` so the script is at `~/sikraken/bin/sikraken.sh`
-- Make the script executable:
+- Make all Sikraken scripts and binaries executable:
 
 ```bash
 chmod +x ~/sikraken/bin/sikraken.sh
+chmod -R +x ~/sikraken/bin/
+chmod -R +x ~/sikraken/eclipse/
+```
+
+> **Important:** The Sikraken zip archive often does not preserve execute permissions. Running `chmod -R +x` on both `bin/` and `eclipse/` in one go avoids having to fix permissions incrementally for each binary (`call_parser.sh`, `sikraken_parser.exe`, the ECLiPSe engine, etc.).
+
+## Troubleshooting
+
+### `python3 -m venv venv` fails with "ensurepip is not available"
+
+On Debian/Ubuntu, the `python3-venv` package is not installed by default:
+
+```bash
+sudo apt install python3.12-venv
+```
+
+---
+
+### Sikraken fails with `Permission denied` on `.sh` scripts or `.exe` / `eclipse` binaries
+
+The zip archive does not preserve execute permissions. Fix them all at once:
+
+```bash
+chmod -R +x ~/sikraken/bin/
+chmod -R +x ~/sikraken/eclipse/
+```
+
+---
+
+### Sikraken fails with `bits/wordsize.h: No such file or directory`
+
+Sikraken compiles C files in 32-bit mode (`-m32`) and requires the 32-bit GCC support libraries:
+
+```bash
+sudo apt install gcc-multilib
+```
