@@ -33,3 +33,4 @@ output/
 build/
 coverage_report.json
 venv/
+batch_results.txt
