@@ -48,6 +48,32 @@ python3 src/run_tests.py
 bash batch_test.sh
 ```
 
+### Run the full pipeline on a single file
+
+```bash
+bash run_pipeline.sh tests/benchmark01_conjunctive.c
+```
+
+The pipeline runs these steps automatically:
+
+1. **Auto-detects** if the file uses `__VERIFIER_nondet_*` inputs
+2. **Step 0** *(input-driven files only)* — runs Sikraken with a 20s budget to generate a test suite XML
+3. **Step 1** — instruments the C file with `cover()` macros via `src/instrument.py`
+4. **Step 2** — compiles the instrumented file with `gcc` + `cov_runtime.c` + `verifier_stubs.c`
+5. **Step 3** — runs all test cases via `src/run_tests.py` and outputs coverage results
+
+**Example output:**
+```
+=== Detected: input-driven file ===
+=== Step 0: Run Sikraken ===
+✓ Sikraken done → ~/sikraken/sikraken_output/benchmark01_conjunctive/test-suite
+=== Step 1: Instrument ===
+=== Step 2: Compile ===
+=== Step 3: Run Tests ===
+```
+
+> **Note:** Sikraken must be installed at `~/sikraken/` — see the Sikraken section below.
+
 ## Project Structure
 
 ```
