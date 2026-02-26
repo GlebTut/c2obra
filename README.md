@@ -7,8 +7,8 @@ are executed during testing, then reports coverage results.
 ## How It Works
 
 1. **Instrument** — `src/instrument.py` parses a C source file using
-   pycparser and injects coverage tracking calls around every branch
-   (`if`, `while`, `for`, `do-while`, `switch`)
+   tree-sitter and injects coverage tracking calls around every branch
+   (`if`, `while`, `for`, `do-while`)
 2. **Compile & Run** — the instrumented file is compiled with
    `src/cov_runtime.c` and executed against test inputs
 3. **Report** — branch coverage is calculated and printed as a summary
@@ -17,12 +17,12 @@ are executed during testing, then reports coverage results.
 
 - Python 3.10+
 - GCC
-- pycparser, tree-sitter, tree-sitter-c (see `requirements.txt`)
+- tree-sitter, tree-sitter-c (see `requirements.txt`)
 
 ## Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/GlebTut/C_Testing_Coverage_Tool
 cd C_Testing_Coverage_Tool
 
 python3 -m venv venv
@@ -62,7 +62,7 @@ C_Testing_Coverage_Tool/
 │   ├── loop-simple/        # Loop-focused test cases
 │   └── *.c                 # Conjunctive / linear / disjunctive benchmarks
 ├── output/                 # Instrumented files (generated, not tracked)
-├── parsers_testing/        # Exploratory scripts for pycparser & tree-sitter
+├── parsers_testing/        # Exploratory parser benchmarking scripts
 ├── docs/
 │   └── testing-notes/      # Manual testing logs
 ├── run_pipeline.sh         # End-to-end pipeline script
@@ -72,8 +72,18 @@ C_Testing_Coverage_Tool/
 
 ## Dependencies
 
-| Package       | Version | Purpose                             |
-| ------------- | ------- | ----------------------------------- |
-| pycparser     | 3.0     | C source parsing and AST generation |
-| tree-sitter   | 0.25.2  | Alternative parser (exploratory)    |
-| tree-sitter-c | 0.24.1  | C grammar for tree-sitter           |
+| Package       | Version | Purpose                          |
+| ------------- | ------- | -------------------------------- |
+| tree-sitter   | 0.25.2  | C source parsing and AST walking |
+| tree-sitter-c | 0.24.1  | C grammar for tree-sitter        |
+
+## Sikraken (Required External Tool)
+
+This tool uses **Sikraken** for symbolic execution and automatic test input generation.
+
+- Download: https://zenodo.org/records/18062402
+- Extract the zip and make the script executable:
+
+```bash
+chmod +x bin/sikraken.sh
+```
