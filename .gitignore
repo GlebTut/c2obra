@@ -34,3 +34,5 @@ build/
 coverage_report.json
 venv/
 batch_results.txt
+output/**/*_inst.c
+parsers_testing/
