@@ -21,6 +21,14 @@ else
     echo "✓ Sikraken already installed — skipping"
 fi
 
+echo "=== Step 4: Patching run_pipeline.sh to auto-activate venv ==="
+if ! grep -q "venv/bin/activate" run_pipeline.sh; then
+    sed -i 's|^set -e$|set -e\nsource "$(dirname "$0")/venv/bin/activate"|' run_pipeline.sh
+    echo "✓ venv auto-activation added to run_pipeline.sh"
+else
+    echo "✓ run_pipeline.sh already patched — skipping"
+fi
+
 echo ""
 echo "=== Installation Complete! ==="
 echo "Run: bash run_pipeline.sh filePATH/fileNAME"
