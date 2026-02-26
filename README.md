@@ -27,6 +27,7 @@ are executed during testing, then reports coverage results.
 ```bash
 git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
 cd C_Testing_Coverage_Tool
+bash chmod +x install.sh
 bash install.sh
 ```
 
