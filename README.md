@@ -50,6 +50,7 @@ bash batch_test.sh
 
 ## Project Structure
 
+```
 C_Testing_Coverage_Tool/
 ├── src/
 │   ├── instrument.py       # Core instrumentation logic
@@ -59,14 +60,16 @@ C_Testing_Coverage_Tool/
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions
 ├── tests/                  # C benchmark files (SV-COMP / custom)
 │   ├── loop-simple/        # Loop-focused test cases
-│   └── *.c                 # Conjunctive / linear / disjunctive benchmarks
-├── output/                 # Instrumented files (generated, not tracked)
-├── parsers_testing/        # Exploratory scripts for pycparser & tree-sitter
+│   └── *.c
+├── output/
+├── parsers_testing/
 ├── docs/
-│   └── testing-notes/      # Manual testing logs
-├── run_pipeline.sh         # End-to-end pipeline script
-├── batch_test.sh           # Batch test runner
+│   └── testing-notes/
+├── run_pipeline.sh
+├── batch_test.sh
 └── requirements.txt
+```
+
 
 ## Dependencies
 
