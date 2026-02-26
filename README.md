@@ -22,7 +22,7 @@ are executed during testing, then reports coverage results.
 ## Setup
 
 ```bash
-git clone https://github.com/GlebTut/C_Testing_Coverage_Tool
+git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
 cd C_Testing_Coverage_Tool
 
 python3 -m venv venv
