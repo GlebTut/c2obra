@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
 C Testing Coverage Tool - Source Instrumenter
-Iteration 1: Basic branch instrumentation  
+Iteration 1: Basic branch instrumentation   ->
+Iteration 2: Switch instrumentation + error handling
 """
 
-import sys
+import sys, json, os
 from tree_sitter import Language, Parser
 import tree_sitter_c
-import json
 
 def parse_c_file(filename):
     """Parse C source file with tree-sitter"""
     
-    # Read the file as bytes
-    with open(filename, 'rb') as f:
-        source_code = f.read()
-    
+    try:
+        # Read the file as bytes
+        with open(filename, 'rb') as f:
+            source_code = f.read()
+    except OSError as e:
+        print(f"❌ Error reading file: {e}")
+        sys.exit(1)
+
     # Create parser with C language
     C_LANGUAGE = Language(tree_sitter_c.language())
     parser = Parser(C_LANGUAGE)
@@ -132,7 +136,7 @@ def build_cover_chain(switch_meta, base_id):
     current_id = base_id
     
     for i, case in enumerate(cases):
-        prefix = "if " if i ==0 else "else if "
+        prefix = "if " if i == 0 else "else if "
         
         if case['kind'] == 'case':
             condition = f"{expr} == {case['value']}"
@@ -173,14 +177,11 @@ class SourceRewriter:
     
 def instrument_code(source_code, branches):
     """Wrap branch conditions with cover() macro"""
-
-    total = len(branches)
+    
     rewriter = SourceRewriter(source_code)
+    current_id = 1
 
-    for i, branch in enumerate(
-        sorted(branches, key=lambda b: b['start_byte'], reverse=True), 1
-    ):
-        actual_id = total - i + 1
+    for branch in sorted(branches, key=lambda b: b['start_byte']):  # ← forward, matches write_branch_map
         branch_type = branch['type']
         node = branch['node']
 
@@ -190,13 +191,9 @@ def instrument_code(source_code, branches):
                 cond_start = condition_node.start_byte
                 cond_end = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8')
-
-                if condition_text.startswith('(') and condition_text.endswith(')'):
-                    inner = condition_text[1:-1]
-                else:
-                    inner = condition_text
-
-                rewriter.replace(cond_start, cond_end, f"(cover({inner}, {actual_id}))")
+                inner = condition_text[1:-1] if condition_text.startswith('(') and condition_text.endswith(')') else condition_text
+                rewriter.replace(cond_start, cond_end, f"(cover({inner}, {current_id}))")
+            current_id += 1
 
         elif branch_type == 'for_statement':
             condition_node = get_for_condition_node(node)
@@ -205,23 +202,25 @@ def instrument_code(source_code, branches):
                 cond_end = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {actual_id}) ")
+                    rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {current_id}) ")
+            current_id += 1
 
         elif branch_type == 'switch_statement':
             switch_meta = get_switch_cases(node, source_code)
             if not switch_meta['cases']:
                 continue
-            
-            cover_chain = build_cover_chain(switch_meta, actual_id)
-            # Insert the if/else chain BEFORE the switch keyword
-            insert_pos = node.start_byte
-            rewriter.replace(insert_pos, insert_pos, cover_chain)
+            cover_chain = build_cover_chain(switch_meta, current_id)
+            rewriter.replace(node.start_byte, node.start_byte, cover_chain)
+            # Advance by number of cases + implicit default if needed
+            has_default = any(c['kind'] == 'default' for c in switch_meta['cases'])
+            current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
     code = rewriter.apply()
     return '#include "cov_runtime.h"\n\n' + code
 
 def write_branch_map(branches, source_code, output_file):
     """Write branch metadata (id, line, condition) to branch_map.json"""
+    
     sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
     branch_map = []
     current_id = 1
@@ -258,7 +257,8 @@ def write_branch_map(branches, source_code, output_file):
     with open(output_file, 'w') as f:
         json.dump({"branches": branch_map}, f, indent=2)
     print(f"✓ Wrote branch map to {output_file}")
-    
+    return current_id  # ← return final branch count
+
 def main():
     # Check command line arguments
     if len(sys.argv) != 3:
@@ -270,13 +270,28 @@ def main():
     
     print(f"Instrumenting {input_file}...")
     
+    if not os.path.exists(input_file):
+        print(f"❌ Error: File '{input_file}' not found")
+        sys.exit(1)
+    if not input_file.endswith('.c'):
+        print(f"❌ Error: Expected a .c file, got '{input_file}'")
+        sys.exit(1)
+    output_dir = os.path.dirname(output_file)
+    if output_dir and not os.path.exists(output_dir):
+        print(f"❌ Error: Output directory '{output_dir}' does not exist")
+        sys.exit(1)
+        
     # Parse the file
     tree, source_code = parse_c_file(input_file)
+    if tree.root_node.has_error:
+        print("⚠️  Warning: Source file contains syntax errors — instrumentation may be incomplete")
     print(f"✓ Parsed successfully!")
     print(f"  Source size: {len(source_code)} bytes")
     
     # Find branches
     branches = find_branches(tree)
+    if len(branches) == 0:
+        print("⚠️  Warning: No branch points found — output will be identical to input")
     print(f"✓ Found {len(branches)} branch points:")
     for i, branch in enumerate(branches, 1):
         line = branch['start_point'][0] + 1 # +1 because rows start at 0
@@ -292,7 +307,10 @@ def main():
     print(f"✓ Wrote {output_file}")
     
     map_file = output_file.replace('.c', '_branch_map.json')
-    write_branch_map(branches, source_code, map_file)
+    
+    # Print total branch counter count for dynamic MAX_BRANCHES
+    total_branches = write_branch_map(branches, source_code, map_file)
+    print(f"BRANCH_COUNTERS={total_branches * 2}")
     
     print(f"\nDone! Successfully instrumented {len(branches)} branches.")
 

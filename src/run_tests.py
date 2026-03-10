@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, glob, subprocess, json, resource, signal, argparse
+import xml.etree.ElementTree as ET
 
 # * Resource limits
 
@@ -21,10 +22,13 @@ def set_resource_limits():
 # * XML test input parsing
 
 def parse_inputs(xml_file):
-    import xml.etree.ElementTree as ET
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
-    return [inp.text.strip() for inp in root.findall('input')]
+    try:
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+        return [inp.text.strip() for inp in root.findall('input') if inp.text]
+    except ET.ParseError as e:
+        print(f"⚠️  Warning: Could not parse '{xml_file}': {e} — skipping")
+        return []
 
 # * Single test execution
 
@@ -67,7 +71,11 @@ def run_test(binary, inputs, test_name):
         with open("coverage.json") as f:
             coverage = json.load(f)
         os.remove("coverage.json")
-    except:
+    except FileNotFoundError:
+        print(f"  ⚠️  [{test_name}] No coverage.json written — binary may have crashed")
+        coverage = {"branches": []}
+    except json.JSONDecodeError:
+        print(f"  ⚠️  [{test_name}] coverage.json is malformed")
         coverage = {"branches": []}
         
     if not timed_out and not killed:
@@ -98,12 +106,19 @@ def load_branch_map(map_file):
         with open(map_file) as f:
             data = json.load(f)
         return {b['id']: b for b in data['branches']}
-    except:
+    except FileNotFoundError:
+        print(f"⚠️  Branch map '{map_file}' not found — running without metadata")
+        return {}
+    except json.JSONDecodeError:
+        print(f"⚠️  Branch map '{map_file}' is malformed JSON")
         return {}
 
 # * Summary + report writer 
 
-def print_summary(merged, branch_map={}):
+def print_summary(merged, branch_map=None):
+    if branch_map is None:
+        branch_map = {}
+        
     print("\n" + "="*65)
     print("AGGREGATED COVERAGE SUMMARY")
     print("="*65)
@@ -180,17 +195,31 @@ if __name__ == "__main__":
     branch_map    = load_branch_map(args.branch_map) if args.branch_map else {}
     all_coverages = []
 
+    if not os.path.exists(args.binary):
+        print(f"❌ Error: Binary '{args.binary}' not found — did compilation succeed?")
+        sys.exit(1)
+    if not os.access(args.binary, os.X_OK):
+        print(f"❌ Error: Binary '{args.binary}' is not executable")
+        sys.exit(1)
+
     if args.suite_dir != "-":
         xml_files = sorted(glob.glob(f"{args.suite_dir}/test_input-*.xml"))
         print(f"Found {len(xml_files)} test cases")
-        for xml_file in xml_files:
-            inputs = parse_inputs(xml_file)
-            cov    = run_test(args.binary, inputs, os.path.basename(xml_file))
+        if not xml_files:                                          # ← add this
+            print("⚠️  Warning: No XML test cases found in suite — running with no inputs")
+            cov = run_test(args.binary, [], "no_inputs")
             all_coverages.append(cov)
+        else:
+            for xml_file in xml_files:
+                inputs = parse_inputs(xml_file)
+                cov    = run_test(args.binary, inputs, os.path.basename(xml_file))
+                all_coverages.append(cov)
     else:
         print("No test-suite provided — running binary once with no inputs")
         cov = run_test(args.binary, [], "no_inputs")
         all_coverages.append(cov)
 
     merged = merge_coverage(all_coverages)
+    if not merged:
+        print("⚠️  Warning: No coverage data collected — all runs may have crashed")
     print_summary(merged, branch_map)

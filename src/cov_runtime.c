@@ -11,7 +11,7 @@ uint64_t branch_counters[MAX_BRANCHES] = {0};
 // dump_coverage() - Writes coverage data to coverage.json file
 __attribute__((destructor))
 void dump_coverage(void){
-    //Open coverage.json for writing
+    // Open coverage.json for writing
     FILE* f = fopen("coverage.json", "w");
 
     // Check if file opened successfully
@@ -26,9 +26,9 @@ void dump_coverage(void){
     // Track the first entry
     int first = 1;
 
-    //Iterate through all branch counters
-    for(int i = 0; i < MAX_BRANCHES; i+= 2) {
-        // Detect hited branches
+    // Iterate through all branch counters
+    for(int i = 0; i < MAX_BRANCHES; i += 2) {
+        // Detect hit branches
         if(branch_counters[i] > 0 || branch_counters[i+1] > 0) {
             // Add comma before entry (not first)
             if (!first) {
@@ -37,17 +37,20 @@ void dump_coverage(void){
 
             // Write branch data
             fprintf(f, "    {\"id\": %d, \"true\": %" PRIu64 ", \"false\": %" PRIu64 "}",
-                i / 2,                  // Branch ID (2 counters per branch)
-                branch_counters[i],     // True hits
-                branch_counters[i + 1]  // False hits
+                i / 2,
+                branch_counters[i],
+                branch_counters[i + 1]
             );
 
             first = 0;
         }
     }
 
-    //Close the file
-    fprintf(f, "\n ]\n}\n");
+    // Write closing — check for disk-full
+    if(fprintf(f, "\n ]\n}\n") < 0){
+        fprintf(stderr, "Error: Failed to write coverage.json — disk full?\n");
+    }
+
     fclose(f);
     fprintf(stderr, "[Coverage] Wrote coverage data to coverage.json\n");
 }
