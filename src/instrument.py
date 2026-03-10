@@ -87,6 +87,74 @@ def get_for_condition_node(for_node):
             return child
     return None                
 
+def get_switch_cases(switch_node, source_code):
+    """Extract switch expression and all case/default labels"""
+    
+    # Get switch expression - the (x) part
+    expr = ""
+    for child in switch_node.children:
+        if child.type == 'parenthesized_expression':
+            inner = source_code[child.start_byte:child.end_byte].decode('utf-8')
+            expr = inner[1:-1].strip() # strip outer parens
+            break
+
+    # Get all case/default labels from body
+    cases = []
+    for child in switch_node.children:
+        if child.type == 'compound_statement':
+            for stmt in child.children:
+                if stmt.type == 'case_statement':
+                    # Check if this is actually a default: (first child is 'default' keyword)
+                    first = stmt.children[0] if stmt.children else None
+                    if first and first.type == 'default':
+                        cases.append({'kind': 'default', 'line': stmt.start_point[0] + 1})
+                        continue
+
+                    # Normal case: grab value before ':'
+                    value_node = None
+                    for sub in stmt.children:
+                        if sub.type == ':':
+                            break
+                        if sub.type not in ('case', 'comment'):
+                            value_node = sub
+                    if value_node is None:
+                        continue
+                    val = source_code[value_node.start_byte:value_node.end_byte].decode('utf-8').strip()
+                    cases.append({'kind': 'case', 'value': val, 'line': stmt.start_point[0] + 1})
+    return {'expression': expr, 'cases': cases}
+
+def build_cover_chain(switch_meta, base_id):
+    """Build the if/else if cover() chain to inject before switch"""
+    
+    expr = switch_meta['expression']
+    cases = switch_meta['cases']
+    lines = []
+    current_id = base_id
+    
+    for i, case in enumerate(cases):
+        prefix = "if " if i ==0 else "else if "
+        
+        if case['kind'] == 'case':
+            condition = f"{expr} == {case['value']}"
+            line = f"{prefix}(cover({condition}, {current_id})) ;"
+        else:   # default
+            line = f"else cover(1, {current_id});"
+        
+        lines.append(line)
+        current_id += 1
+    
+    # No default? Add implict "no more case matched" branch
+    has_default = any(c['kind'] == 'default' for c in cases)
+    if not has_default:
+        line = f"else cover(0, {current_id});"
+        lines.append(line)
+    
+    # Join with newline + indentation for all lines after the first
+    result = lines[0]
+    for l in lines[1:]:
+        result += "\n" + l
+    return result + "\n"
+
 class SourceRewriter:
     """Collects source edits and applies them safely end-to-start"""
 
@@ -139,20 +207,54 @@ def instrument_code(source_code, branches):
                 if condition_text:
                     rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {actual_id}) ")
 
+        elif branch_type == 'switch_statement':
+            switch_meta = get_switch_cases(node, source_code)
+            if not switch_meta['cases']:
+                continue
+            
+            cover_chain = build_cover_chain(switch_meta, actual_id)
+            # Insert the if/else chain BEFORE the switch keyword
+            insert_pos = node.start_byte
+            rewriter.replace(insert_pos, insert_pos, cover_chain)
+
     code = rewriter.apply()
     return '#include "cov_runtime.h"\n\n' + code
 
-def write_branch_map(branches, output_file):
+def write_branch_map(branches, source_code, output_file):
     """Write branch metadata (id, line, condition) to branch_map.json"""
-    total = len(branches)
     sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
     branch_map = []
-    for i, branch in enumerate(sorted_branches, 1):
-        branch_map.append({
-            "id": i,
-            "line": branch['start_point'][0] + 1,
-            "type": branch['type']
-        })
+    current_id = 1
+    
+    for branch in sorted_branches:
+        if branch['type'] == 'switch_statement':
+            meta = get_switch_cases(branch['node'], source_code)
+            for case in meta['cases']:
+                label = f"case {case['value']}" if case['kind'] == 'case' else 'default'
+                branch_map.append({
+                    "id": current_id,
+                    "line": case['line'],
+                    "type": "switch_case",
+                    "label": label
+                })
+                current_id += 1
+            # implicit default if no default
+            if not any(c['kind'] == 'default' for c in meta['cases']):
+                branch_map.append({
+                    "id": current_id,
+                    "line": branch['start_point'][0] + 1,
+                    "type": "switch_implicit_default",
+                    "label": "implicit default"
+                })
+                current_id += 1
+        else:
+            branch_map.append({
+                "id": current_id,
+                "line": branch['start_point'][0] + 1,
+                "type": branch['type']
+            })
+            current_id += 1
+
     with open(output_file, 'w') as f:
         json.dump({"branches": branch_map}, f, indent=2)
     print(f"✓ Wrote branch map to {output_file}")
@@ -190,7 +292,7 @@ def main():
     print(f"✓ Wrote {output_file}")
     
     map_file = output_file.replace('.c', '_branch_map.json')
-    write_branch_map(branches, map_file)
+    write_branch_map(branches, source_code, map_file)
     
     print(f"\nDone! Successfully instrumented {len(branches)} branches.")
 
