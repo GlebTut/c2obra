@@ -4,6 +4,9 @@
 #ifndef COV_RUNTIME_H
 #define COV_RUNTIME_H
 
+// Records that case case_idx of switch branch_id was hit
+#define __cover_case(id, case_idx) cov_record_branch(id, case_idx)
+
 #include <stdint.h>
 
 // Max number of branches (branch uses 2 counters (true/false), so we can track up to 32,768 branches)
