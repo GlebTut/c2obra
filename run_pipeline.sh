@@ -25,7 +25,7 @@ if grep -q "__VERIFIER_nondet" "$SRC"; then
     ABS_SRC="$(realpath "$SRC")"
     REL_SRC="$(realpath --relative-to="$HOME/sikraken" "$ABS_SRC")"
     cd ~/sikraken
-    ./bin/sikraken.sh release budget[20] "$REL_SRC"
+    ./bin/sikraken.sh release budget[10] "$REL_SRC"
     cd ~/C_Testing_Coverage_Tool
     SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$BASENAME" | head -1)
     if [ -z "$SUITE_DIR" ]; then

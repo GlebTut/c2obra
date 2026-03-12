@@ -118,15 +118,17 @@ def load_branch_map(map_file):
 def print_summary(merged, branch_map=None):
     if branch_map is None:
         branch_map = {}
-        
+
     print("\n" + "="*65)
     print("AGGREGATED COVERAGE SUMMARY")
     print("="*65)
     print(f"{'ID':<6} {'Line':<8} {'Type':<18} {'True':>6} {'False':>7} {'Status':>10}")
     print("-"*65)
 
-    total = len(merged)
-    fully_covered = 0
+    total = len(branch_map) if branch_map else len(merged)
+    total_edges = total * 2                          # ← each branch has true + false edge
+    covered_true  = 0
+    covered_false = 0
     report_branches = []
 
     for bid in sorted(merged.keys()):
@@ -134,11 +136,13 @@ def print_summary(merged, branch_map=None):
         meta = branch_map.get(bid, {})
         line  = meta.get('line', '?')
         btype = meta.get('type', '?').replace('_statement', '').replace('_', '-')
-        t = "✅" if b["true"]  > 0 else "❌"
-        f = "✅" if b["false"] > 0 else "❌"
-        covered = b["true"] > 0 and b["false"] > 0
-        if covered:
-            fully_covered += 1
+        t_hit = b["true"]  > 0
+        f_hit = b["false"] > 0
+        if t_hit: covered_true  += 1                # ← count edges individually
+        if f_hit: covered_false += 1
+        t = "✅" if t_hit else "❌"
+        f = "✅" if f_hit else "❌"
+        covered = t_hit and f_hit
         status = "FULL" if covered else "PARTIAL"
         print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {status:>10}")
         report_branches.append({
@@ -151,15 +155,17 @@ def print_summary(merged, branch_map=None):
         })
 
     print("-"*65)
-    pct = (fully_covered / total * 100) if total > 0 else 0
-    print(f"Fully covered: {fully_covered}/{total} branches")
+    covered_edges = covered_true + covered_false     # ← 3 out of 4 for the example
+    pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
+    print(f"Covered edges: {covered_edges}/{total_edges}  ({covered_true} true, {covered_false} false)")
     print(f"Branch coverage: {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
 
     report = {
         "summary": {
-            "total_branches": total,
-            "covered_branches": fully_covered,
+            "total_branches":      total,
+            "total_edges":         total_edges,
+            "covered_edges":       covered_edges,
             "branch_coverage_pct": round(pct, 1),
             "resource_limits": {
                 "cpu_seconds":  CPU_TIME_LIMIT,
@@ -169,9 +175,11 @@ def print_summary(merged, branch_map=None):
         },
         "branches": report_branches
     }
+
     with open("coverage_report.json", "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nFull report written to coverage_report.json")
+
 
 # * Entry point
 
