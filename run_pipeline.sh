@@ -56,3 +56,9 @@ echo "✓ Binary built → build/${BASENAME}_test"
 echo "=== Step 3: Run Tests ==="
 python3 src/run_tests.py build/"$BASENAME"_test \
     "$SUITE_DIR" output/"$BASENAME"_inst_branch_map.json "${@:2}"
+
+# * Step 4: Generate report
+echo "=== Step 4: Report ==="
+python3 src/report.py \
+  output/${BASENAME}_inst_branch_map.json \
+  coverage_report.json
