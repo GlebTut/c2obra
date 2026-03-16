@@ -4,8 +4,10 @@ C Testing Coverage Tool - Report Generator
 Reads branch_map.json + coverage.json and outputs HTML + CSV reports
 """
 
+
 import sys, json, os, csv
 from datetime import datetime
+
 
 
 def load_branch_map(path):
@@ -23,6 +25,7 @@ def load_branch_map(path):
         sys.exit(1)
 
 
+
 def load_coverage(path):
     """Returns dict: {branch_id: {"true": N, "false": N}}"""
     if not os.path.exists(path):
@@ -34,20 +37,21 @@ def load_coverage(path):
     return {int(entry["id"]): entry for entry in branches}
 
 
+
 def merge(branch_map, coverage):
     """Merge branch metadata with hit counts"""
     rows = []
     for b in branch_map:
         bid = b["id"]
-        hits = coverage.get(int(bid), {})          # BUG 2 FIX: int cast for safe lookup
+        hits = coverage.get(int(bid), {})
         true_count  = hits.get("true",  0)
         false_count = hits.get("false", 0)
         if "covered" in hits:
-            covered = hits["covered"]               # trust run_tests.py's definition
+            covered = hits["covered"]
         else:
             covered = true_count > 0 and false_count > 0
 
-        rows.append({                               # BUG 1 FIX: dedented out of else block
+        rows.append({
             "branch_id":    bid,
             "line":         b.get("line",  "?"),
             "type":         b.get("type",  "?"),
@@ -57,6 +61,7 @@ def merge(branch_map, coverage):
             "covered":      covered,
         })
     return rows
+
 
 
 def write_csv(rows, output_path, source_file):
@@ -70,7 +75,6 @@ def write_csv(rows, output_path, source_file):
             for r in rows:
                 writer.writerow({"file": source_file, **r})
 
-            # Summary footer row
             total_edges   = len(rows) * 2
             covered_edges = sum(1 for r in rows if r["true_count"]  > 0) + \
                             sum(1 for r in rows if r["false_count"] > 0)
@@ -91,6 +95,7 @@ def write_csv(rows, output_path, source_file):
         sys.exit(1)
 
 
+
 def write_html(rows, output_path, source_file):
     total_edges   = len(rows) * 2
     covered_true  = sum(1 for r in rows if r["true_count"]  > 0)
@@ -105,6 +110,9 @@ def write_html(rows, output_path, source_file):
         bar_color = "#d97706"
     else:
         bar_color = "#dc2626"
+
+    # Always show back button — summary_report.html is in the same dir
+    back_button = '<a href="summary_report.html" style="display:inline-block;margin-bottom:1.2rem;padding:0.45rem 1.1rem;background:#1a1a2e;color:#fff;border-radius:6px;text-decoration:none;font-size:0.88rem;font-weight:500;">← Back to Summary</a>'
 
     table_rows = ""
     for r in rows:
@@ -129,7 +137,7 @@ def write_html(rows, output_path, source_file):
             if r["false_count"] > 0 else '<span class="badge miss">0</span>'
         )
         table_rows += (
-            f'<tr class="{row_class}">'
+            f'<tr class="{row_class}" data-status="{status}">'
             f'<td>{r["branch_id"]}</td>'
             f'<td>{r["line"]}</td>'
             f'<td><code>{btype}</code></td>'
@@ -234,6 +242,7 @@ def write_html(rows, output_path, source_file):
 </style>
 </head>
 <body>
+{back_button}
 <div class="topbar">
   <div>
     <h1>🔍 Coverage Report</h1>
@@ -258,9 +267,9 @@ def write_html(rows, output_path, source_file):
   <input type="text" id="search" placeholder="🔍 Search by line, type, label…" oninput="applyFilters()">
   <select id="filter" onchange="applyFilters()">
     <option value="all">All statuses</option>
-    <option value="full">FULL only</option>
-    <option value="partial">PARTIAL only</option>
-    <option value="none">NONE only</option>
+    <option value="FULL">FULL only</option>
+    <option value="PARTIAL">PARTIAL only</option>
+    <option value="NONE">NONE only</option>
     <option value="uncovered">Hide fully covered</option>
   </select>
   <button class="export-btn" onclick="exportCSV()">⬇ Download CSV</button>
@@ -285,16 +294,16 @@ def write_html(rows, output_path, source_file):
 
 <script>
   let sortCol = 6, sortAsc = true;
+  const STATUS_ORDER = {{"NONE": 0, "PARTIAL": 1, "FULL": 2}};
 
-  const order = {{"NONE": 0, "PARTIAL": 1, "FULL": 2}};
+  function getStatus(row) {{
+    return row.getAttribute("data-status") || "";
+  }}
+
   (function defaultSort() {{
     const tbody = document.getElementById("tableBody");
     const rows  = Array.from(tbody.querySelectorAll("tr"));
-    rows.sort((a, b) => {{
-      const av = order[a.cells[6].innerText.trim()] ?? 9;
-      const bv = order[b.cells[6].innerText.trim()] ?? 9;
-      return av - bv;
-    }});
+    rows.sort((a, b) => (STATUS_ORDER[getStatus(a)] ?? 9) - (STATUS_ORDER[getStatus(b)] ?? 9));
     rows.forEach(r => tbody.appendChild(r));
     document.querySelectorAll("th")[6].classList.add("sorted-asc");
     updateCount();
@@ -305,8 +314,14 @@ def write_html(rows, output_path, source_file):
     const rows  = Array.from(tbody.querySelectorAll("tr"));
     if (sortCol === col) sortAsc = !sortAsc; else {{ sortCol = col; sortAsc = true; }}
     rows.sort((a, b) => {{
-      const av = a.cells[col].innerText.trim();
-      const bv = b.cells[col].innerText.trim();
+      let av, bv;
+      if (col === 6) {{
+        av = STATUS_ORDER[getStatus(a)] ?? 9;
+        bv = STATUS_ORDER[getStatus(b)] ?? 9;
+        return sortAsc ? av - bv : bv - av;
+      }}
+      av = a.cells[col].innerText.trim();
+      bv = b.cells[col].innerText.trim();
       const an = parseFloat(av), bn = parseFloat(bv);
       const cmp = isNaN(an) || isNaN(bn) ? av.localeCompare(bv) : an - bn;
       return sortAsc ? cmp : -cmp;
@@ -323,12 +338,12 @@ def write_html(rows, output_path, source_file):
     const search = document.getElementById("search").value.toLowerCase();
     const filter = document.getElementById("filter").value;
     document.querySelectorAll("#tableBody tr").forEach(row => {{
-      const text   = row.innerText.toLowerCase();
-      const cls    = row.className;
-      const matchS = !search || text.includes(search);
-      const matchF = filter === "all"       ? true
-                   : filter === "uncovered" ? cls !== "full"
-                   : cls === filter;
+      const text    = row.innerText.toLowerCase();
+      const status  = getStatus(row);
+      const matchS  = !search || text.includes(search);
+      const matchF  = filter === "all"        ? true
+                    : filter === "uncovered"  ? status !== "FULL"
+                    : status === filter;
       row.style.display = matchS && matchF ? "" : "none";
     }});
     updateCount();
@@ -368,7 +383,7 @@ def write_html(rows, output_path, source_file):
 </body>
 </html>"""
 
-    try:                                            # BUG 3 FIX: write before return
+    try:
         with open(output_path, "w") as f:
             f.write(html)
         print(f"✓ Wrote HTML to {output_path}")
@@ -376,7 +391,8 @@ def write_html(rows, output_path, source_file):
         print(f"❌ Error: could not write {output_path}: {e}")
         sys.exit(1)
 
-    return covered_edges, total_edges, pct         # return after write
+    return covered_edges, total_edges, pct
+
 
 
 def main():
@@ -401,8 +417,9 @@ def main():
     html_out    = base + "_report.html"
 
     write_csv(rows, csv_out, source_file)
-    covered_edges, total_edges, pct = write_html(rows, html_out, source_file)  # BUG 3 FIX: use return value
+    covered_edges, total_edges, pct = write_html(rows, html_out, source_file)
     print(f"\n📊 Coverage: {covered_edges}/{total_edges} edges ({pct:.1f}%)")
+
 
 
 if __name__ == "__main__":
