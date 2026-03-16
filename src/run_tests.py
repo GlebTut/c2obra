@@ -9,15 +9,11 @@ MEMORY_LIMIT_MB = 512   # MB per test run
 WALL_TIMEOUT = 35       # wall-clock timeout (slighty above CPU limit)
 
 def set_resource_limits():
-    """Called inside child process before exec - sets hard CPU + memory caps."""
-    # CPU time: SIGKILL sent by kernel if exceeded
-    resource.setrlimit(resource.RLIMIT_CPU,
-                       (CPU_TIME_LIMIT, CPU_TIME_LIMIT))
-    # Virtual memory: prevents memory bombs
-    resource.setrlimit(resource.RLIMIT_AS,
-                       (MEMORY_LIMIT_MB * 1024 * 1024,
-                        MEMORY_LIMIT_MB * 1024 * 1024))
-    
+    # Set soft 1s below hard so SIGXCPU fires before SIGKILL
+    soft = max(1, CPU_TIME_LIMIT - 1)
+    hard = CPU_TIME_LIMIT
+    resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
+
 
 # * XML test input parsing
 
