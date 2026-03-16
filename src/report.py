@@ -7,9 +7,21 @@ Reads branch_map.json + coverage.json and outputs HTML + CSV reports
 import sys, json, os, csv
 from datetime import datetime
 
+
 def load_branch_map(path):
-    with open(path) as f:
-        return json.load(f)["branches"]
+    try:
+        with open(path) as f:
+            return json.load(f)["branches"]
+    except FileNotFoundError:
+        print(f"❌ Error: branch map not found: {path}")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"❌ Error: branch map is malformed JSON: {e}")
+        sys.exit(1)
+    except KeyError:
+        print(f"❌ Error: branch map missing 'branches' key")
+        sys.exit(1)
+
 
 def load_coverage(path):
     """Returns dict: {branch_id: {"true": N, "false": N}}"""
@@ -18,28 +30,27 @@ def load_coverage(path):
         return {}
     with open(path) as f:
         data = json.load(f)
-    
-    # Support both raw coverage.json and aggregated coverage_report.json
     branches = data.get("branches", [])
-    return {entry["id"]: entry for entry in branches}
+    return {int(entry["id"]): entry for entry in branches}
+
 
 def merge(branch_map, coverage):
     """Merge branch metadata with hit counts"""
     rows = []
     for b in branch_map:
         bid = b["id"]
-        hits = coverage.get(bid, {})
-        true_count = hits.get("true", 0)
+        hits = coverage.get(int(bid), {})          # BUG 2 FIX: int cast for safe lookup
+        true_count  = hits.get("true",  0)
         false_count = hits.get("false", 0)
         if "covered" in hits:
-            covered = hits["covered"]          # trust run_tests.py's definition
+            covered = hits["covered"]               # trust run_tests.py's definition
         else:
-            covered = true_count > 0 and false_count > 0  # both sides must be hit
+            covered = true_count > 0 and false_count > 0
 
-        rows.append({
+        rows.append({                               # BUG 1 FIX: dedented out of else block
             "branch_id":    bid,
-            "line":         b.get("line", "?"),
-            "type":         b.get("type", "?"),
+            "line":         b.get("line",  "?"),
+            "type":         b.get("type",  "?"),
             "label":        b.get("label", ""),
             "true_count":   true_count,
             "false_count":  false_count,
@@ -47,38 +58,37 @@ def merge(branch_map, coverage):
         })
     return rows
 
-def write_csv(rows, output_path, source_file):
-    with open(output_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "file",
-            "branch_id",
-            "line",
-            "type",
-            "label",
-            "true_count",
-            "false_count",
-            "covered"
-        ])
-        writer.writeheader()
-        for r in rows:
-            writer.writerow({"file": source_file, **r})
 
-        # Summary footer row
-        total_edges   = len(rows) * 2
-        covered_edges = sum(1 for r in rows if r["true_count"]  > 0) + \
-                        sum(1 for r in rows if r["false_count"] > 0)
-        pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
-        writer.writerow({
-            "file":        "SUMMARY",
-            "branch_id":   "",
-            "line":        "",
-            "type":        "",
-            "label":       f"{covered_edges}/{total_edges} edges",
-            "true_count":  "",
-            "false_count": "",
-            "covered":     f"{pct:.1f}%"
-        })
-    print(f"✓ Wrote CSV to {output_path}")
+def write_csv(rows, output_path, source_file):
+    try:
+        with open(output_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=[
+                "file", "branch_id", "line", "type",
+                "label", "true_count", "false_count", "covered",
+            ])
+            writer.writeheader()
+            for r in rows:
+                writer.writerow({"file": source_file, **r})
+
+            # Summary footer row
+            total_edges   = len(rows) * 2
+            covered_edges = sum(1 for r in rows if r["true_count"]  > 0) + \
+                            sum(1 for r in rows if r["false_count"] > 0)
+            pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
+            writer.writerow({
+                "file":        "SUMMARY",
+                "branch_id":   "",
+                "line":        "",
+                "type":        "",
+                "label":       f"{covered_edges}/{total_edges} edges",
+                "true_count":  "",
+                "false_count": "",
+                "covered":     f"{pct:.1f}%",
+            })
+        print(f"✓ Wrote CSV to {output_path}")
+    except OSError as e:
+        print(f"❌ Error: could not write {output_path}: {e}")
+        sys.exit(1)
 
 
 def write_html(rows, output_path, source_file):
@@ -86,7 +96,7 @@ def write_html(rows, output_path, source_file):
     covered_true  = sum(1 for r in rows if r["true_count"]  > 0)
     covered_false = sum(1 for r in rows if r["false_count"] > 0)
     covered_edges = covered_true + covered_false
-    pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
+    pct      = (covered_edges / total_edges * 100) if total_edges > 0 else 0
     date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     if pct >= 80:
@@ -106,9 +116,18 @@ def write_html(rows, output_path, source_file):
             row_class = "none"
         label   = r["label"] or "-"
         btype   = r["type"].replace("_statement", "").replace("_", "-")
-        status  = "FULL" if r["covered"] else ("PARTIAL" if r["true_count"] > 0 or r["false_count"] > 0 else "NONE")
-        t_badge = f'<span class="badge hit">{r["true_count"]}</span>'  if r["true_count"]  > 0 else '<span class="badge miss">0</span>'
-        f_badge = f'<span class="badge hit">{r["false_count"]}</span>' if r["false_count"] > 0 else '<span class="badge miss">0</span>'
+        status  = (
+            "FULL" if r["covered"]
+            else ("PARTIAL" if r["true_count"] > 0 or r["false_count"] > 0 else "NONE")
+        )
+        t_badge = (
+            f'<span class="badge hit">{r["true_count"]}</span>'
+            if r["true_count"] > 0 else '<span class="badge miss">0</span>'
+        )
+        f_badge = (
+            f'<span class="badge hit">{r["false_count"]}</span>'
+            if r["false_count"] > 0 else '<span class="badge miss">0</span>'
+        )
         table_rows += (
             f'<tr class="{row_class}">'
             f'<td>{r["branch_id"]}</td>'
@@ -267,7 +286,6 @@ def write_html(rows, output_path, source_file):
 <script>
   let sortCol = 6, sortAsc = true;
 
-  // Default sort: NONE first, then PARTIAL, then FULL
   const order = {{"NONE": 0, "PARTIAL": 1, "FULL": 2}};
   (function defaultSort() {{
     const tbody = document.getElementById("tableBody");
@@ -302,19 +320,19 @@ def write_html(rows, output_path, source_file):
   }}
 
   function applyFilters() {{
-    const search  = document.getElementById("search").value.toLowerCase();
-    const filter  = document.getElementById("filter").value;
+    const search = document.getElementById("search").value.toLowerCase();
+    const filter = document.getElementById("filter").value;
     document.querySelectorAll("#tableBody tr").forEach(row => {{
-        const text   = row.innerText.toLowerCase();
-        const cls    = row.className;
-        const matchS = !search || text.includes(search);
-        const matchF = filter === "all"       ? true
-                    : filter === "uncovered" ? cls !== "full"   // ← new
-                    : cls === filter;
-        row.style.display = matchS && matchF ? "" : "none";
+      const text   = row.innerText.toLowerCase();
+      const cls    = row.className;
+      const matchS = !search || text.includes(search);
+      const matchF = filter === "all"       ? true
+                   : filter === "uncovered" ? cls !== "full"
+                   : cls === filter;
+      row.style.display = matchS && matchF ? "" : "none";
     }});
     updateCount();
-    }}
+  }}
 
   function updateCount() {{
     const all     = document.querySelectorAll("#tableBody tr");
@@ -341,7 +359,7 @@ def write_html(rows, output_path, source_file):
       lines.push(cells.join(","));
     }});
     const blob = new Blob([lines.join("\\n")], {{type: "text/csv"}});
-    const a = document.createElement("a"); 
+    const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "coverage_export.csv";
     a.click();
@@ -350,9 +368,16 @@ def write_html(rows, output_path, source_file):
 </body>
 </html>"""
 
-    with open(output_path, "w") as f:
-        f.write(html)
-    print(f"✓ Wrote HTML to {output_path}")
+    try:                                            # BUG 3 FIX: write before return
+        with open(output_path, "w") as f:
+            f.write(html)
+        print(f"✓ Wrote HTML to {output_path}")
+    except OSError as e:
+        print(f"❌ Error: could not write {output_path}: {e}")
+        sys.exit(1)
+
+    return covered_edges, total_edges, pct         # return after write
+
 
 def main():
     if len(sys.argv) != 3:
@@ -366,24 +391,19 @@ def main():
         print(f"❌ Error: branch map not found: {branch_map_path}")
         sys.exit(1)
 
-    branch_map  = load_branch_map(branch_map_path)
-    coverage    = load_coverage(coverage_path)
-    rows        = merge(branch_map, coverage)
+    branch_map = load_branch_map(branch_map_path)
+    coverage   = load_coverage(coverage_path)
+    rows       = merge(branch_map, coverage)
 
-    # Derive output paths from branch map path
     base        = branch_map_path.replace("_branch_map.json", "")
     source_file = os.path.basename(base).replace("_inst", ".c")
     csv_out     = base + "_report.csv"
     html_out    = base + "_report.html"
 
     write_csv(rows, csv_out, source_file)
-    write_html(rows, html_out, source_file)
-
-    total_edges   = len(rows) * 2
-    covered_edges = sum(1 for r in rows if r["true_count"]  > 0) + \
-                    sum(1 for r in rows if r["false_count"] > 0)
-    pct           = (covered_edges / total_edges * 100) if total_edges > 0 else 0
+    covered_edges, total_edges, pct = write_html(rows, html_out, source_file)  # BUG 3 FIX: use return value
     print(f"\n📊 Coverage: {covered_edges}/{total_edges} edges ({pct:.1f}%)")
+
 
 if __name__ == "__main__":
     main()
