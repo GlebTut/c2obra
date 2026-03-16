@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+// From cov_runtime.c
+extern void dump_coverage(void);
 
 static FILE *input_file = NULL;
 
@@ -24,4 +28,18 @@ int __VERIFIER_nondet_bool(void) {
     int val = 0;
     if (input_file) fscanf(input_file, "%d", &val);
     return val != 0;
+}
+
+void __VERIFIER_error(void) {
+    dump_coverage();
+    exit(1);
+}
+
+void reach_error(void) {
+    dump_coverage();
+    exit(1);
+}
+
+void __VERIFIER_assume(int cond) {
+    if (!cond) exit(0);
 }

@@ -5,10 +5,17 @@ Iteration 1: Basic branch instrumentation ->
 Iteration 2: Switch instrumentation + error handling + multi-file directory support
 """
 
-import sys, json, os
+import sys, json, os, re
 from tree_sitter import Language, Parser
 import tree_sitter_c
 
+# Verifier boilerplate that conflicts with verifier_stubs.c at link time
+# These are stripped from instrumented output
+VERIFIER_STUB_PATTERNS = [
+    r'void\s+reach_error\s*\([^)]*\)\s*\{[\s\S]*?\}',       # ← [\s\S]*? instead of [^}]*
+    r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[\s\S]*?\}',
+    r'extern\s+void\s+__assert_fail\s*\([^;]*\)\s*;',
+]
 
 def parse_c_file(filename):
     """Parse C source file with tree-sitter"""
@@ -24,7 +31,6 @@ def parse_c_file(filename):
     tree = parser.parse(source_code)
     return tree, source_code
 
-
 def find_branches(tree):
     """Find all branch points in the AST"""
     branches = []
@@ -32,12 +38,12 @@ def find_branches(tree):
     def walk_tree(node):
         if node.type in ['if_statement', 'for_statement', 'while_statement', 'switch_statement', 'do_statement']:
             branches.append({
-                'type':        node.type,
-                'node':        node,
-                'start_byte':  node.start_byte,
-                'end_byte':    node.end_byte,
+                'type': node.type,
+                'node': node,
+                'start_byte': node.start_byte,
+                'end_byte': node.end_byte,
                 'start_point': node.start_point,
-                'end_point':   node.end_point,
+                'end_point': node.end_point,
             })
         for child in node.children:
             walk_tree(child)
@@ -45,14 +51,12 @@ def find_branches(tree):
     walk_tree(tree.root_node)
     return branches
 
-
 def get_condition_node(branch_node):
     """Extract the condition node from an if/for/while statement"""
     for child in branch_node.children:
         if child.type == 'parenthesized_expression':
             return child
     return None
-
 
 def get_for_condition_node(for_node):
     """Extract the condition from a for loop"""
@@ -67,7 +71,6 @@ def get_for_condition_node(for_node):
         ):
             return child
     return None
-
 
 def get_switch_cases(switch_node, source_code):
     """Extract switch expression and all case/default labels"""
@@ -99,7 +102,6 @@ def get_switch_cases(switch_node, source_code):
                     cases.append({'kind': 'case', 'value': val, 'line': stmt.start_point[0] + 1})
     return {'expression': expr, 'cases': cases}
 
-
 def build_cover_chain(switch_meta, base_id):
     """Build the if/else if cover() chain to inject before switch"""
     expr = switch_meta['expression']
@@ -126,7 +128,6 @@ def build_cover_chain(switch_meta, base_id):
         result += "\n" + l
     return result + "\n"
 
-
 class SourceRewriter:
     """Collects source edits and applies them safely end-to-start"""
 
@@ -143,6 +144,14 @@ class SourceRewriter:
             result = result[:start] + text.encode() + result[end:]
         return result.decode('utf-8')
 
+def strip_verifier_boilerplate(code: str) -> str:
+    """
+    Remove reach_error() / __VERIFIER_error() definitions and __assert_fail
+    declarations that conflict with verifier_stubs.c at link time.
+    """
+    for pattern in VERIFIER_STUB_PATTERNS:
+        code = re.sub(pattern, '/* removed: defined in verifier_stubs.c */', code, flags=re.DOTALL)
+    return code
 
 def instrument_code(source_code, branches, start_id=1):
     """Wrap branch conditions with cover() macro. start_id enables global IDs across files."""
@@ -157,7 +166,7 @@ def instrument_code(source_code, branches, start_id=1):
             condition_node = get_condition_node(node)
             if condition_node:
                 cond_start = condition_node.start_byte
-                cond_end   = condition_node.end_byte
+                cond_end = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8')
                 inner = condition_text[1:-1] if condition_text.startswith('(') and condition_text.endswith(')') else condition_text
                 rewriter.replace(cond_start, cond_end, f"(cover({inner}, {current_id}))")
@@ -167,7 +176,7 @@ def instrument_code(source_code, branches, start_id=1):
             condition_node = get_for_condition_node(node)
             if condition_node:
                 cond_start = condition_node.start_byte
-                cond_end   = condition_node.end_byte
+                cond_end = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
                     rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {current_id}) ")
@@ -183,8 +192,16 @@ def instrument_code(source_code, branches, start_id=1):
             current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
     code = rewriter.apply()
-    return '#include "cov_runtime.h"\n\n' + code
+    code = strip_verifier_boilerplate(code)
+    VERIFIER_PREAMBLE = '''\
+    #include "cov_runtime.h"
+    /* verifier stub forward declarations */
+    extern void reach_error(void);
+    extern void __VERIFIER_error(void);
+    extern void __VERIFIER_assume(int);
 
+    '''
+    return VERIFIER_PREAMBLE + code
 
 def write_branch_map(branches, source_code, output_file, start_id=1):
     """Write branch metadata to branch_map.json. Returns next available branch ID."""
@@ -198,23 +215,23 @@ def write_branch_map(branches, source_code, output_file, start_id=1):
             for case in meta['cases']:
                 label = f"case {case['value']}" if case['kind'] == 'case' else 'default'
                 branch_map.append({
-                    "id":    current_id,
-                    "line":  case['line'],
-                    "type":  "switch_case",
+                    "id": current_id,
+                    "line": case['line'],
+                    "type": "switch_case",
                     "label": label,
                 })
                 current_id += 1
             if not any(c['kind'] == 'default' for c in meta['cases']):
                 branch_map.append({
-                    "id":    current_id,
-                    "line":  branch['start_point'][0] + 1,
-                    "type":  "switch_implicit_default",
+                    "id": current_id,
+                    "line": branch['start_point'][0] + 1,
+                    "type": "switch_implicit_default",
                     "label": "implicit default",
                 })
                 current_id += 1
         else:
             branch_map.append({
-                "id":   current_id,
+                "id": current_id,
                 "line": branch['start_point'][0] + 1,
                 "type": branch['type'],
             })
@@ -223,8 +240,7 @@ def write_branch_map(branches, source_code, output_file, start_id=1):
     with open(output_file, 'w') as f:
         json.dump({"branches": branch_map}, f, indent=2)
     print(f"✓ Wrote branch map to {output_file}")
-    return current_id  # next available ID for the next file
-
+    return current_id
 
 def instrument_file(input_file, output_file, start_id=1):
     """
@@ -246,11 +262,11 @@ def instrument_file(input_file, output_file, start_id=1):
 
     tree, source_code = parse_c_file(input_file)
     if tree.root_node.has_error:
-        print("⚠️  Warning: Source file contains syntax errors — instrumentation may be incomplete")
+        print("⚠️ Warning: Source file contains syntax errors — instrumentation may be incomplete")
 
     branches = find_branches(tree)
     if not branches:
-        print("⚠️  Warning: No branch points found — output will be identical to input")
+        print("⚠️ Warning: No branch points found — output will be identical to input")
     else:
         print(f"✓ Found {len(branches)} branch points:")
         for i, branch in enumerate(branches, 1):
@@ -274,7 +290,6 @@ def instrument_file(input_file, output_file, start_id=1):
     print(f"Done! Successfully instrumented {len(branches)} branches.\n")
     return next_id
 
-
 def instrument_directory(input_dir, output_dir):
     """
     Recursively instrument all .c files in input_dir, writing results to output_dir.
@@ -287,18 +302,16 @@ def instrument_directory(input_dir, output_dir):
                 c_files.append(os.path.join(root, fname))
 
     if not c_files:
-        print(f"⚠️  No .c files found in '{input_dir}'")
+        print(f"⚠️ No .c files found in '{input_dir}'")
         return
 
     print(f"Found {len(c_files)} .c file(s) in '{input_dir}'")
 
     next_id = 1
     for input_file in c_files:
-        # Mirror directory structure in output_dir
-        rel_path   = os.path.relpath(input_file, input_dir)
-        base_name  = os.path.splitext(rel_path)[0] + '_inst.c'
+        rel_path = os.path.relpath(input_file, input_dir)
+        base_name = os.path.splitext(rel_path)[0] + '_inst.c'
         output_file = os.path.join(output_dir, base_name)
-
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         next_id = instrument_file(input_file, output_file, start_id=next_id)
 
@@ -308,26 +321,22 @@ def instrument_directory(input_dir, output_dir):
     print(f"   Total branch IDs   : {total_branches}")
     print(f"BRANCH_COUNTERS={total_branches * 2}")
 
-
 def main():
     if len(sys.argv) == 3:
-        input_path  = sys.argv[1]
+        input_path = sys.argv[1]
         output_path = sys.argv[2]
 
         if os.path.isdir(input_path):
-            # Directory mode
             if not os.path.exists(output_path):
                 os.makedirs(output_path, exist_ok=True)
             instrument_directory(input_path, output_path)
         else:
-            # Single file mode (original behaviour preserved)
             instrument_file(input_path, output_path, start_id=1)
     else:
         print("Usage:")
-        print("  Single file : python3 instrument.py <input.c> <output_inst.c>")
-        print("  Directory   : python3 instrument.py <input_dir/> <output_dir/>")
+        print("  Single file : python3 instrument.py <source.c> <output.c>")
+        print("  Directory   : python3 instrument.py <source_dir/> <output_dir/>")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
