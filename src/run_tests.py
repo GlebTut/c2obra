@@ -2,11 +2,14 @@
 import os, sys, glob, subprocess, json, resource, signal, argparse
 import xml.etree.ElementTree as ET
 
+
 # * Resource limits
+
 
 CPU_TIME_LIMIT = 30     # Seconds per test run
 MEMORY_LIMIT_MB = 512   # MB per test run
 WALL_TIMEOUT = 35       # wall-clock timeout (slighty above CPU limit)
+
 
 def set_resource_limits():
     # Set soft 1s below hard so SIGXCPU fires before SIGKILL
@@ -15,7 +18,9 @@ def set_resource_limits():
     resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
 
 
+
 # * XML test input parsing
+
 
 def parse_inputs(xml_file):
     try:
@@ -26,16 +31,19 @@ def parse_inputs(xml_file):
         print(f"⚠️  Warning: Could not parse '{xml_file}': {e} — skipping")
         return []
 
+
 # * Single test execution
+
 
 def run_test(binary, inputs, test_name):
     """Run binary with given inputs. Returns coverage dict."""
     with open("test_input.txt", "w") as f:
         f.write("\n".join(inputs))
 
+
     timed_out = False
     killed = False
-    
+
     try:
         result = subprocess.run(
             [binary], 
@@ -44,9 +52,9 @@ def run_test(binary, inputs, test_name):
             timeout=WALL_TIMEOUT,           # Wall-clock hard stop
             preexec_fn=set_resource_limits  # CPU + memory caps in child
         )
-        
+
         exit_code = result.returncode
-    
+
     except subprocess.TimeoutExpired as e:
         # Kill entire process group to prevent zombies
         try:
@@ -56,11 +64,12 @@ def run_test(binary, inputs, test_name):
         timed_out = True
         exit_code = -1
         print(f"  ⚠️  [{test_name}] TIMED OUT after {WALL_TIMEOUT}s — killed")
-    
+
     except Exception as e:
         killed    = True
         exit_code = -1
         print(f"  ⚠️  [{test_name}] ERROR: {e}")
+
 
     # Read coverage written by destructor in cov_runtime.c
     try:
@@ -73,16 +82,19 @@ def run_test(binary, inputs, test_name):
     except json.JSONDecodeError:
         print(f"  ⚠️  [{test_name}] coverage.json is malformed")
         coverage = {"branches": []}
-        
+
     if not timed_out and not killed:
         print(f"\n=== {test_name} ===")
         print(f"  Inputs:    {inputs}")
         print(f"  Exit code: {exit_code}")
         print(f"  Branches hit: {len(coverage.get('branches', []))}")
 
+
     return coverage
 
+
 # * Coverage merging 
+
 
 def merge_coverage(all_coverages):
     merged = {}
@@ -95,7 +107,9 @@ def merge_coverage(all_coverages):
             merged[bid]["false"] += branch["false"]
     return merged
 
+
 # * Branch map loader
+
 
 def load_branch_map(map_file):
     try:
@@ -109,11 +123,14 @@ def load_branch_map(map_file):
         print(f"⚠️  Branch map '{map_file}' is malformed JSON")
         return {}
 
+
 # * Summary + report writer 
+
 
 def print_summary(merged, branch_map=None):
     if branch_map is None:
         branch_map = {}
+
 
     print("\n" + "="*65)
     print("AGGREGATED COVERAGE SUMMARY")
@@ -121,41 +138,52 @@ def print_summary(merged, branch_map=None):
     print(f"{'ID':<6} {'Line':<8} {'Type':<18} {'True':>6} {'False':>7} {'Status':>10}")
     print("-"*65)
 
+
+    # Iterate ALL branch IDs from the map, not just hit ones
+    all_ids = sorted(set(list(branch_map.keys()) + list(merged.keys())))
     total = len(branch_map) if branch_map else len(merged)
-    total_edges = total * 2                          # ← each branch has true + false edge
+    total_edges   = total * 2
     covered_true  = 0
     covered_false = 0
     report_branches = []
 
-    for bid in sorted(merged.keys()):
-        b = merged[bid]
-        meta = branch_map.get(bid, {})
+
+    for bid in all_ids:
+        b     = merged.get(bid, {"true": 0, "false": 0})
+        meta  = branch_map.get(bid, {})
         line  = meta.get('line', '?')
         btype = meta.get('type', '?').replace('_statement', '').replace('_', '-')
         t_hit = b["true"]  > 0
         f_hit = b["false"] > 0
-        if t_hit: covered_true  += 1                # ← count edges individually
+        if t_hit: covered_true  += 1
         if f_hit: covered_false += 1
         t = "✅" if t_hit else "❌"
         f = "✅" if f_hit else "❌"
         covered = t_hit and f_hit
-        status = "FULL" if covered else "PARTIAL"
+        if covered:
+            status = "FULL"
+        elif t_hit or f_hit:
+            status = "PARTIAL"
+        else:
+            status = "NONE"
         print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {status:>10}")
         report_branches.append({
-            "id": bid,
-            "line": line,
-            "type": meta.get("type", "?"),
-            "true": b["true"],
-            "false": b["false"],
+            "id":      bid,
+            "line":    line,
+            "type":    meta.get("type", "?"),
+            "true":    b["true"],
+            "false":   b["false"],
             "covered": covered
         })
 
+
     print("-"*65)
-    covered_edges = covered_true + covered_false     # ← 3 out of 4 for the example
+    covered_edges = covered_true + covered_false
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
     print(f"Covered edges: {covered_edges}/{total_edges}  ({covered_true} true, {covered_false} false)")
     print(f"Branch coverage: {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
+
 
     report = {
         "summary": {
@@ -172,12 +200,15 @@ def print_summary(merged, branch_map=None):
         "branches": report_branches
     }
 
+
     with open("coverage_report.json", "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nFull report written to coverage_report.json")
 
 
+
 # * Entry point
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -191,13 +222,16 @@ if __name__ == "__main__":
     parser.add_argument("--wall",   type=int,    help="Wall timeout in seconds (default: cpu+5)", default=None)
     args = parser.parse_args()
 
+
     # Override module-level constants with CLI values
     CPU_TIME_LIMIT  = args.cpu
     MEMORY_LIMIT_MB = args.memory
     WALL_TIMEOUT    = args.wall if args.wall else args.cpu + 5
 
+
     branch_map    = load_branch_map(args.branch_map) if args.branch_map else {}
     all_coverages = []
+
 
     if not os.path.exists(args.binary):
         print(f"❌ Error: Binary '{args.binary}' not found — did compilation succeed?")
@@ -206,10 +240,11 @@ if __name__ == "__main__":
         print(f"❌ Error: Binary '{args.binary}' is not executable")
         sys.exit(1)
 
+
     if args.suite_dir != "-":
         xml_files = sorted(glob.glob(f"{args.suite_dir}/test_input-*.xml"))
         print(f"Found {len(xml_files)} test cases")
-        if not xml_files:                                          # ← add this
+        if not xml_files:
             print("⚠️  Warning: No XML test cases found in suite — running with no inputs")
             cov = run_test(args.binary, [], "no_inputs")
             all_coverages.append(cov)
@@ -222,6 +257,7 @@ if __name__ == "__main__":
         print("No test-suite provided — running binary once with no inputs")
         cov = run_test(args.binary, [], "no_inputs")
         all_coverages.append(cov)
+
 
     merged = merge_coverage(all_coverages)
     if not merged:
