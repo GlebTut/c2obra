@@ -27,3 +27,7 @@ extern uint64_t branch_counters[MAX_BRANCHES];
 void dump_coverage(void);
 
 #endif 
+/* Safe defaults for SV-COMP benchmark constants */
+#ifndef LARGE_INT
+#define LARGE_INT 1000000
+#endif

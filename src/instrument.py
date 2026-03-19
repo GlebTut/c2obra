@@ -12,9 +12,10 @@ import tree_sitter_c
 # Verifier boilerplate that conflicts with verifier_stubs.c at link time
 # These are stripped from instrumented output
 VERIFIER_STUB_PATTERNS = [
-    r'void\s+reach_error\s*\([^)]*\)\s*\{[\s\S]*?\}',       # ← [\s\S]*? instead of [^}]*
+    r'void\s+reach_error\s*\([^)]*\)\s*\{[\s\S]*?\}',
     r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[\s\S]*?\}',
     r'extern\s+void\s+__assert_fail\s*\([^;]*\)\s*;',
+    r'typedef\s+unsigned\s+int\s+size_t\s*;',  
 ]
 
 def parse_c_file(filename):
@@ -340,3 +341,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+VERIFIER_STUB_PATTERNS

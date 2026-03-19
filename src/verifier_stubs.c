@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stddef.h>
 
 // From cov_runtime.c
 extern void dump_coverage(void);
@@ -41,5 +42,60 @@ void reach_error(void) {
 }
 
 void __VERIFIER_assume(int cond) {
-    if (!cond) exit(0);
+    if (!cond) exit(0);         // ← single definition, exit cleanly
+}
+
+__attribute__((weak)) void __VERIFIER_assert(int cond) {
+    if (!cond) { __VERIFIER_error(); }
+}
+
+// Loop acceleration variables (not functions!)
+int __VERIFIER_LA_iterations0 = 0;
+int __VERIFIER_LA_old_tmp0    = 0;
+int __VERIFIER_LA_tmp0        = 0;
+
+// Add to verifier_stubs.c
+char __VERIFIER_nondet_char(void) {
+    open_input();
+    int val = 0;
+    if (input_file) fscanf(input_file, "%d", &val);
+    return (char)val;
+}
+
+unsigned int __VERIFIER_nondet_uint(void) {
+    open_input();
+    int val = 0;
+    if (input_file) fscanf(input_file, "%d", &val);
+    return (unsigned int)val;
+}
+
+unsigned char __VERIFIER_nondet_uchar(void) {
+    open_input();
+    int val = 0;
+    if (input_file) fscanf(input_file, "%d", &val);
+    return (unsigned char)val;
+}
+
+short __VERIFIER_nondet_short(void) {
+    open_input();
+    int val = 0;
+    if (input_file) fscanf(input_file, "%d", &val);
+    return (short)val;
+}
+
+long __VERIFIER_nondet_long(void) {
+    open_input();
+    int val = 0;
+    if (input_file) fscanf(input_file, "%d", &val);
+    return (long)val;
+}
+
+float __VERIFIER_nondet_float(void) { return 0.0f; }
+double __VERIFIER_nondet_double(void) { return 0.0; }
+
+unsigned short __VERIFIER_nondet_ushort(void) {
+    open_input();
+    int val = 0;
+    if (input_file) fscanf(input_file, "%d", &val);
+    return (unsigned short)val;
 }
