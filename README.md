@@ -129,7 +129,6 @@ Each branch (`if`/`while`/`for`/`switch` case) contributes **2 edges** to the to
 This correctly handles cases where a loop condition may be entered but never exit false.
 
 ## Project Structure
-
 ```
 C_Testing_Coverage_Tool/
 ├── src/
