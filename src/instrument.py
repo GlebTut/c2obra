@@ -204,7 +204,7 @@ def instrument_code(source_code, branches, start_id=1):
     '''
     return VERIFIER_PREAMBLE + code
 
-def write_branch_map(branches, source_code, output_file, start_id=1):
+def write_branch_map(branches, source_code, output_file, input_file, start_id=1):
     """Write branch metadata to branch_map.json. Returns next available branch ID."""
     sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
     branch_map = []
@@ -239,7 +239,10 @@ def write_branch_map(branches, source_code, output_file, start_id=1):
             current_id += 1
 
     with open(output_file, 'w') as f:
-        json.dump({"branches": branch_map}, f, indent=2)
+        json.dump({
+            "source_file": os.path.abspath(input_file),  # ← add this
+            "branches": branch_map
+        }, f, indent=2)
     print(f"✓ Wrote branch map to {output_file}")
     return current_id
 
@@ -285,7 +288,7 @@ def instrument_file(input_file, output_file, start_id=1):
         sys.exit(1)
 
     map_file = output_file.replace('.c', '_branch_map.json')
-    next_id = write_branch_map(branches, source_code, map_file, start_id=start_id)
+    next_id = write_branch_map(branches, source_code, map_file, input_file, start_id=start_id)
     total_counters = (next_id - start_id) * 2
     print(f"BRANCH_COUNTERS={total_counters}")
     print(f"Done! Successfully instrumented {len(branches)} branches.\n")
