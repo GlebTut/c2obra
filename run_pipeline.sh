@@ -149,3 +149,5 @@ fi
 python3 src/report.py \
     output/${BASENAME}_inst_branch_map.json \
     output/${BASENAME}_inst_coverage.json
+
+echo "✅ Done → open output/${BASENAME}_inst_report.html"

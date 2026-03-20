@@ -34,10 +34,8 @@ def compute_stats(branch_map, coverage):
     covered_edges = 0
     for b in branch_map:
         hits = coverage.get(int(b["id"]), {})
-        if hits.get("true", 0) > 0:
-            covered_edges += 1
-        if hits.get("false", 0) > 0:
-            covered_edges += 1
+        if hits.get("true",  0) > 0: covered_edges += 1
+        if hits.get("false", 0) > 0: covered_edges += 1
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
     return total_edges, covered_edges, pct
 
@@ -48,10 +46,12 @@ def collect_file_stats(directory):
     for fname in sorted(os.listdir(directory)):
         if not fname.endswith("_branch_map.json"):
             continue
-        map_path = os.path.join(directory, fname)
-        base     = fname.replace("_branch_map.json", "")
-        cov_path = os.path.join(directory, base + "_coverage.json")
-        html_path = base + "_report.html"   # relative, for linking
+        map_path  = os.path.join(directory, fname)
+        base      = fname.replace("_branch_map.json", "")
+        cov_path  = os.path.join(directory, base + "_coverage.json")
+        html_path = base + "_report.html"
+        source_html      = base + "_source.html"
+        source_html_exists = os.path.exists(os.path.join(directory, source_html))
 
         branch_map = load_branch_map(map_path)
         coverage   = load_coverage(cov_path)
@@ -60,6 +60,7 @@ def collect_file_stats(directory):
         files.append({
             "name":          base.replace("_inst", ".c"),
             "html":          html_path,
+            "source_html":   source_html if source_html_exists else None,
             "branches":      len(branch_map),
             "total_edges":   total_edges,
             "covered_edges": covered_edges,
@@ -69,42 +70,34 @@ def collect_file_stats(directory):
 
 
 def write_summary_html(files, output_path):
-    total_branches  = sum(f["branches"]      for f in files)
-    total_edges     = sum(f["total_edges"]   for f in files)
-    covered_edges   = sum(f["covered_edges"] for f in files)
-    overall_pct     = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
-    date_str        = datetime.now().strftime("%Y-%m-%d %H:%M")
+    total_branches = sum(f["branches"]      for f in files)
+    total_edges    = sum(f["total_edges"]   for f in files)
+    covered_edges  = sum(f["covered_edges"] for f in files)
+    overall_pct    = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
+    date_str       = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    if overall_pct >= 80:
-        bar_color = "#16a34a"
-    elif overall_pct >= 50:
-        bar_color = "#d97706"
-    else:
-        bar_color = "#dc2626"
+    bar_color = "#16a34a" if overall_pct >= 80 else "#d97706" if overall_pct >= 50 else "#dc2626"
 
-    # Per-file table rows
     table_rows = ""
     for f in files:
-        if f["pct"] >= 80:
-            fc = "#16a34a"
-        elif f["pct"] >= 50:
-            fc = "#d97706"
-        else:
-            fc = "#dc2626"
+        fc    = "#16a34a" if f["pct"] >= 80 else "#d97706" if f["pct"] >= 50 else "#dc2626"
         bar_w = f"{f['pct']:.1f}"
-        table_rows += f"""
-    <tr>
-      <td><a href="{f['html']}">{f['name']}</a></td>
-      <td>{f['branches']}</td>
-      <td>{f['total_edges']}</td>
-      <td>{f['covered_edges']}</td>
-      <td>
-        <div class="mini-bar-bg">
-          <div class="mini-bar-fg" style="width:{bar_w}%;background:{fc}"></div>
-        </div>
-      </td>
-      <td style="color:{fc};font-weight:bold">{f['pct']:.1f}%</td>
-    </tr>"""
+        source_cell = (
+            f'<td><a href="{f["source_html"]}" title="View source">📄</a></td>'
+            if f["source_html"]
+            else '<td style="color:var(--subtext)">—</td>'
+        )
+        table_rows += (
+            f'<tr>'
+            f'<td><a href="{f["html"]}">{f["name"]}</a></td>'
+            f'<td>{f["branches"]}</td>'
+            f'<td>{f["total_edges"]}</td>'
+            f'<td>{f["covered_edges"]}</td>'
+            f'<td><div class="mini-bar-bg"><div class="mini-bar-fg" style="width:{bar_w}%;background:{fc}"></div></div></td>'
+            f'<td style="color:{fc};font-weight:bold">{f["pct"]:.1f}%</td>'
+            f'{source_cell}'
+            f'</tr>'
+        )
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -156,16 +149,16 @@ def write_summary_html(files, output_path):
   .controls input {{ padding: 0.4em 0.8em; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9em; width: 260px; background: var(--surface); color: var(--text); }}
   .row-count {{ font-size: 0.82em; color: var(--subtext); margin-bottom: 0.8em; }}
 
-  table  {{ width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid var(--border); }}
-  th     {{ background: var(--header); color: #fff; padding: 0.75em 1em; text-align: left; font-size: 0.85em; cursor: pointer; user-select: none; white-space: nowrap; }}
+  table {{ width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid var(--border); }}
+  th    {{ background: var(--header); color: #fff; padding: 0.75em 1em; text-align: left; font-size: 0.85em; cursor: pointer; user-select: none; white-space: nowrap; }}
   th:hover {{ background: var(--header-hover); }}
   th.sorted-asc::after  {{ content: " ▲"; font-size: 0.75em; }}
   th.sorted-desc::after {{ content: " ▼"; font-size: 0.75em; }}
-  td {{ padding: 0.65em 1em; font-size: 0.88em; border-bottom: 1px solid var(--border); }}
+  td {{ padding: 0.45em 1em; font-size: 0.88em; border-bottom: 1px solid var(--border); }}
   tr:last-child td {{ border-bottom: none; }}
   tr:hover td {{ background: var(--border); }}
 
-  a  {{ color: #3b82f6; text-decoration: none; }}
+  a {{ color: #3b82f6; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
 
   .mini-bar-bg {{ background: var(--border); border-radius: 999px; height: 10px; width: 120px; }}
@@ -208,6 +201,7 @@ def write_summary_html(files, output_path):
     <th onclick="sortTable(3)">Covered edges</th>
     <th onclick="sortTable(4)">Bar</th>
     <th onclick="sortTable(5)">Coverage %</th>
+    <th>Source</th>
   </tr>
   </thead>
   <tbody id="tableBody">
