@@ -6,6 +6,7 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <unistd.h> 
+#include <stdlib.h>
 
 // Global array that stores hit counts
 uint64_t branch_counters[MAX_BRANCHES] = {0};
@@ -18,9 +19,11 @@ void dump_coverage(void) {
     if (coverage_written) return;
     coverage_written = 1;
 
-    FILE* f = fopen("coverage.json", "w");
+    const char *out_path = getenv("COVERAGE_OUTPUT");
+    if (!out_path) out_path = "coverage.json";
+    FILE* f = fopen(out_path, "w");
     if (!f) {
-        fprintf(stderr, "Error: Could not create coverage.json\n");
+        fprintf(stderr, "Error: Could not create %s\n", out_path);
         return;
     }
 
@@ -44,7 +47,7 @@ void dump_coverage(void) {
     }
 
     fclose(f);
-    fprintf(stderr, "[Coverage] Wrote coverage data to coverage.json\n");
+    fprintf(stderr, "[Coverage] Wrote coverage data to %s\n", out_path);
 }
 
 // Destructor: fires on normal exit() and __VERIFIER_error → exit()

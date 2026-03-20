@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import os, sys, glob, subprocess, json, resource, signal, argparse
+import os, sys, glob, subprocess, json, resource, signal, argparse, tempfile, shutil
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # * Resource limits
@@ -35,11 +36,16 @@ def parse_inputs(xml_file):
 # * Single test execution
 
 
-def run_test(binary, inputs, test_name):
+def run_test(binary, inputs, test_name, work_dir):
     """Run binary with given inputs. Returns coverage dict."""
-    with open("test_input.txt", "w") as f:
+    input_file = os.path.join(work_dir, "test_input.txt")
+    cov_file = os.path.join(work_dir, "coverage.json")
+
+    with open(input_file, "w") as f:
         f.write("\n".join(inputs))
 
+    env = os.environ.copy()
+    env["COVERAGE_OUTPUT"] = cov_file
 
     timed_out = False
     killed = False
@@ -50,7 +56,9 @@ def run_test(binary, inputs, test_name):
             capture_output=True, 
             text=True,
             timeout=WALL_TIMEOUT,           # Wall-clock hard stop
-            preexec_fn=set_resource_limits  # CPU + memory caps in child
+            preexec_fn=set_resource_limits,  # CPU + memory caps in child
+            cwd=work_dir, # Isolated dir
+            env=env # Unique coverage.json path
         )
 
         exit_code = result.returncode
@@ -73,9 +81,8 @@ def run_test(binary, inputs, test_name):
 
     # Read coverage written by destructor in cov_runtime.c
     try:
-        with open("coverage.json") as f:
+        with open(cov_file) as f:
             coverage = json.load(f)
-        os.remove("coverage.json")
     except FileNotFoundError:
         print(f"  ⚠️  [{test_name}] No coverage.json written — binary may have crashed")
         coverage = {"branches": []}
@@ -210,7 +217,7 @@ def print_summary(merged, branch_map=None):
 # * Entry point
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":    
     parser = argparse.ArgumentParser(
         description="Run tests and measure branch coverage"
     )
@@ -222,8 +229,11 @@ if __name__ == "__main__":
     parser.add_argument("--wall",   type=int,    help="Wall timeout in seconds (default: cpu+5)", default=None)
     args = parser.parse_args()
 
+    # Convert binary to absolute path so cwd=work_dir doesn't break it
+    args.binary = os.path.abspath(args.binary)
 
     # Override module-level constants with CLI values
+
     CPU_TIME_LIMIT  = args.cpu
     MEMORY_LIMIT_MB = args.memory
     WALL_TIMEOUT    = args.wall if args.wall else args.cpu + 5
@@ -241,23 +251,40 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
+    workers = max(1, os.cpu_count() - 1)
+    work_dirs = []
+
     if args.suite_dir != "-":
         xml_files = sorted(glob.glob(f"{args.suite_dir}/test_input-*.xml"))
-        print(f"Found {len(xml_files)} test cases")
+        print(f"Found {len(xml_files)} test cases — running with {workers} workers")
         if not xml_files:
-            print("⚠️  Warning: No XML test cases found in suite — running with no inputs")
-            cov = run_test(args.binary, [], "no_inputs")
-            all_coverages.append(cov)
+            print("⚠️ Warning: No XML test cases found in suite — running with no inputs")
+            work_dir = tempfile.mkdtemp(prefix="cov_")
+            work_dirs.append(work_dir)
+            all_coverages.append(run_test(args.binary, [], "no_inputs", work_dir))
         else:
-            for xml_file in xml_files:
-                inputs = parse_inputs(xml_file)
-                cov    = run_test(args.binary, inputs, os.path.basename(xml_file))
-                all_coverages.append(cov)
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {}
+                for xml_file in xml_files:
+                    work_dir = tempfile.mkdtemp(prefix="cov_")
+                    work_dirs.append(work_dir)
+                    inputs = parse_inputs(xml_file)
+                    f = executor.submit(
+                        run_test, args.binary, inputs,
+                        os.path.basename(xml_file), work_dir
+                    )
+                    futures[f] = xml_file
+                for future in as_completed(futures):
+                    all_coverages.append(future.result())
     else:
         print("No test-suite provided — running binary once with no inputs")
-        cov = run_test(args.binary, [], "no_inputs")
-        all_coverages.append(cov)
+        work_dir = tempfile.mkdtemp(prefix="cov_")
+        work_dirs.append(work_dir)
+        all_coverages.append(run_test(args.binary, [], "no_inputs", work_dir))
 
+    # Cleanup all temp dirs
+    for d in work_dirs:
+        shutil.rmtree(d, ignore_errors=True)
 
     merged = merge_coverage(all_coverages)
     if not merged:
