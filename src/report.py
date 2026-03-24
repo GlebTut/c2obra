@@ -33,7 +33,6 @@ def load_coverage(path):
 
 
 def load_test_inputs(path):
-    """Load test_inputs_log.json written by run_tests.py. Returns [] if missing."""
     if not os.path.exists(path):
         return []
     try:
@@ -100,7 +99,6 @@ def write_csv(rows, output_path, source_file):
 
 
 def highlight_c_syntax(code):
-    """Apply VS Code-like syntax highlighting via HTML spans."""
     keywords = r'\b(int|char|float|double|void|return|if|else|for|while|do|switch|case|default|break|continue|struct|typedef|static|const|unsigned|signed|long|short|extern|include|define|endif|ifdef|ifndef|printf|NULL)\b'
     token_re = re.compile(
         r'(//[^\n]*'
@@ -132,7 +130,6 @@ def highlight_c_syntax(code):
 
 
 def write_source_html(rows, branch_map_data, source_html_path, report_html_name):
-    """Generate a separate _source.html with VS Code-style highlighted source."""
     src_path = branch_map_data.get("source_file", "")
     if not src_path:
         return False
@@ -198,71 +195,77 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
 <head>
 <meta charset="UTF-8">
 <title>Source — {os.path.basename(src_path)}</title>
+<script>
+  (function(){{
+    const t = localStorage.getItem("theme") || "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  }})();
+</script>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  :root {{
+    --bg: #0f172a; --text: #d4d4d4; --border: #334155;
+    --ln: #475569; --subtext: #94a3b8; --surface: #1e293b;
+  }}
+  [data-theme="light"] {{
+    --bg: #f5f7fa; --text: #1a1a2e; --border: #e5e7eb;
+    --ln: #aaa; --subtext: #555; --surface: #ffffff;
+  }}
   body {{
-    background: #1e1e1e;
-    color: #d4d4d4;
+    background: var(--bg); color: var(--text);
     font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-    font-size: 0.82rem;
-    padding: 1rem 2rem;
+    font-size: 0.82rem; padding: 1rem 2rem;
+    transition: background 0.2s, color 0.2s;
   }}
   .topbar {{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #333;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 1rem; padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
   }}
   .topbar a {{ color: #569cd6; text-decoration: none; font-size: 0.85rem; }}
   .topbar a:hover {{ text-decoration: underline; }}
-  .legend {{ font-size: 0.75rem; color: #888; display: flex; gap: 1rem; }}
+  .legend {{ font-size: 0.75rem; color: var(--subtext); display: flex; gap: 1rem; align-items: center; }}
   .legend span {{ display: flex; align-items: center; gap: 0.3rem; }}
-  pre {{
-    background: #1e1e1e;
-    border-radius: 6px;
-    overflow-x: auto;
-    padding: 0.5rem 0;
-  }}
+  .toggle-btn {{ background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.3em 0.8em; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin-left: 1rem; }}
+  pre {{ background: var(--bg); border-radius: 6px; overflow-x: auto; padding: 0.5rem 0; }}
   .src-line {{
-    display: block;
-    white-space: pre;
-    line-height: 1.4;
-    padding: 0 0.5rem;
-    border-left: 3px solid transparent;
+    display: block; white-space: pre; line-height: 1.4;
+    padding: 0 0.5rem; border-left: 3px solid transparent;
   }}
-  .src-line:target {{
-    outline: 2px solid #569cd6;
-    border-radius: 2px;
-    animation: pulse 1.2s ease;
-  }}
+  .src-line:target {{ outline: 2px solid #569cd6; border-radius: 2px; animation: pulse 1.2s ease; }}
   @keyframes pulse {{
     0%   {{ background: #264f78 !important; }}
     100% {{ background: inherit; }}
   }}
-  .ln {{
-    color: #444;
-    user-select: none;
-    margin-right: 1.5rem;
-    display: inline-block;
-    min-width: 2.5rem;
-    text-align: right;
-  }}
-  .cd {{ color: #d4d4d4; }}
+  .ln {{ color: var(--ln); user-select: none; margin-right: 1.5rem; display: inline-block; min-width: 2.5rem; text-align: right; }}
+  .cd {{ color: var(--text); }}
 </style>
 </head>
 <body>
 <div class="topbar">
   <a href="{report_html_name}">← Back to Report</a>
-  <span style="color:#888;font-size:0.85rem">{os.path.basename(src_path)}</span>
+  <span style="color:var(--subtext);font-size:0.85rem">{os.path.basename(src_path)}</span>
   <div class="legend">
     <span><span style="color:#16a34a">●</span> FULL</span>
     <span><span style="color:#d97706">◐</span> PARTIAL</span>
     <span><span style="color:#dc2626">○</span> NONE</span>
+    <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light</button>
   </div>
 </div>
 <pre>{lines_html}</pre>
+<script>
+  (function(){{
+    const t = localStorage.getItem("theme") || "dark";
+    document.getElementById("themeBtn").textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
+  }})();
+  function toggleTheme() {{
+    const curr = document.documentElement.getAttribute("data-theme") || "dark";
+    const next = curr === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
+  }}
+</script>
 </body>
 </html>"""
 
@@ -283,36 +286,35 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 
     bar_color = "#16a34a" if pct >= 80 else "#d97706" if pct >= 50 else "#dc2626"
 
-    back_button = '<a href="summary_report.html" style="display:inline-block;margin-bottom:1.2rem;padding:0.45rem 1.1rem;background:#1a1a2e;color:#fff;border-radius:6px;text-decoration:none;font-size:0.88rem;font-weight:500;">← Back to Summary</a>'
+    back_button = '<a href="summary_report.html" style="display:inline-block;margin-bottom:1.2rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;font-weight:500;">← Back to Summary</a>'
 
     source_btn = ""
     if source_html_name:
-        source_btn = f' <a href="{source_html_name}" style="display:inline-block;margin-bottom:1.2rem;margin-left:0.5rem;padding:0.45rem 1.1rem;background:#0f172a;color:#f1f5f9;border:1px solid #334155;border-radius:6px;text-decoration:none;font-size:0.88rem;">📄 View Source</a>'
+        source_btn = f' <a href="{source_html_name}" style="display:inline-block;margin-bottom:1.2rem;margin-left:0.5rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;">📄 View Source</a>'
 
     inputs_html = ""
     if test_inputs:
         input_rows = "".join(
             f'<tr>'
-            f'<td style="padding:0.4em 1em;border-bottom:1px solid var(--border);color:var(--text);width:220px;white-space:nowrap">{t["test_case"]}</td>'
-            f'<td style="padding:0.4em 1em;border-bottom:1px solid var(--border);color:var(--text)"><code style="background:var(--border);padding:0.2em 0.6em;border-radius:4px;color:var(--text);font-size:0.95em">{ ", ".join(t["inputs"]) if t["inputs"] else "(no inputs)" }</code></td>'
+            f'<td style="padding:0.5em 1em;border-bottom:1px solid var(--border);color:var(--text);width:220px;white-space:nowrap">{t["test_case"]}</td>'
+            f'<td style="padding:0.5em 1em;border-bottom:1px solid var(--border);color:var(--text)"><code style="background:var(--border);padding:0.2em 0.6em;border-radius:4px;color:var(--text);font-size:1em">{ ", ".join(t["inputs"]) if t["inputs"] else "(no inputs)" }</code></td>'
             f'</tr>'
             for t in test_inputs
         )
         inputs_html = f"""
-<details style="margin-bottom:1.5em;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.9em 1.2em;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-  <summary style="cursor:pointer;font-weight:600;font-size:1em;user-select:none">
-    📋 Test Inputs ({len(test_inputs)} test case{"s" if len(test_inputs) != 1 else ""}) — click to expand
+<details style="margin-bottom:1.5em;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.9em 1.2em;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+  <summary style="cursor:pointer;font-weight:600;font-size:1.05em;user-select:none;color:var(--text)">
+    📋 Test Inputs ({len(test_inputs)} test case{"s" if len(test_inputs) != 1 else ""})
   </summary>
-  <table style="margin-top:0.75rem;width:100%;border-collapse:collapse;font-size:0.92em">
+  <table style="margin-top:0.75rem;width:100%;border-collapse:collapse;font-size:1em">
     <thead><tr>
-      <th style="text-align:left;padding:0.4em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500">Test Case</th>
-      <th style="text-align:left;padding:0.4em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500">Inputs</th>
+      <th style="text-align:left;padding:0.5em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500;font-size:1em">Test Case</th>
+      <th style="text-align:left;padding:0.5em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500;font-size:1em">Inputs</th>
     </tr></thead>
     <tbody>{input_rows}</tbody>
   </table>
 </details>"""
 
-    # Conditional label/case column
     has_labels  = any(r.get("label") for r in rows)
     status_col  = 6 if has_labels else 5
     label_th    = '<th onclick="sortTable(3)">Case</th>' if has_labels else ""
@@ -356,30 +358,36 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 <head>
 <meta charset="UTF-8">
 <title>Coverage Report — {os.path.basename(source_file)}</title>
+<script>
+  (function(){{
+    const t = localStorage.getItem("theme") || "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  }})();
+</script>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   :root {{
-    --bg:#f5f7fa; --surface:#ffffff; --text:#1a1a2e; --subtext:#555;
-    --border:#e5e7eb; --header:#1a1a2e; --header-hover:#2d2d5e;
-    --row-full:#bbf7d0; --row-partial:#fde68a; --row-none:#fecaca;
-    --row-full-hover:#86efac; --row-partial-hover:#fcd34d; --row-none-hover:#fca5a5;
-  }}
-  [data-theme="dark"] {{
     --bg:#0f172a; --surface:#1e293b; --text:#f1f5f9; --subtext:#94a3b8;
     --border:#334155; --header:#0f172a; --header-hover:#1e3a5f;
     --row-full:#14532d; --row-partial:#78350f; --row-none:#7f1d1d;
     --row-full-hover:#166534; --row-partial-hover:#92400e; --row-none-hover:#991b1b;
   }}
+  [data-theme="light"] {{
+    --bg:#f5f7fa; --surface:#ffffff; --text:#1a1a2e; --subtext:#555;
+    --border:#e5e7eb; --header:#1a1a2e; --header-hover:#2d2d5e;
+    --row-full:#bbf7d0; --row-partial:#fde68a; --row-none:#fecaca;
+    --row-full-hover:#86efac; --row-partial-hover:#fcd34d; --row-none-hover:#fca5a5;
+  }}
   body {{ font-family:"Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--text); padding:2em; transition:background 0.2s,color 0.2s; }}
   h1 {{ font-size:1.5em; margin-bottom:0.2em; }}
   .subtitle {{ color:var(--subtext); font-size:0.9em; margin-bottom:1.5em; }}
   .topbar {{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.5em; }}
-  .dark-toggle {{ background:var(--surface); border:1px solid var(--border); color:var(--text); padding:0.4em 0.9em; border-radius:6px; cursor:pointer; font-size:0.85em; }}
+  .toggle-btn {{ background:var(--surface); border:1px solid var(--border); color:var(--text); padding:0.4em 0.9em; border-radius:6px; cursor:pointer; font-size:0.85em; }}
   .cards {{ display:flex; gap:1em; margin-bottom:1.5em; flex-wrap:wrap; }}
-  .card {{ background:var(--surface); border-radius:10px; padding:1em 1.5em; box-shadow:0 2px 8px rgba(0,0,0,0.08); min-width:150px; border:1px solid var(--border); }}
+  .card {{ background:var(--surface); border-radius:10px; padding:1em 1.5em; box-shadow:0 2px 8px rgba(0,0,0,0.2); min-width:150px; border:1px solid var(--border); }}
   .card .val {{ font-size:1.8em; font-weight:bold; }}
   .card .lbl {{ font-size:0.8em; color:var(--subtext); margin-top:0.2em; }}
-  .bar-wrap {{ background:var(--surface); border-radius:10px; padding:1.2em 1.5em; box-shadow:0 2px 8px rgba(0,0,0,0.08); margin-bottom:1.5em; border:1px solid var(--border); }}
+  .bar-wrap {{ background:var(--surface); border-radius:10px; padding:1.2em 1.5em; box-shadow:0 2px 8px rgba(0,0,0,0.2); margin-bottom:1.5em; border:1px solid var(--border); }}
   .bar-label {{ display:flex; justify-content:space-between; margin-bottom:0.5em; font-size:0.9em; color:var(--subtext); }}
   .bar-bg {{ background:var(--border); border-radius:999px; height:22px; }}
   .bar-fg {{ background:{bar_color}; border-radius:999px; height:22px; width:{pct:.1f}%; }}
@@ -387,7 +395,7 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   .controls input  {{ padding:0.4em 0.8em; border:1px solid var(--border); border-radius:6px; font-size:0.9em; width:240px; background:var(--surface); color:var(--text); }}
   .controls select {{ padding:0.4em 0.8em; border:1px solid var(--border); border-radius:6px; font-size:0.9em; background:var(--surface); color:var(--text); }}
   .row-count {{ font-size:0.82em; color:var(--subtext); margin-bottom:0.8em; }}
-  table {{ width:100%; border-collapse:collapse; background:var(--surface); border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); border:1px solid var(--border); }}
+  table {{ width:100%; border-collapse:collapse; background:var(--surface); border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.2); border:1px solid var(--border); }}
   th {{ background:var(--header); color:#fff; padding:0.75em 1em; text-align:left; font-size:0.92em; cursor:pointer; user-select:none; white-space:nowrap; }}
   th:hover {{ background:var(--header-hover); }}
   th.sorted-asc::after  {{ content:" ▲"; font-size:0.75em; }}
@@ -400,16 +408,16 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   tr.full:hover    {{ background:var(--row-full-hover); }}
   tr.partial:hover {{ background:var(--row-partial-hover); }}
   tr.none:hover    {{ background:var(--row-none-hover); }}
-  .badge {{ display:inline-block; padding:0.15em 0.6em; border-radius:999px; font-size:0.82em; font-weight:bold; }}
+  .badge {{ display:inline-block; padding:0.15em 0.6em; border-radius:999px; font-size:0.85em; font-weight:bold; }}
   .badge.hit  {{ background:#16a34a; color:#fff; }}
   .badge.miss {{ background:#dc2626; color:#fff; }}
-  .status {{ display:inline-block; padding:0.2em 0.7em; border-radius:6px; font-size:0.78em; font-weight:bold; }}
+  .status {{ display:inline-block; padding:0.2em 0.7em; border-radius:6px; font-size:0.82em; font-weight:bold; }}
   .status.full    {{ background:#16a34a; color:#fff; }}
   .status.partial {{ background:#d97706; color:#fff; }}
   .status.none    {{ background:#dc2626; color:#fff; }}
-  code {{ background:var(--border); padding:0.1em 0.4em; border-radius:4px; font-size:0.85em; }}
-  .export-btn {{ background:#1a1a2e; color:white; border:none; padding:0.4em 1em; border-radius:6px; cursor:pointer; font-size:0.85em; margin-left:auto; }}
-  .export-btn:hover {{ background:#2d2d5e; }}
+  code {{ background:var(--border); padding:0.15em 0.5em; border-radius:4px; font-size:0.95em; }}
+  .export-btn {{ background:var(--surface); color:var(--text); border:1px solid var(--border); padding:0.4em 1em; border-radius:6px; cursor:pointer; font-size:0.85em; margin-left:auto; }}
+  .export-btn:hover {{ background:var(--border); }}
 </style>
 </head>
 <body>
@@ -419,7 +427,7 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
     <h1>🔍 Coverage Report</h1>
     <p class="subtitle"><strong>File:</strong> {source_file} &nbsp;|&nbsp; <strong>Generated:</strong> {date_str}</p>
   </div>
-  <button class="dark-toggle" onclick="toggleDark()">🌙 Dark mode</button>
+  <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light</button>
 </div>
 <div class="cards">
   <div class="card"><div class="val">{len(rows)}</div><div class="lbl">Total branches</div></div>
@@ -461,6 +469,17 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   </tbody>
 </table>
 <script>
+  (function(){{
+    const t = localStorage.getItem("theme") || "dark";
+    document.getElementById("themeBtn").textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
+  }})();
+  function toggleTheme() {{
+    const curr = document.documentElement.getAttribute("data-theme") || "dark";
+    const next = curr === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
+  }}
   let sortCol = {status_col}, sortAsc = true;
   const STATUS_ORDER = {{"NONE":0,"PARTIAL":1,"FULL":2}};
   function getStatus(row) {{ return row.getAttribute("data-status") || ""; }}
@@ -509,12 +528,6 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
     const visible=Array.from(all).filter(r=>r.style.display!=="none").length;
     document.getElementById("rowCount").textContent=
       visible===all.length?`Showing all ${{all.length}} branches`:`Showing ${{visible}} of ${{all.length}} branches`;
-  }}
-  function toggleDark() {{
-    const html=document.documentElement;
-    const isDark=html.getAttribute("data-theme")==="dark";
-    html.setAttribute("data-theme",isDark?"":"dark");
-    document.querySelector(".dark-toggle").textContent=isDark?"🌙 Dark mode":"☀️ Light mode";
   }}
   function exportCSV() {{
     const rows=Array.from(document.querySelectorAll("#tableBody tr")).filter(r=>r.style.display!=="none");
@@ -585,7 +598,6 @@ def main():
     )
     print(f"\n📊 Coverage: {covered_edges}/{total_edges} edges ({pct:.1f}%)")
 
-    # Cleanup shared log from root if per-file log was already saved
     if os.path.exists(per_file_log) and os.path.exists("test_inputs_log.json"):
         os.remove("test_inputs_log.json")
 

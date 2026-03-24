@@ -5,8 +5,10 @@ Reads all *_branch_map.json + *_coverage.json in a directory and outputs:
   - summary_report.html  (overall stats + per-file breakdown with links)
 """
 
+
 import sys, json, os
 from datetime import datetime
+
 
 
 def load_branch_map(path):
@@ -16,6 +18,7 @@ def load_branch_map(path):
     except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
         print(f"⚠️  Skipping {path}: {e}")
         return []
+
 
 
 def load_coverage(path):
@@ -29,6 +32,7 @@ def load_coverage(path):
         return {}
 
 
+
 def compute_stats(branch_map, coverage):
     total_edges   = len(branch_map) * 2
     covered_edges = 0
@@ -40,8 +44,8 @@ def compute_stats(branch_map, coverage):
     return total_edges, covered_edges, pct
 
 
+
 def collect_file_stats(directory):
-    """Find all branch map files and compute per-file stats."""
     files = []
     for fname in sorted(os.listdir(directory)):
         if not fname.endswith("_branch_map.json"):
@@ -50,7 +54,7 @@ def collect_file_stats(directory):
         base      = fname.replace("_branch_map.json", "")
         cov_path  = os.path.join(directory, base + "_coverage.json")
         html_path = base + "_report.html"
-        source_html      = base + "_source.html"
+        source_html        = base + "_source.html"
         source_html_exists = os.path.exists(os.path.join(directory, source_html))
 
         branch_map = load_branch_map(map_path)
@@ -67,6 +71,7 @@ def collect_file_stats(directory):
             "pct":           pct,
         })
     return files
+
 
 
 def write_summary_html(files, output_path):
@@ -104,63 +109,49 @@ def write_summary_html(files, output_path):
 <head>
 <meta charset="UTF-8">
 <title>Coverage Summary Report</title>
+<script>
+  (function(){{
+    const t = localStorage.getItem("theme") || "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  }})();
+</script>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-
   :root {{
-    --bg:      #f5f7fa;
-    --surface: #ffffff;
-    --text:    #1a1a2e;
-    --subtext: #555;
-    --border:  #e5e7eb;
-    --header:  #1a1a2e;
-    --header-hover: #2d2d5e;
+    --bg:#0f172a; --surface:#1e293b; --text:#f1f5f9; --subtext:#94a3b8;
+    --border:#334155; --header:#0f172a; --header-hover:#1e3a5f;
   }}
-
-  [data-theme="dark"] {{
-    --bg:      #0f172a;
-    --surface: #1e293b;
-    --text:    #f1f5f9;
-    --subtext: #94a3b8;
-    --border:  #334155;
-    --header:  #0f172a;
-    --header-hover: #1e3a5f;
+  [data-theme="light"] {{
+    --bg:#f5f7fa; --surface:#ffffff; --text:#1a1a2e; --subtext:#555;
+    --border:#e5e7eb; --header:#1a1a2e; --header-hover:#2d2d5e;
   }}
-
   body {{ font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); padding: 2em; transition: background 0.2s, color 0.2s; }}
   h1   {{ font-size: 1.5em; margin-bottom: 0.2em; }}
   .subtitle {{ color: var(--subtext); font-size: 0.9em; margin-bottom: 1.5em; }}
-
   .topbar {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5em; }}
-  .dark-toggle {{ background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.4em 0.9em; border-radius: 6px; cursor: pointer; font-size: 0.85em; }}
-  .dark-toggle:hover {{ background: var(--border); }}
-
+  .toggle-btn {{ background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.4em 0.9em; border-radius: 6px; cursor: pointer; font-size: 0.85em; }}
+  .toggle-btn:hover {{ background: var(--border); }}
   .cards {{ display: flex; gap: 1em; margin-bottom: 1.5em; flex-wrap: wrap; }}
-  .card  {{ background: var(--surface); border-radius: 10px; padding: 1em 1.5em; box-shadow: 0 2px 8px rgba(0,0,0,0.08); min-width: 150px; border: 1px solid var(--border); }}
+  .card  {{ background: var(--surface); border-radius: 10px; padding: 1em 1.5em; box-shadow: 0 2px 8px rgba(0,0,0,0.2); min-width: 150px; border: 1px solid var(--border); }}
   .card .val {{ font-size: 1.8em; font-weight: bold; }}
   .card .lbl {{ font-size: 0.8em; color: var(--subtext); margin-top: 0.2em; }}
-
-  .bar-wrap  {{ background: var(--surface); border-radius: 10px; padding: 1.2em 1.5em; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 1.5em; border: 1px solid var(--border); }}
+  .bar-wrap  {{ background: var(--surface); border-radius: 10px; padding: 1.2em 1.5em; box-shadow: 0 2px 8px rgba(0,0,0,0.2); margin-bottom: 1.5em; border: 1px solid var(--border); }}
   .bar-label {{ display: flex; justify-content: space-between; margin-bottom: 0.5em; font-size: 0.9em; color: var(--subtext); }}
   .bar-bg    {{ background: var(--border); border-radius: 999px; height: 22px; width: 100%; }}
   .bar-fg    {{ background: {bar_color}; border-radius: 999px; height: 22px; width: {overall_pct:.1f}%; }}
-
   .controls  {{ display: flex; gap: 0.8em; margin-bottom: 0.6em; align-items: center; flex-wrap: wrap; }}
   .controls input {{ padding: 0.4em 0.8em; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9em; width: 260px; background: var(--surface); color: var(--text); }}
   .row-count {{ font-size: 0.82em; color: var(--subtext); margin-bottom: 0.8em; }}
-
-  table {{ width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid var(--border); }}
-  th    {{ background: var(--header); color: #fff; padding: 0.75em 1em; text-align: left; font-size: 0.85em; cursor: pointer; user-select: none; white-space: nowrap; }}
+  table {{ width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 1px solid var(--border); }}
+  th    {{ background: var(--header); color: #fff; padding: 0.75em 1em; text-align: left; font-size: 0.92em; cursor: pointer; user-select: none; white-space: nowrap; }}
   th:hover {{ background: var(--header-hover); }}
   th.sorted-asc::after  {{ content: " ▲"; font-size: 0.75em; }}
   th.sorted-desc::after {{ content: " ▼"; font-size: 0.75em; }}
-  td {{ padding: 0.45em 1em; font-size: 0.88em; border-bottom: 1px solid var(--border); }}
+  td {{ padding: 0.55em 1em; font-size: 0.95em; border-bottom: 1px solid var(--border); }}
   tr:last-child td {{ border-bottom: none; }}
   tr:hover td {{ background: var(--border); }}
-
-  a {{ color: #3b82f6; text-decoration: none; }}
+  a {{ color: #60a5fa; text-decoration: none; }}
   a:hover {{ text-decoration: underline; }}
-
   .mini-bar-bg {{ background: var(--border); border-radius: 999px; height: 10px; width: 120px; }}
   .mini-bar-fg {{ border-radius: 999px; height: 10px; }}
 </style>
@@ -171,7 +162,7 @@ def write_summary_html(files, output_path):
     <h1>📊 Coverage Summary Report</h1>
     <p class="subtitle"><strong>Directory:</strong> {os.path.basename(os.path.dirname(output_path))} &nbsp;|&nbsp; <strong>Generated:</strong> {date_str}</p>
   </div>
-  <button class="dark-toggle" onclick="toggleDark()">🌙 Dark mode</button>
+  <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light</button>
 </div>
 
 <div class="cards">
@@ -210,14 +201,23 @@ def write_summary_html(files, output_path):
 </table>
 
 <script>
+  (function(){{
+    const t = localStorage.getItem("theme") || "dark";
+    document.getElementById("themeBtn").textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
+  }})();
+  function toggleTheme() {{
+    const curr = document.documentElement.getAttribute("data-theme") || "dark";
+    const next = curr === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
+  }}
   let sortCol = 5, sortAsc = true;
-
   (function defaultSort() {{
     sortByCol(5, false);
     document.querySelectorAll("th")[5].classList.add("sorted-desc");
     updateCount();
   }})();
-
   function sortByCol(col, asc) {{
     const tbody = document.getElementById("tableBody");
     const rows  = Array.from(tbody.querySelectorAll("tr"));
@@ -230,7 +230,6 @@ def write_summary_html(files, output_path):
     }});
     rows.forEach(r => tbody.appendChild(r));
   }}
-
   function sortTable(col) {{
     if (sortCol === col) sortAsc = !sortAsc; else {{ sortCol = col; sortAsc = true; }}
     sortByCol(col, sortAsc);
@@ -240,7 +239,6 @@ def write_summary_html(files, output_path):
     }});
     updateCount();
   }}
-
   function applySearch() {{
     const q = document.getElementById("search").value.toLowerCase();
     document.querySelectorAll("#tableBody tr").forEach(row => {{
@@ -248,20 +246,12 @@ def write_summary_html(files, output_path):
     }});
     updateCount();
   }}
-
   function updateCount() {{
     const all     = document.querySelectorAll("#tableBody tr");
     const visible = Array.from(all).filter(r => r.style.display !== "none").length;
     document.getElementById("rowCount").textContent =
       visible === all.length ? `Showing all ${{all.length}} files`
                              : `Showing ${{visible}} of ${{all.length}} files`;
-  }}
-
-  function toggleDark() {{
-    const html = document.documentElement;
-    const isDark = html.getAttribute("data-theme") === "dark";
-    html.setAttribute("data-theme", isDark ? "" : "dark");
-    document.querySelector(".dark-toggle").textContent = isDark ? "🌙 Dark mode" : "☀️ Light mode";
   }}
 </script>
 </body>
@@ -276,6 +266,7 @@ def write_summary_html(files, output_path):
         sys.exit(1)
 
     return overall_pct, covered_edges, total_edges
+
 
 
 def main():
