@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
+
 # * Validate arguments
 if [ -z "$1" ]; then
     echo "❌ Usage: ./run_pipeline.sh <source.c|source_dir/> [--cpu N] [--memory N] [--wall N]"
@@ -11,6 +12,7 @@ if [ ! -e "$1" ]; then
     exit 1
 fi
 
+
 # ─── DIRECTORY MODE ───────────────────────────────────────────────────────────
 if [ -d "$1" ]; then
     SRC="$1"
@@ -19,13 +21,16 @@ if [ -d "$1" ]; then
     SIKRAKEN_OUT=~/sikraken/sikraken_output
     mkdir -p "$OUT_DIR" build/
 
+
     echo "=== Directory mode: $SRC ==="
     echo "=== Step 1: Instrument ==="
+
 
     INST_OUTPUT=$(python3 src/instrument.py "$SRC" "$OUT_DIR")
     echo "$INST_OUTPUT"
     GLOBAL_MAX=$(echo "$INST_OUTPUT" | grep '^BRANCH_COUNTERS=' | tail -1 | cut -d= -f2)
     echo "Global MAX_BRANCHES: ${GLOBAL_MAX}"
+
 
     for src_file in "$SRC"/*.c; do
         [ -f "$src_file" ] || continue
@@ -33,8 +38,10 @@ if [ -d "$1" ]; then
         inst="$OUT_DIR/${base}_inst.c"
         [ -f "$inst" ] || { echo "⚠️ No instrumented file for $base — skipping"; continue; }
 
+
         echo ""
         echo "--- Processing $base ---"
+
 
         # Step 0: Run Sikraken if file uses __VERIFIER_nondet
         if grep -q "__VERIFIER_nondet" "$src_file"; then
@@ -55,11 +62,13 @@ if [ -d "$1" ]; then
             SUITE_DIR="-"
         fi
 
+
         # Step 2: Compile
         gcc "$inst" src/cov_runtime.c src/verifier_stubs.c \
             -o "build/${base}_test" -I src/ \
             -DMAX_BRANCHES=${GLOBAL_MAX} \
             -w 2>/dev/null || true
+
 
         if [ ! -f "build/${base}_test" ]; then
             echo "❌ Compilation failed for $base — skipping"
@@ -67,9 +76,17 @@ if [ -d "$1" ]; then
         fi
         echo "✓ Built build/${base}_test"
 
+
         # Step 3: Run tests
         python3 src/run_tests.py "build/${base}_test" \
             "$SUITE_DIR" "$OUT_DIR/${base}_inst_branch_map.json" "${@:2}" || true
+
+
+        # Save per-file inputs log before it gets overwritten by the next iteration
+        if [ -f test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
+            cp test_inputs_log.json "$OUT_DIR/${base}_inst_test_inputs_log.json"
+        fi
+
 
         # Step 4: Save coverage
         if [ -f coverage_report.json ]; then
@@ -79,11 +96,13 @@ if [ -d "$1" ]; then
             echo "⚠️ No coverage_report.json for $base"
         fi
 
+
         # Step 5: Generate report
         python3 src/report.py \
             "$OUT_DIR/${base}_inst_branch_map.json" \
             "$OUT_DIR/${base}_inst_coverage.json" || true
     done
+
 
     echo ""
     echo "=== Summary Report ==="
@@ -92,11 +111,13 @@ if [ -d "$1" ]; then
     exit 0
 fi
 
+
 # ─── SINGLE FILE MODE ─────────────────────────────────────────────────────────
 SRC="$1"
 BASENAME=$(basename "$SRC" .c)
 SIKRAKEN_OUT=~/sikraken/sikraken_output
 mkdir -p output/ build/
+
 
 # Auto-detect: does the file use __VERIFIER_nondet?
 if grep -q "__VERIFIER_nondet" "$SRC"; then
@@ -118,11 +139,13 @@ else
     SUITE_DIR="-"
 fi
 
+
 # Step 1: Instrument
 echo "=== Step 1: Instrument ==="
 INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c)
 echo "$INST_OUT"
 BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
+
 
 # Step 2: Compile
 echo "=== Step 2: Compile ==="
@@ -136,10 +159,12 @@ if [ ! -f "build/${BASENAME}_test" ]; then
 fi
 echo "✓ Binary built → build/${BASENAME}_test"
 
+
 # Step 3: Run Tests
 echo "=== Step 3: Run Tests ==="
 python3 src/run_tests.py build/"$BASENAME"_test \
     "$SUITE_DIR" output/"$BASENAME"_inst_branch_map.json "${@:2}"
+
 
 # Step 4: Generate report
 echo "=== Step 4: Report ==="
@@ -149,5 +174,13 @@ fi
 python3 src/report.py \
     output/${BASENAME}_inst_branch_map.json \
     output/${BASENAME}_inst_coverage.json
+
+
+# Save inputs log alongside report (only for input-driven files)
+if [ -f test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
+    cp test_inputs_log.json "output/${BASENAME}_inst_test_inputs_log.json"
+fi
+rm -f test_inputs_log.json
+
 
 echo "✅ Done → open output/${BASENAME}_inst_report.html"

@@ -4,8 +4,10 @@ C Testing Coverage Tool - Report Generator
 Reads branch_map.json + coverage.json and outputs HTML + CSV + source HTML reports
 """
 
+
 import sys, json, os, csv, re
 from datetime import datetime
+
 
 
 def load_branch_map(path):
@@ -20,6 +22,7 @@ def load_branch_map(path):
         sys.exit(1)
 
 
+
 def load_coverage(path):
     if not os.path.exists(path):
         print("⚠️  Warning: coverage file not found — treating all branches as uncovered")
@@ -27,6 +30,17 @@ def load_coverage(path):
     with open(path) as f:
         data = json.load(f)
     return {int(e["id"]): e for e in data.get("branches", [])}
+
+
+def load_test_inputs(path):
+    """Load test_inputs_log.json written by run_tests.py. Returns [] if missing."""
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
 
 
 def merge(branch_map_data, coverage):
@@ -47,6 +61,7 @@ def merge(branch_map_data, coverage):
             "covered":     covered,
         })
     return rows
+
 
 
 def write_csv(rows, output_path, source_file):
@@ -83,6 +98,7 @@ def write_csv(rows, output_path, source_file):
         sys.exit(1)
 
 
+
 def highlight_c_syntax(code):
     """Apply VS Code-like syntax highlighting via HTML spans."""
     keywords = r'\b(int|char|float|double|void|return|if|else|for|while|do|switch|case|default|break|continue|struct|typedef|static|const|unsigned|signed|long|short|extern|include|define|endif|ifdef|ifndef|printf|NULL)\b'
@@ -114,11 +130,21 @@ def highlight_c_syntax(code):
     return out
 
 
+
 def write_source_html(rows, branch_map_data, source_html_path, report_html_name):
     """Generate a separate _source.html with VS Code-style highlighted source."""
     src_path = branch_map_data.get("source_file", "")
-    if not src_path or not os.path.exists(src_path):
+    if not src_path:
         return False
+    if not os.path.exists(src_path):
+        basename = os.path.basename(src_path)
+        for candidate in [basename, os.path.join("output", basename), os.path.join("src", basename)]:
+            if os.path.exists(candidate):
+                src_path = candidate
+                break
+        else:
+            print(f"⚠️  Source file not found: {src_path} — skipping source view")
+            return False
 
     line_status = {}
     for r in rows:
@@ -246,7 +272,8 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
     return True
 
 
-def write_html(rows, output_path, source_file, source_html_name=None):
+
+def write_html(rows, output_path, source_file, source_html_name=None, test_inputs=None):
     total_edges   = len(rows) * 2
     covered_true  = sum(1 for r in rows if r["true_count"]  > 0)
     covered_false = sum(1 for r in rows if r["false_count"] > 0)
@@ -261,6 +288,29 @@ def write_html(rows, output_path, source_file, source_html_name=None):
     source_btn = ""
     if source_html_name:
         source_btn = f' <a href="{source_html_name}" style="display:inline-block;margin-bottom:1.2rem;margin-left:0.5rem;padding:0.45rem 1.1rem;background:#0f172a;color:#f1f5f9;border:1px solid #334155;border-radius:6px;text-decoration:none;font-size:0.88rem;">📄 View Source</a>'
+
+    inputs_html = ""
+    if test_inputs:
+        input_rows = "".join(
+            f'<tr>'
+            f'<td style="padding:0.4em 1em;border-bottom:1px solid var(--border);color:var(--text);width:220px;white-space:nowrap">{t["test_case"]}</td>'
+            f'<td style="padding:0.4em 1em;border-bottom:1px solid var(--border);color:var(--text)"><code style="background:var(--border);padding:0.2em 0.6em;border-radius:4px;color:var(--text);font-size:0.95em">{ ", ".join(t["inputs"]) if t["inputs"] else "(no inputs)" }</code></td>'
+            f'</tr>'
+            for t in test_inputs
+        )
+        inputs_html = f"""
+<details style="margin-bottom:1.5em;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.9em 1.2em;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+  <summary style="cursor:pointer;font-weight:600;font-size:1em;user-select:none">
+    📋 Test Inputs ({len(test_inputs)} test case{"s" if len(test_inputs) != 1 else ""}) — click to expand
+  </summary>
+  <table style="margin-top:0.75rem;width:100%;border-collapse:collapse;font-size:0.92em">
+    <thead><tr>
+      <th style="text-align:left;padding:0.4em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500">Test Case</th>
+      <th style="text-align:left;padding:0.4em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500">Inputs</th>
+    </tr></thead>
+    <tbody>{input_rows}</tbody>
+  </table>
+</details>"""
 
     # Conditional label/case column
     has_labels  = any(r.get("label") for r in rows)
@@ -338,11 +388,11 @@ def write_html(rows, output_path, source_file, source_html_name=None):
   .controls select {{ padding:0.4em 0.8em; border:1px solid var(--border); border-radius:6px; font-size:0.9em; background:var(--surface); color:var(--text); }}
   .row-count {{ font-size:0.82em; color:var(--subtext); margin-bottom:0.8em; }}
   table {{ width:100%; border-collapse:collapse; background:var(--surface); border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); border:1px solid var(--border); }}
-  th {{ background:var(--header); color:#fff; padding:0.75em 1em; text-align:left; font-size:0.85em; cursor:pointer; user-select:none; white-space:nowrap; }}
+  th {{ background:var(--header); color:#fff; padding:0.75em 1em; text-align:left; font-size:0.92em; cursor:pointer; user-select:none; white-space:nowrap; }}
   th:hover {{ background:var(--header-hover); }}
   th.sorted-asc::after  {{ content:" ▲"; font-size:0.75em; }}
   th.sorted-desc::after {{ content:" ▼"; font-size:0.75em; }}
-  td {{ padding:0.45em 1em; font-size:0.88em; border-bottom:1px solid var(--border); }}
+  td {{ padding:0.55em 1em; font-size:0.95em; border-bottom:1px solid var(--border); }}
   tr:last-child td {{ border-bottom:none; }}
   tr.full    {{ background:var(--row-full); }}
   tr.partial {{ background:var(--row-partial); }}
@@ -381,6 +431,7 @@ def write_html(rows, output_path, source_file, source_html_name=None):
   <div class="bar-label"><span>Branch Coverage</span><span>{covered_edges}/{total_edges} edges</span></div>
   <div class="bar-bg"><div class="bar-fg"></div></div>
 </div>
+{inputs_html}
 <div class="controls">
   <input type="text" id="search" placeholder="🔍 Search by line or type…" oninput="applyFilters()">
   <select id="filter" onchange="applyFilters()">
@@ -494,6 +545,7 @@ def write_html(rows, output_path, source_file, source_html_name=None):
     return covered_edges, total_edges, pct
 
 
+
 def main():
     if len(sys.argv) != 3:
         print("Usage: python3 report.py <branch_map.json> <coverage.json>")
@@ -524,11 +576,18 @@ def main():
         report_html_name=os.path.basename(html_out)
     )
 
+    per_file_log = base + "_test_inputs_log.json"
+    test_inputs  = load_test_inputs(per_file_log) or load_test_inputs("test_inputs_log.json")
     covered_edges, total_edges, pct = write_html(
         rows, html_out, source_file,
-        source_html_name=source_html_name if source_ok else None
+        source_html_name=source_html_name if source_ok else None,
+        test_inputs=test_inputs
     )
     print(f"\n📊 Coverage: {covered_edges}/{total_edges} edges ({pct:.1f}%)")
+
+    # Cleanup shared log from root if per-file log was already saved
+    if os.path.exists(per_file_log) and os.path.exists("test_inputs_log.json"):
+        os.remove("test_inputs_log.json")
 
 
 if __name__ == "__main__":

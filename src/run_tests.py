@@ -37,7 +37,7 @@ def parse_inputs(xml_file):
 
 
 def run_test(binary, inputs, test_name, work_dir):
-    """Run binary with given inputs. Returns coverage dict."""
+    """Run binary with given inputs. Returns (coverage, inputs, test_name)."""
     input_file = os.path.join(work_dir, "test_input.txt")
     cov_file = os.path.join(work_dir, "coverage.json")
 
@@ -97,7 +97,7 @@ def run_test(binary, inputs, test_name, work_dir):
         print(f"  Branches hit: {len(coverage.get('branches', []))}")
 
 
-    return coverage
+    return coverage, inputs, test_name
 
 
 # * Coverage merging 
@@ -241,6 +241,7 @@ if __name__ == "__main__":
 
     branch_map    = load_branch_map(args.branch_map) if args.branch_map else {}
     all_coverages = []
+    test_inputs_log = []
 
 
     if not os.path.exists(args.binary):
@@ -261,7 +262,9 @@ if __name__ == "__main__":
             print("⚠️ Warning: No XML test cases found in suite — running with no inputs")
             work_dir = tempfile.mkdtemp(prefix="cov_")
             work_dirs.append(work_dir)
-            all_coverages.append(run_test(args.binary, [], "no_inputs", work_dir))
+            cov, inputs, tname = run_test(args.binary, [], "no_inputs", work_dir)
+            all_coverages.append(cov)
+            test_inputs_log.append({"test_case": tname, "inputs": inputs})
         else:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {}
@@ -275,12 +278,16 @@ if __name__ == "__main__":
                     )
                     futures[f] = xml_file
                 for future in as_completed(futures):
-                    all_coverages.append(future.result())
+                    cov, inputs, tname = future.result()
+                    all_coverages.append(cov)
+                    test_inputs_log.append({"test_case": tname, "inputs": inputs})
     else:
         print("No test-suite provided — running binary once with no inputs")
         work_dir = tempfile.mkdtemp(prefix="cov_")
         work_dirs.append(work_dir)
-        all_coverages.append(run_test(args.binary, [], "no_inputs", work_dir))
+        cov, inputs, tname = run_test(args.binary, [], "no_inputs", work_dir)
+        all_coverages.append(cov)
+        test_inputs_log.append({"test_case": tname, "inputs": inputs})
 
     # Cleanup all temp dirs
     for d in work_dirs:
@@ -289,4 +296,7 @@ if __name__ == "__main__":
     merged = merge_coverage(all_coverages)
     if not merged:
         print("⚠️  Warning: No coverage data collected — all runs may have crashed")
+    with open("test_inputs_log.json", "w") as f:
+        json.dump(test_inputs_log, f, indent=2)
+    print("✓ Test inputs log written to test_inputs_log.json")
     print_summary(merged, branch_map)
