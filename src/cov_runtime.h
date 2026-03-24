@@ -18,9 +18,9 @@ extern uint64_t branch_counters[MAX_BRANCHES];
 
 // cover() macro - wraps branch conditions to track true/false paths
 #define cover(expr, branch_id) \
-    ((branch_id) * 2 + 1 < MAX_BRANCHES \
-        ? ((expr) ? (branch_counters[(branch_id) * 2]++, 1) \
-                  : (branch_counters[(branch_id) * 2 + 1]++, 0)) \
+    (((branch_id) - 1) * 2 + 1 < MAX_BRANCHES \
+        ? ((expr) ? (branch_counters[((branch_id) - 1) * 2]++, 1) \
+                  : (branch_counters[((branch_id) - 1) * 2 + 1]++, 0)) \
         : (fprintf(stderr, "cover(): branch_id %d out of bounds\n", (branch_id)), 0))
 
 // dump_coverage() - writes coverage data to coverage.json

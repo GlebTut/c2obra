@@ -34,7 +34,7 @@ void dump_coverage(void) {
         if (branch_counters[i] > 0 || branch_counters[i+1] > 0) {
             if (!first) fprintf(f, ",\n");
             fprintf(f, "    {\"id\": %d, \"true\": %" PRIu64 ", \"false\": %" PRIu64 "}",
-                i / 2,
+                i / 2 + 1,   // ← was i / 2  (0-indexed), must be 1-indexed
                 branch_counters[i],
                 branch_counters[i + 1]
             );
