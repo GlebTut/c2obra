@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 set -e
 
+
 echo "=== Step 1: Installing system dependencies ==="
 sudo apt install -y python3.12-venv gcc-multilib wget unzip
+
 
 echo "=== Step 2: Setting up Python environment ==="
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
+
 echo "=== Step 3: Installing Sikraken ==="
 SIKRAKEN_DIR="$HOME/sikraken"
 SIKRAKEN_BIN="$SIKRAKEN_DIR/bin/sikraken.sh"
+
 
 # Remove broken/incomplete installation if bin/sikraken.sh is missing
 if [ -d "$SIKRAKEN_DIR" ] && [ ! -f "$SIKRAKEN_BIN" ]; then
@@ -19,10 +23,11 @@ if [ -d "$SIKRAKEN_DIR" ] && [ ! -f "$SIKRAKEN_BIN" ]; then
     rm -rf "$SIKRAKEN_DIR"
 fi
 
+
 if [ ! -d "$SIKRAKEN_DIR" ]; then
-    echo "Downloading Sikraken from Zenodo (record 14014796)..."
+    echo "Downloading Sikraken from Zenodo (record 18062402, v35, Dec 2025)..."
     wget -O /tmp/sikraken.zip \
-        "https://zenodo.org/records/14014796/files/sikraken.zip?download=1"
+        "https://zenodo.org/records/18062402/files/sikraken.zip?download=1"
     mkdir -p "$SIKRAKEN_DIR"
     unzip /tmp/sikraken.zip -d "$SIKRAKEN_DIR"
     # Handle nested folder if zip extracts into subfolder
@@ -39,6 +44,7 @@ else
     echo "✓ Sikraken already installed — skipping"
 fi
 
+
 # Verify
 if [ ! -f "$SIKRAKEN_BIN" ]; then
     echo "❌ ERROR: $SIKRAKEN_BIN still not found after install. Check the zip structure."
@@ -47,6 +53,7 @@ if [ ! -f "$SIKRAKEN_BIN" ]; then
     exit 1
 fi
 
+
 echo "=== Step 4: Patching run_pipeline.sh to auto-activate venv ==="
 if ! grep -q "venv/bin/activate" run_pipeline.sh; then
     sed -i 's|^set -e$|set -e\nsource "$(dirname "$0")/venv/bin/activate"|' run_pipeline.sh
@@ -54,6 +61,7 @@ if ! grep -q "venv/bin/activate" run_pipeline.sh; then
 else
     echo "✓ run_pipeline.sh already patched — skipping"
 fi
+
 
 echo ""
 echo "=== Installation Complete! ==="

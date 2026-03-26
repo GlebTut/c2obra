@@ -4,10 +4,8 @@ C Testing Coverage Tool - Report Generator
 Reads branch_map.json + coverage.json and outputs HTML + CSV + source HTML reports
 """
 
-
 import sys, json, os, csv, re
 from datetime import datetime
-
 
 
 def load_branch_map(path):
@@ -20,7 +18,6 @@ def load_branch_map(path):
     except json.JSONDecodeError as e:
         print(f"❌ Error: branch map is malformed JSON: {e}")
         sys.exit(1)
-
 
 
 def load_coverage(path):
@@ -55,12 +52,13 @@ def merge(branch_map_data, coverage):
             "line":        b.get("line",  "?"),
             "type":        b.get("type",  "?"),
             "label":       b.get("label", ""),
+            "true_label":  b.get("true_label",  ""),
+            "false_label": b.get("false_label", ""),
             "true_count":  true_count,
             "false_count": false_count,
             "covered":     covered,
         })
     return rows
-
 
 
 def write_csv(rows, output_path, source_file):
@@ -70,14 +68,21 @@ def write_csv(rows, output_path, source_file):
             fieldnames = ["file", "branch_id", "line", "type"]
             if has_labels:
                 fieldnames.append("label")
-            fieldnames += ["true_count", "false_count", "covered"]
+            fieldnames += ["true_label", "false_label", "true_count", "false_count", "covered"]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for r in rows:
-                row = {"file": source_file, "branch_id": r["branch_id"],
-                       "line": r["line"], "type": r["type"],
-                       "true_count": r["true_count"], "false_count": r["false_count"],
-                       "covered": r["covered"]}
+                row = {
+                    "file":        source_file,
+                    "branch_id":   r["branch_id"],
+                    "line":        r["line"],
+                    "type":        r["type"],
+                    "true_label":  r.get("true_label",  ""),
+                    "false_label": r.get("false_label", ""),
+                    "true_count":  r["true_count"],
+                    "false_count": r["false_count"],
+                    "covered":     r["covered"],
+                }
                 if has_labels:
                     row["label"] = r.get("label", "")
                 writer.writerow(row)
@@ -85,9 +90,12 @@ def write_csv(rows, output_path, source_file):
             covered_edges = sum(1 for r in rows if r["true_count"]  > 0) + \
                             sum(1 for r in rows if r["false_count"] > 0)
             pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
-            summary = {"file": "SUMMARY", "branch_id": "", "line": "", "type": "",
-                       "true_count": "", "false_count": "",
-                       "covered": f"{pct:.1f}% ({covered_edges}/{total_edges} edges)"}
+            summary = {
+                "file": "SUMMARY", "branch_id": "", "line": "", "type": "",
+                "true_label": "", "false_label": "",
+                "true_count": "", "false_count": "",
+                "covered": f"{pct:.1f}% ({covered_edges}/{total_edges} branches)",
+            }
             if has_labels:
                 summary["label"] = ""
             writer.writerow(summary)
@@ -95,7 +103,6 @@ def write_csv(rows, output_path, source_file):
     except OSError as e:
         print(f"❌ Error: could not write {output_path}: {e}")
         sys.exit(1)
-
 
 
 def highlight_c_syntax(code):
@@ -126,7 +133,6 @@ def highlight_c_syntax(code):
         else:
             out += tok
     return out
-
 
 
 def write_source_html(rows, branch_map_data, source_html_path, report_html_name):
@@ -275,7 +281,6 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
     return True
 
 
-
 def write_html(rows, output_path, source_file, source_html_name=None, test_inputs=None):
     total_edges   = len(rows) * 2
     covered_true  = sum(1 for r in rows if r["true_count"]  > 0)
@@ -331,10 +336,26 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
         else:
             row_class = "none"
 
-        btype  = r["type"].replace("_statement", "").replace("_", "-")
-        status = "FULL" if r["covered"] else ("PARTIAL" if r["true_count"] > 0 or r["false_count"] > 0 else "NONE")
-        t_badge = f'<span class="badge hit">{r["true_count"]}</span>'  if r["true_count"]  > 0 else '<span class="badge miss">0</span>'
-        f_badge = f'<span class="badge hit">{r["false_count"]}</span>' if r["false_count"] > 0 else '<span class="badge miss">0</span>'
+        btype    = r["type"].replace("_statement", "").replace("_", "-")
+        status   = "FULL" if r["covered"] else ("PARTIAL" if r["true_count"] > 0 or r["false_count"] > 0 else "NONE")
+        t_label  = r.get("true_label",  "")
+        f_label  = r.get("false_label", "")
+
+        t_badge = f'<span class="badge hit"  title="{t_label}">{r["true_count"]}</span>'  if r["true_count"]  > 0 else f'<span class="badge miss" title="{t_label}">0</span>'
+        f_badge = f'<span class="badge hit"  title="{f_label}">{r["false_count"]}</span>' if r["false_count"] > 0 else f'<span class="badge miss" title="{f_label}">0</span>'
+
+        edge_label_html = ""
+        if t_label and f_label:
+            t_color = "#4ade80" if r["true_count"]  > 0 else "#f87171"
+            f_color = "#4ade80" if r["false_count"] > 0 else "#f87171"
+            edge_label_html = (
+                f'<div style="font-size:0.75em;margin-top:0.3em;opacity:0.8;line-height:1.4">'
+                f'<span style="color:{t_color}">T: {t_label}</span>'
+                f'<span style="margin:0 0.4em;opacity:0.4">|</span>'
+                f'<span style="color:{f_color}">F: {f_label}</span>'
+                f'</div>'
+            )
+
         label_td = f'<td><code>{r.get("label","")}</code></td>' if has_labels else ""
 
         src_link = f'{source_html_name}#line-{r["line"]}' if source_html_name and r["line"] != "?" else ""
@@ -345,7 +366,7 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
             f'<tr class="{row_class}" data-status="{status}" {onclick} {cursor}>'
             f'<td>{r["branch_id"]}</td>'
             f'<td>{r["line"]}</td>'
-            f'<td><code>{btype}</code></td>'
+            f'<td><code>{btype}</code>{edge_label_html}</td>'
             f'{label_td}'
             f'<td>{t_badge}</td>'
             f'<td>{f_badge}</td>'
@@ -369,14 +390,16 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   :root {{
     --bg:#0f172a; --surface:#1e293b; --text:#f1f5f9; --subtext:#94a3b8;
     --border:#334155; --header:#0f172a; --header-hover:#1e3a5f;
-    --row-full:#14532d; --row-partial:#78350f; --row-none:#7f1d1d;
-    --row-full-hover:#166534; --row-partial-hover:#92400e; --row-none-hover:#991b1b;
+    --row-full:#0f3320;    --row-full-hover:#134a2c;
+    --row-partial:#4a2500; --row-partial-hover:#5e3000;
+    --row-none:#4a0a0a;    --row-none-hover:#600e0e;
   }}
   [data-theme="light"] {{
     --bg:#f5f7fa; --surface:#ffffff; --text:#1a1a2e; --subtext:#555;
     --border:#e5e7eb; --header:#1a1a2e; --header-hover:#2d2d5e;
-    --row-full:#bbf7d0; --row-partial:#fde68a; --row-none:#fecaca;
-    --row-full-hover:#86efac; --row-partial-hover:#fcd34d; --row-none-hover:#fca5a5;
+    --row-full:#bbf7d0;    --row-full-hover:#86efac;
+    --row-partial:#fde68a; --row-partial-hover:#fcd34d;
+    --row-none:#fecaca;    --row-none-hover:#fca5a5;
   }}
   body {{ font-family:"Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--text); padding:2em; transition:background 0.2s,color 0.2s; }}
   h1 {{ font-size:1.5em; margin-bottom:0.2em; }}
@@ -430,13 +453,12 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light</button>
 </div>
 <div class="cards">
-  <div class="card"><div class="val">{len(rows)}</div><div class="lbl">Total branches</div></div>
-  <div class="card"><div class="val">{total_edges}</div><div class="lbl">Total edges</div></div>
-  <div class="card"><div class="val">{covered_edges}</div><div class="lbl">Covered edges</div></div>
+  <div class="card"><div class="val">{total_edges}</div><div class="lbl">Total branches</div></div>
+  <div class="card"><div class="val">{covered_edges}</div><div class="lbl">Covered branches</div></div>
   <div class="card"><div class="val" style="color:{bar_color}">{pct:.1f}%</div><div class="lbl">Branch coverage</div></div>
 </div>
 <div class="bar-wrap">
-  <div class="bar-label"><span>Branch Coverage</span><span>{covered_edges}/{total_edges} edges</span></div>
+  <div class="bar-label"><span>Branch Coverage</span><span>{covered_edges}/{total_edges} branches</span></div>
   <div class="bar-bg"><div class="bar-fg"></div></div>
 </div>
 {inputs_html}
@@ -558,7 +580,6 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
     return covered_edges, total_edges, pct
 
 
-
 def main():
     if len(sys.argv) != 3:
         print("Usage: python3 report.py <branch_map.json> <coverage.json>")
@@ -596,7 +617,7 @@ def main():
         source_html_name=source_html_name if source_ok else None,
         test_inputs=test_inputs
     )
-    print(f"\n📊 Coverage: {covered_edges}/{total_edges} edges ({pct:.1f}%)")
+    print(f"\n📊 Coverage: {covered_edges}/{total_edges} branches ({pct:.1f}%)")
 
     if os.path.exists(per_file_log) and os.path.exists("test_inputs_log.json"):
         os.remove("test_inputs_log.json")

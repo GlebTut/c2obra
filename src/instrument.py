@@ -329,12 +329,14 @@ def instrument_file(input_file, output_file, start_id=1):
 
     branches = find_branches(tree)
     if not branches:
-        print("⚠️ Warning: No branch points found — output will be identical to input")
+        print("⚠️ Warning: No branches found — output will be identical to input")
     else:
-        print(f"✓ Found {len(branches)} branch points:")
+        total_branch_edges = len(branches) * 2
+        print(f"✓ Found {total_branch_edges} branches ({len(branches)} branch constructs):")
         for i, branch in enumerate(branches, 1):
             line = branch['start_point'][0] + 1
-            print(f"  {i}. {branch['type']} at line {line}")
+            btype = branch['type'].replace('_statement', '').replace('_', '-')
+            print(f"  {i}. {btype} at line {line}  →  true branch + false branch")
 
     instrumented_code = instrument_code(source_code, branches, start_id=start_id)
 
@@ -382,8 +384,10 @@ def instrument_directory(input_dir, output_dir):
     total_branches = next_id - 1
     print(f"✅ Directory instrumentation complete.")
     print(f"   Files instrumented : {len(c_files)}")
-    print(f"   Total branch IDs   : {total_branches}")
-    print(f"BRANCH_COUNTERS={total_branches * 2}")
+    total_branch_edges = total_branches * 2
+    print(f"  Total branch constructs : {total_branches}")
+    print(f"  Total branches          : {total_branch_edges}")
+    print(f"BRANCH_COUNTERS={total_branch_edges}")
 
 
 def main():

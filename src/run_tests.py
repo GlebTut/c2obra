@@ -6,22 +6,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # * Resource limits
 
-
 CPU_TIME_LIMIT = 30     # Seconds per test run
 MEMORY_LIMIT_MB = 512   # MB per test run
 WALL_TIMEOUT = 35       # wall-clock timeout (slighty above CPU limit)
 
 
 def set_resource_limits():
-    # Set soft 1s below hard so SIGXCPU fires before SIGKILL
     soft = max(1, CPU_TIME_LIMIT - 1)
     hard = CPU_TIME_LIMIT
     resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
 
 
-
 # * XML test input parsing
-
 
 def parse_inputs(xml_file):
     try:
@@ -35,11 +31,10 @@ def parse_inputs(xml_file):
 
 # * Single test execution
 
-
 def run_test(binary, inputs, test_name, work_dir):
     """Run binary with given inputs. Returns (coverage, inputs, test_name)."""
     input_file = os.path.join(work_dir, "test_input.txt")
-    cov_file = os.path.join(work_dir, "coverage.json")
+    cov_file   = os.path.join(work_dir, "coverage.json")
 
     with open(input_file, "w") as f:
         f.write("\n".join(inputs))
@@ -48,23 +43,21 @@ def run_test(binary, inputs, test_name, work_dir):
     env["COVERAGE_OUTPUT"] = cov_file
 
     timed_out = False
-    killed = False
+    killed    = False
 
     try:
         result = subprocess.run(
-            [binary], 
-            capture_output=True, 
+            [binary],
+            capture_output=True,
             text=True,
-            timeout=WALL_TIMEOUT,           # Wall-clock hard stop
-            preexec_fn=set_resource_limits,  # CPU + memory caps in child
-            cwd=work_dir, # Isolated dir
-            env=env # Unique coverage.json path
+            timeout=WALL_TIMEOUT,
+            preexec_fn=set_resource_limits,
+            cwd=work_dir,
+            env=env
         )
-
         exit_code = result.returncode
 
     except subprocess.TimeoutExpired as e:
-        # Kill entire process group to prevent zombies
         try:
             os.killpg(os.getpgid(e.process.pid), signal.SIGKILL)
         except Exception:
@@ -78,8 +71,6 @@ def run_test(binary, inputs, test_name, work_dir):
         exit_code = -1
         print(f"  ⚠️  [{test_name}] ERROR: {e}")
 
-
-    # Read coverage written by destructor in cov_runtime.c
     try:
         with open(cov_file) as f:
             coverage = json.load(f)
@@ -96,12 +87,10 @@ def run_test(binary, inputs, test_name, work_dir):
         print(f"  Exit code: {exit_code}")
         print(f"  Branches hit: {len(coverage.get('branches', []))}")
 
-
     return coverage, inputs, test_name
 
 
-# * Coverage merging 
-
+# * Coverage merging
 
 def merge_coverage(all_coverages):
     merged = {}
@@ -117,7 +106,6 @@ def merge_coverage(all_coverages):
 
 # * Branch map loader
 
-
 def load_branch_map(map_file):
     try:
         with open(map_file) as f:
@@ -131,13 +119,11 @@ def load_branch_map(map_file):
         return {}
 
 
-# * Summary + report writer 
-
+# * Summary + report writer
 
 def print_summary(merged, branch_map=None):
     if branch_map is None:
         branch_map = {}
-
 
     print("\n" + "="*65)
     print("AGGREGATED COVERAGE SUMMARY")
@@ -145,15 +131,12 @@ def print_summary(merged, branch_map=None):
     print(f"{'ID':<6} {'Line':<8} {'Type':<18} {'True':>6} {'False':>7} {'Status':>10}")
     print("-"*65)
 
-
-    # Iterate ALL branch IDs from the map, not just hit ones
     all_ids = sorted(set(list(branch_map.keys()) + list(merged.keys())))
-    total = len(branch_map) if branch_map else len(merged)
+    total         = len(branch_map) if branch_map else len(merged)
     total_edges   = total * 2
     covered_true  = 0
     covered_false = 0
     report_branches = []
-
 
     for bid in all_ids:
         b     = merged.get(bid, {"true": 0, "false": 0})
@@ -183,20 +166,18 @@ def print_summary(merged, branch_map=None):
             "covered": covered
         })
 
-
     print("-"*65)
     covered_edges = covered_true + covered_false
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
-    print(f"Covered edges: {covered_edges}/{total_edges}  ({covered_true} true, {covered_false} false)")
+    print(f"Covered branches: {covered_edges}/{total_edges}  ({covered_true} true, {covered_false} false)")
     print(f"Branch coverage: {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
-
 
     report = {
         "summary": {
             "total_branches":      total,
-            "total_edges":         total_edges,
-            "covered_edges":       covered_edges,
+            "total_branches_count": total_edges,
+            "covered_branches":    covered_edges,
             "branch_coverage_pct": round(pct, 1),
             "resource_limits": {
                 "cpu_seconds":  CPU_TIME_LIMIT,
@@ -207,17 +188,14 @@ def print_summary(merged, branch_map=None):
         "branches": report_branches
     }
 
-
     with open("coverage_report.json", "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nFull report written to coverage_report.json")
 
 
-
 # * Entry point
 
-
-if __name__ == "__main__":    
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run tests and measure branch coverage"
     )
@@ -229,20 +207,15 @@ if __name__ == "__main__":
     parser.add_argument("--wall",   type=int,    help="Wall timeout in seconds (default: cpu+5)", default=None)
     args = parser.parse_args()
 
-    # Convert binary to absolute path so cwd=work_dir doesn't break it
     args.binary = os.path.abspath(args.binary)
-
-    # Override module-level constants with CLI values
 
     CPU_TIME_LIMIT  = args.cpu
     MEMORY_LIMIT_MB = args.memory
     WALL_TIMEOUT    = args.wall if args.wall else args.cpu + 5
 
-
-    branch_map    = load_branch_map(args.branch_map) if args.branch_map else {}
-    all_coverages = []
+    branch_map      = load_branch_map(args.branch_map) if args.branch_map else {}
+    all_coverages   = []
     test_inputs_log = []
-
 
     if not os.path.exists(args.binary):
         print(f"❌ Error: Binary '{args.binary}' not found — did compilation succeed?")
@@ -251,8 +224,7 @@ if __name__ == "__main__":
         print(f"❌ Error: Binary '{args.binary}' is not executable")
         sys.exit(1)
 
-
-    workers = max(1, os.cpu_count() - 1)
+    workers   = max(1, os.cpu_count() - 1)
     work_dirs = []
 
     if args.suite_dir != "-":
@@ -289,7 +261,6 @@ if __name__ == "__main__":
         all_coverages.append(cov)
         test_inputs_log.append({"test_case": tname, "inputs": inputs})
 
-    # Cleanup all temp dirs
     for d in work_dirs:
         shutil.rmtree(d, ignore_errors=True)
 

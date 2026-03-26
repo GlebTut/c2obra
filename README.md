@@ -9,7 +9,7 @@ HTML/CSV reports with VS Code-style source view.
 
 1. **Instrument** — `src/instrument.py` parses a C source file using tree-sitter and injects `cover()` macros around every branch (`if`, `while`, `for`, `do-while`, `switch`)
 2. **Compile & Run** — the instrumented file is compiled with `src/cov_runtime.c` and executed against Sikraken-generated test inputs
-3. **Report** — branch coverage is calculated per edge (true/false) and output as JSON + interactive HTML/CSV with source-code view
+3. **Report** — branch coverage is calculated per branch (true/false edge) and output as JSON + interactive HTML/CSV with source-code view
 
 ## Requirements
 
@@ -48,6 +48,20 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Smoke Test
+
+After installation, verify everything works end-to-end:
+
+```bash
+bash smoke_test.sh
+```
+Expected output:
+```
+✓ Found 4 branches (2 branch constructs)
+Branch coverage: 100.0%
+✅ Smoke test passed. Open smoke_report.html to view coverage.
+```
+
 ## Usage
 
 ### Run the full pipeline on a single file
@@ -59,7 +73,7 @@ bash run_pipeline.sh filePATH/fileNAME
 The pipeline runs these steps automatically:
 
 1. **Auto-detects** if the file uses `__VERIFIER_nondet_*` inputs
-2. **Step 0** *(input-driven files only)* — runs Sikraken with a 20s budget to generate a test suite XML
+2. **Step 0** *(input-driven files only)* — runs Sikraken with a 10s budget to generate a test suite XML
 3. **Step 1** — instruments the C file with `cover()` macros via `src/instrument.py`
 4. **Step 2** — compiles the instrumented file with `gcc` + `cov_runtime.c` + `verifier_stubs.c`
 5. **Step 3** — runs all test cases via `src/run_tests.py` (parallel execution) and outputs coverage results
@@ -85,19 +99,6 @@ bash run_pipeline.sh path/to/directory/
 
 Recursively instruments all `.c` files, assigns globally unique branch IDs across all files, compiles and runs each benchmark, then generates a summary report at `output/summary_report.html`.
 
-### Run tests on all benchmarks
-
-```bash
-source venv/bin/activate
-python3 src/run_tests.py
-```
-
-### Batch test
-
-```bash
-bash batch_test.sh
-```
-
 ### Generate HTML/CSV report manually
 
 ```bash
@@ -122,11 +123,18 @@ python3 src/merge_reports.py output/
 The tool uses an **edge-based branch coverage model** consistent with gcov:
 
 ```
-coverage % = (true_edges_hit + false_edges_hit) / (total_branches × 2) × 100
+coverage % = (true_branches_hit + false_branches_hit) / total_branches × 100
 ```
 
-Each branch (`if`/`while`/`for`/`switch` case) contributes **2 edges** to the total.
-This correctly handles cases where a loop condition may be entered but never exit false.
+Each branch construct (`if`, `while`, `for`, `do-while`, `switch` case) produces
+**2 branches**: one for the **true** path and one for the **false** path.
+
+For example, a single `if` statement at line 10 = 2 branches:
+- `if` at line 10 — true branch (condition holds)
+- `if` at line 10 — false branch (condition does not hold)
+
+This correctly handles cases such as a loop that is entered but never exits
+false — the true branch is covered, the false branch is not.
 
 ## Project Structure
 ```
@@ -146,9 +154,11 @@ C_Testing_Coverage_Tool/
 ├── build/                  # Compiled test binaries (generated, not tracked)
 ├── docs/
 │   └── testing-notes/      # Manual testing logs
-├── run_pipeline.sh         # End-to-end pipeline script
-├── batch_test.sh           # Batch test runner
-├── install.sh              # One-command installer
+├── examples/
+│ └── simple_if.c # Minimal smoke-test example (2 branch constructs, 4 branches)
+├── run_pipeline.sh # End-to-end pipeline script
+├── smoke_test.sh # Post-install sanity check
+├── install.sh # One-command installer
 └── requirements.txt
 ```
 

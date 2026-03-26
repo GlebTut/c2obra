@@ -5,10 +5,8 @@ Reads all *_branch_map.json + *_coverage.json in a directory and outputs:
   - summary_report.html  (overall stats + per-file breakdown with links)
 """
 
-
 import sys, json, os
 from datetime import datetime
-
 
 
 def load_branch_map(path):
@@ -18,7 +16,6 @@ def load_branch_map(path):
     except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
         print(f"⚠️  Skipping {path}: {e}")
         return []
-
 
 
 def load_coverage(path):
@@ -32,7 +29,6 @@ def load_coverage(path):
         return {}
 
 
-
 def compute_stats(branch_map, coverage):
     total_edges   = len(branch_map) * 2
     covered_edges = 0
@@ -42,7 +38,6 @@ def compute_stats(branch_map, coverage):
         if hits.get("false", 0) > 0: covered_edges += 1
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
     return total_edges, covered_edges, pct
-
 
 
 def collect_file_stats(directory):
@@ -65,7 +60,6 @@ def collect_file_stats(directory):
             "name":          base.replace("_inst", ".c"),
             "html":          html_path,
             "source_html":   source_html if source_html_exists else None,
-            "branches":      len(branch_map),
             "total_edges":   total_edges,
             "covered_edges": covered_edges,
             "pct":           pct,
@@ -73,13 +67,11 @@ def collect_file_stats(directory):
     return files
 
 
-
 def write_summary_html(files, output_path):
-    total_branches = sum(f["branches"]      for f in files)
-    total_edges    = sum(f["total_edges"]   for f in files)
-    covered_edges  = sum(f["covered_edges"] for f in files)
-    overall_pct    = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
-    date_str       = datetime.now().strftime("%Y-%m-%d %H:%M")
+    total_edges   = sum(f["total_edges"]   for f in files)
+    covered_edges = sum(f["covered_edges"] for f in files)
+    overall_pct   = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
+    date_str      = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     bar_color = "#16a34a" if overall_pct >= 80 else "#d97706" if overall_pct >= 50 else "#dc2626"
 
@@ -95,7 +87,6 @@ def write_summary_html(files, output_path):
         table_rows += (
             f'<tr>'
             f'<td><a href="{f["html"]}">{f["name"]}</a></td>'
-            f'<td>{f["branches"]}</td>'
             f'<td>{f["total_edges"]}</td>'
             f'<td>{f["covered_edges"]}</td>'
             f'<td><div class="mini-bar-bg"><div class="mini-bar-fg" style="width:{bar_w}%;background:{fc}"></div></div></td>'
@@ -167,14 +158,13 @@ def write_summary_html(files, output_path):
 
 <div class="cards">
   <div class="card"><div class="val">{len(files)}</div><div class="lbl">Files</div></div>
-  <div class="card"><div class="val">{total_branches}</div><div class="lbl">Total branches</div></div>
-  <div class="card"><div class="val">{total_edges}</div><div class="lbl">Total edges</div></div>
-  <div class="card"><div class="val">{covered_edges}</div><div class="lbl">Covered edges</div></div>
+  <div class="card"><div class="val">{total_edges}</div><div class="lbl">Total branches</div></div>
+  <div class="card"><div class="val">{covered_edges}</div><div class="lbl">Covered branches</div></div>
   <div class="card"><div class="val" style="color:{bar_color}">{overall_pct:.1f}%</div><div class="lbl">Overall coverage</div></div>
 </div>
 
 <div class="bar-wrap">
-  <div class="bar-label"><span>Overall Branch Coverage</span><span>{covered_edges}/{total_edges} edges</span></div>
+  <div class="bar-label"><span>Overall Branch Coverage</span><span>{covered_edges}/{total_edges} branches</span></div>
   <div class="bar-bg"><div class="bar-fg"></div></div>
 </div>
 
@@ -187,11 +177,10 @@ def write_summary_html(files, output_path):
   <thead>
   <tr>
     <th onclick="sortTable(0)">File</th>
-    <th onclick="sortTable(1)">Branches</th>
-    <th onclick="sortTable(2)">Total edges</th>
-    <th onclick="sortTable(3)">Covered edges</th>
-    <th onclick="sortTable(4)">Bar</th>
-    <th onclick="sortTable(5)">Coverage %</th>
+    <th onclick="sortTable(1)">Total branches</th>
+    <th onclick="sortTable(2)">Covered branches</th>
+    <th onclick="sortTable(3)">Bar</th>
+    <th onclick="sortTable(4)">Coverage %</th>
     <th>Source</th>
   </tr>
   </thead>
@@ -212,10 +201,10 @@ def write_summary_html(files, output_path):
     localStorage.setItem("theme", next);
     document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
   }}
-  let sortCol = 5, sortAsc = true;
+  let sortCol = 4, sortAsc = false;
   (function defaultSort() {{
-    sortByCol(5, false);
-    document.querySelectorAll("th")[5].classList.add("sorted-desc");
+    sortByCol(4, false);
+    document.querySelectorAll("th")[4].classList.add("sorted-desc");
     updateCount();
   }})();
   function sortByCol(col, asc) {{
@@ -268,7 +257,6 @@ def write_summary_html(files, output_path):
     return overall_pct, covered_edges, total_edges
 
 
-
 def main():
     if len(sys.argv) != 2:
         print("Usage: python3 merge_reports.py <output_directory/>")
@@ -286,7 +274,7 @@ def main():
 
     output_path = os.path.join(directory, "summary_report.html")
     overall_pct, covered_edges, total_edges = write_summary_html(files, output_path)
-    print(f"\n📊 Overall coverage: {covered_edges}/{total_edges} edges ({overall_pct:.1f}%) across {len(files)} file(s)")
+    print(f"\n📊 Overall coverage: {covered_edges}/{total_edges} branches ({overall_pct:.1f}%) across {len(files)} file(s)")
 
 
 if __name__ == "__main__":

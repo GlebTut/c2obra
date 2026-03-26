@@ -1,3 +1,20 @@
+/*
+ * verifier_stubs.c — Stub implementations of SV-COMP __VERIFIER_nondet_*
+ * functions for local testing without a formal verifier.
+ *
+ * Source: adapted from the SV-COMP competition infrastructure stubs used by
+ * testcov and TestCoCa tools. See:
+ *   https://sv-comp.sosy-lab.org/
+ *   https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks
+ *
+ * All nondet stubs read the next integer token from test_input.txt so that
+ * run_tests.py can drive them with XML test-suite inputs.
+ *
+ * Note on float/double: __VERIFIER_nondet_float and __VERIFIER_nondet_double
+ * return 0.0 by design. Floating-point values cannot be reliably read from
+ * integer test inputs. For branch coverage purposes this is acceptable;
+ * for numerical verification it would not be.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
