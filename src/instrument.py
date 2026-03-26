@@ -351,8 +351,8 @@ def instrument_file(input_file, output_file, start_id=1):
     map_file   = output_file.replace('.c', '_branch_map.json')
     next_id    = write_branch_map(branches, source_code, map_file, input_file, start_id=start_id)
     total_counters = (next_id - start_id) * 2
-    print(f"BRANCH_COUNTERS={total_counters}")
-    print(f"Done! Successfully instrumented {len(branches)} branches.\n")
+    #print(f"BRANCH_COUNTERS={total_counters}")
+    print(f"Done! Successfully instrumented {len(branches) * 2} branches.\n")
     return next_id
 
 

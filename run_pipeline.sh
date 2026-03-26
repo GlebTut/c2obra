@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
 set -e
 
-
 # * Help
 usage() {
   cat << 'EOF'
 Usage:
-  run_pipeline.sh <source.c> [test_suite_dir] [options]
-  run_pipeline.sh <source_dir/> [test_suite_dir] [options]
+  run_pipeline.sh <source.c> [options]
+  run_pipeline.sh <source_dir/> [options]
 
 Arguments:
   source.c          Path to a C source file to instrument, compile, and test.
   source_dir/       Path to a directory — all .c files are instrumented with
                     globally unique branch IDs and compiled as one binary.
-  test_suite_dir    (unused in pipeline — Sikraken is invoked automatically)
 
 Options:
   --cpu   N         CPU time limit per test run, in seconds.   Default: 30
@@ -57,7 +55,6 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
 fi
 
-
 # * Validate arguments
 if [ -z "$1" ]; then
     echo "❌ Usage: ./run_pipeline.sh <source.c|source_dir/> [--cpu N] [--memory N] [--wall N]"
@@ -69,13 +66,87 @@ if [ ! -e "$1" ]; then
     exit 1
 fi
 
+SIKRAKEN_OUT=~/sikraken/sikraken_output
+
+# ─── SINGLE FILE MODE ─────────────────────────────────────────────────────────
+if [ -f "$1" ]; then
+    SRC="$1"
+    BASENAME=$(basename "$SRC" .c)
+    mkdir -p output/ build/
+
+    # Auto-detect: does the file use __VERIFIER_nondet?
+    if grep -q "__VERIFIER_nondet" "$SRC"; then
+        echo "=== Detected: input-driven file ==="
+        echo "=== Step 0: Run Sikraken ==="
+        ABS_SRC="$(realpath "$SRC")"
+        REL_SRC="$(realpath --relative-to="$HOME/sikraken" "$ABS_SRC")"
+        cd ~/sikraken
+        ./bin/sikraken.sh release budget[10] "$REL_SRC"
+        cd ~/C_Testing_Coverage_Tool
+        SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$BASENAME" | head -1)
+        if [ -z "$SUITE_DIR" ]; then
+            echo "⚠️  Warning: No Sikraken test suite found for '$BASENAME' — running with no inputs"
+            SUITE_DIR="-"
+        fi
+        echo "✓ Sikraken done → $SUITE_DIR"
+    else
+        echo "=== Detected: no-input file ==="
+        SUITE_DIR="-"
+    fi
+
+    # Step 1: Instrument
+    echo "=== Step 1: Instrument ==="
+    INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c)
+    echo "$INST_OUT"
+    BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
+
+    # Step 2: Compile
+    echo "=== Step 2: Compile ==="
+    gcc output/"$BASENAME"_inst.c src/cov_runtime.c src/verifier_stubs.c \
+        -o build/"$BASENAME"_test -I src/ \
+        -DMAX_BRANCHES=${BRANCH_COUNTERS:-131072} \
+        -w
+    if [ ! -f "build/${BASENAME}_test" ]; then
+        echo "❌ Compilation failed — binary not created"
+        exit 1
+    fi
+    echo "✓ Binary built → build/${BASENAME}_test"
+
+    # Step 3: Run Tests
+    echo "=== Step 3: Run Tests ==="
+    python3 src/run_tests.py \
+        "build/${BASENAME}_test" \
+        "${SUITE_DIR:-"-"}" \
+        "output/${BASENAME}_inst_branch_map.json"
+
+    # Save per-file inputs log
+    if [ -f test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
+        mv test_inputs_log.json "output/${BASENAME}_inst_test_inputs_log.json"
+    fi
+
+    # Save coverage
+    if [ -f coverage_report.json ]; then
+        mv coverage_report.json "output/${BASENAME}_inst_coverage.json"
+        echo "✓ Saved coverage → output/${BASENAME}_inst_coverage.json"
+    else
+        echo "⚠️ No coverage_report.json produced"
+    fi
+
+    # Step 4: Generate report
+    TEST_INPUTS_LOG="output/${BASENAME}_inst_test_inputs_log.json" \
+    python3 src/report.py \
+        "output/${BASENAME}_inst_branch_map.json" \
+        "output/${BASENAME}_inst_coverage.json" || true
+
+    echo "✅ Done → open output/${BASENAME}_inst_report.html"
+    exit 0
+fi
 
 # ─── DIRECTORY MODE ───────────────────────────────────────────────────────────
 if [ -d "$1" ]; then
     SRC="$1"
     DIRNAME=$(basename "$SRC")
     OUT_DIR="output/${DIRNAME}-output"
-    SIKRAKEN_OUT=~/sikraken/sikraken_output
     mkdir -p "$OUT_DIR" build/
 
     echo "=== Directory mode: $SRC ==="
@@ -127,8 +198,10 @@ if [ -d "$1" ]; then
         echo "✓ Built build/${base}_test"
 
         # Step 3: Run tests
-        python3 src/run_tests.py "build/${base}_test" \
-            "$SUITE_DIR" "$OUT_DIR/${base}_inst_branch_map.json" "${@:2}" || true
+        python3 src/run_tests.py \
+            "build/${base}_test" \
+            "$SUITE_DIR" \
+            "$OUT_DIR/${base}_inst_branch_map.json" || true
 
         # Save per-file inputs log before it gets overwritten by the next iteration
         if [ -f test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
@@ -144,6 +217,7 @@ if [ -d "$1" ]; then
         fi
 
         # Step 5: Generate report
+        TEST_INPUTS_LOG="$OUT_DIR/${base}_inst_test_inputs_log.json" \
         python3 src/report.py \
             "$OUT_DIR/${base}_inst_branch_map.json" \
             "$OUT_DIR/${base}_inst_coverage.json" || true
@@ -156,69 +230,5 @@ if [ -d "$1" ]; then
     exit 0
 fi
 
-
-# ─── SINGLE FILE MODE ─────────────────────────────────────────────────────────
-SRC="$1"
-BASENAME=$(basename "$SRC" .c)
-SIKRAKEN_OUT=~/sikraken/sikraken_output
-mkdir -p output/ build/
-
-# Auto-detect: does the file use __VERIFIER_nondet?
-if grep -q "__VERIFIER_nondet" "$SRC"; then
-    echo "=== Detected: input-driven file ==="
-    echo "=== Step 0: Run Sikraken ==="
-    ABS_SRC="$(realpath "$SRC")"
-    REL_SRC="$(realpath --relative-to="$HOME/sikraken" "$ABS_SRC")"
-    cd ~/sikraken
-    ./bin/sikraken.sh release budget[10] "$REL_SRC"
-    cd ~/C_Testing_Coverage_Tool
-    SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$BASENAME" | head -1)
-    if [ -z "$SUITE_DIR" ]; then
-        echo "⚠️  Warning: No Sikraken test suite found for '$BASENAME' — running with no inputs"
-        SUITE_DIR="-"
-    fi
-    echo "✓ Sikraken done → $SUITE_DIR"
-else
-    echo "=== Detected: no-input file ==="
-    SUITE_DIR="-"
-fi
-
-# Step 1: Instrument
-echo "=== Step 1: Instrument ==="
-INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c)
-echo "$INST_OUT"
-BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
-
-# Step 2: Compile
-echo "=== Step 2: Compile ==="
-gcc output/"$BASENAME"_inst.c src/cov_runtime.c src/verifier_stubs.c \
-    -o build/"$BASENAME"_test -I src/ \
-    -DMAX_BRANCHES=${BRANCH_COUNTERS:-131072} \
-    -w
-if [ ! -f "build/${BASENAME}_test" ]; then
-    echo "❌ Compilation failed — binary not created"
-    exit 1
-fi
-echo "✓ Binary built → build/${BASENAME}_test"
-
-# Step 3: Run Tests
-echo "=== Step 3: Run Tests ==="
-python3 src/run_tests.py build/"$BASENAME"_test \
-    "$SUITE_DIR" output/"$BASENAME"_inst_branch_map.json "${@:2}"
-
-# Step 4: Generate report
-echo "=== Step 4: Report ==="
-if [ -f coverage_report.json ]; then
-    mv coverage_report.json output/"$BASENAME"_inst_coverage.json
-fi
-python3 src/report.py \
-    output/${BASENAME}_inst_branch_map.json \
-    output/${BASENAME}_inst_coverage.json
-
-# Save inputs log alongside report (only for input-driven files)
-if [ -f test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
-    cp test_inputs_log.json "output/${BASENAME}_inst_test_inputs_log.json"
-fi
-rm -f test_inputs_log.json
-
-echo "✅ Done → open output/${BASENAME}_inst_report.html"
+echo "❌ '$1' is neither a regular file nor a directory"
+exit 1

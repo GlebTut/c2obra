@@ -40,21 +40,21 @@ cat > "$TMP/suite/test_input-2.xml" << 'EOF'
 EOF
 
 echo "=== Smoke Test: instrumenting smoke.c ==="
-python3 "$TOOL_DIR/instrument.py" "$TMP/smoke.c" "$TMP/smoke_inst.c"
+python3 "$TOOL_DIR/src/instrument.py" "$TMP/smoke.c" "$TMP/smoke_inst.c"
 
 echo ""
 echo "=== Compiling ==="
 COUNTERS=$(grep 'BRANCH_COUNTERS=' "$TMP/smoke_inst.c" 2>/dev/null | tail -1 | cut -d= -f2 || echo 4)
-gcc -o "$TMP/smoke_bin" "$TMP/smoke_inst.c" "$TOOL_DIR/cov_runtime.c" "$TOOL_DIR/verifier_stubs.c" \
-    -I"$TOOL_DIR" -DMAX_BRANCHES="${COUNTERS}" -lm
+gcc -o "$TMP/smoke_bin" "$TMP/smoke_inst.c" "$TOOL_DIR/src/cov_runtime.c" "$TOOL_DIR/src/verifier_stubs.c" \
+    -I"$TOOL_DIR/src" -DMAX_BRANCHES="${COUNTERS}" -lm
 
 echo ""
 echo "=== Running tests ==="
-python3 "$TOOL_DIR/run_tests.py" "$TMP/smoke_bin" "$TMP/suite" "$TMP/smoke_inst_branch_map.json"
+python3 "$TOOL_DIR/src/run_tests.py" "$TMP/smoke_bin" "$TMP/suite" "$TMP/smoke_inst_branch_map.json"
 
 echo ""
 echo "=== Generating HTML report ==="
-python3 "$TOOL_DIR/report.py" "$TMP/smoke_inst_branch_map.json" coverage_report.json smoke_report.html
+python3 "$TOOL_DIR/src/report.py" "$TMP/smoke_inst_branch_map.json" coverage_report.json
 
 echo ""
 echo "✅ Smoke test passed. Open smoke_report.html to view coverage."

@@ -610,7 +610,7 @@ def main():
         report_html_name=os.path.basename(html_out)
     )
 
-    per_file_log = base + "_test_inputs_log.json"
+    per_file_log = os.environ.get("TEST_INPUTS_LOG") or base + "_test_inputs_log.json"
     test_inputs  = load_test_inputs(per_file_log) or load_test_inputs("test_inputs_log.json")
     covered_edges, total_edges, pct = write_html(
         rows, html_out, source_file,
