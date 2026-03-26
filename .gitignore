@@ -36,3 +36,5 @@ venv/
 batch_results.txt
 output/**/*_inst.c
 parsers_testing/
+test_inputs_log.json
+tests/test_designed_coverage.c
