@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <signal.h>
-#include <unistd.h> 
+#include <unistd.h>
 #include <stdlib.h>
 
 // Global array that stores hit counts
@@ -34,7 +34,7 @@ void dump_coverage(void) {
         if (branch_counters[i] > 0 || branch_counters[i+1] > 0) {
             if (!first) fprintf(f, ",\n");
             fprintf(f, "    {\"id\": %d, \"true\": %" PRIu64 ", \"false\": %" PRIu64 "}",
-                i / 2 + 1,   // ← was i / 2  (0-indexed), must be 1-indexed
+                i / 2 + 1,
                 branch_counters[i],
                 branch_counters[i + 1]
             );
@@ -56,18 +56,26 @@ void dump_coverage_destructor(void) {
     dump_coverage();
 }
 
-// Signal handler: fires on SIGXCPU (CPU limit) and SIGTERM
-// Called just before the kernel sends SIGKILL — last chance to flush
-static void signal_handler(int sig) {
+// Signal handler: fires on SIGXCPU, SIGTERM (soft kill)
+static void signal_handler_soft(int sig) {
     dump_coverage();
     _exit(1);
+}
+
+// Crash handler: fires on SIGSEGV, SIGABRT, SIGFPE
+// Re-raises the signal after dumping so run_tests.py sees a negative exit code
+static void signal_handler_crash(int sig) {
+    dump_coverage();
+    signal(sig, SIG_DFL);   // restore default so re-raise actually terminates
+    raise(sig);             // re-raise → run_tests.py sees exit_code < 0 → "crash"
 }
 
 // Constructor: runs before main() — installs signal handlers
 __attribute__((constructor))
 void install_signal_handlers(void) {
-    signal(SIGXCPU, signal_handler);
-    signal(SIGTERM, signal_handler);
-    signal(SIGABRT, signal_handler);  // ← catches abort()
-    signal(SIGSEGV, signal_handler);
+    signal(SIGXCPU, signal_handler_soft);
+    signal(SIGTERM, signal_handler_soft);
+    signal(SIGABRT, signal_handler_crash);
+    signal(SIGSEGV, signal_handler_crash);
+    signal(SIGFPE,  signal_handler_crash);
 }
