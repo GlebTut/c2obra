@@ -4,11 +4,14 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+
 # * Resource limits
+
 
 CPU_TIME_LIMIT = 30     # Seconds per test run
 MEMORY_LIMIT_MB = 512   # MB per test run
-WALL_TIMEOUT = 35       # wall-clock timeout (slighty above CPU limit)
+WALL_TIMEOUT = 35       # wall-clock timeout (slightly above CPU limit)
+
 
 
 def set_resource_limits():
@@ -17,7 +20,9 @@ def set_resource_limits():
     resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
 
 
+
 # * XML test input parsing
+
 
 def parse_inputs(xml_file):
     try:
@@ -29,10 +34,12 @@ def parse_inputs(xml_file):
         return []
 
 
+
 # * Single test execution
 
+
 def run_test(binary, inputs, test_name, work_dir):
-    """Run binary with given inputs. Returns (coverage, inputs, test_name)."""
+    """Run binary with given inputs. Returns (coverage, inputs, test_name, status)."""
     input_file = os.path.join(work_dir, "test_input.txt")
     cov_file   = os.path.join(work_dir, "coverage.json")
 
@@ -83,14 +90,25 @@ def run_test(binary, inputs, test_name, work_dir):
 
     if not timed_out and not killed:
         print(f"\n=== {test_name} ===")
-        print(f"  Inputs:    {inputs}")
-        print(f"  Exit code: {exit_code}")
+        print(f"  Inputs:       {inputs}")
+        print(f"  Exit code:    {exit_code}")
         print(f"  Branches hit: {len(coverage.get('branches', []))}")
 
-    return coverage, inputs, test_name
+    if timed_out:
+        status = "timeout"
+    elif exit_code != 0 and len(coverage.get("branches", [])) > 0:
+        status = "partial"
+    elif exit_code != 0:
+        status = "crash"
+    else:
+        status = "pass"
+
+    return coverage, inputs, test_name, status
+
 
 
 # * Coverage merging
+
 
 def merge_coverage(all_coverages):
     merged = {}
@@ -104,7 +122,9 @@ def merge_coverage(all_coverages):
     return merged
 
 
+
 # * Branch map loader
+
 
 def load_branch_map(map_file):
     try:
@@ -119,11 +139,15 @@ def load_branch_map(map_file):
         return {}
 
 
+
 # * Summary + report writer
 
-def print_summary(merged, branch_map=None):
+
+def print_summary(merged, branch_map=None, test_inputs_log=None):
     if branch_map is None:
         branch_map = {}
+    if test_inputs_log is None:
+        test_inputs_log = []
 
     print("\n" + "="*65)
     print("AGGREGATED COVERAGE SUMMARY")
@@ -131,7 +155,7 @@ def print_summary(merged, branch_map=None):
     print(f"{'ID':<6} {'Line':<8} {'Type':<18} {'True':>6} {'False':>7} {'Status':>10}")
     print("-"*65)
 
-    all_ids = sorted(set(list(branch_map.keys()) + list(merged.keys())))
+    all_ids       = sorted(set(list(branch_map.keys()) + list(merged.keys())))
     total         = len(branch_map) if branch_map else len(merged)
     total_edges   = total * 2
     covered_true  = 0
@@ -151,12 +175,12 @@ def print_summary(merged, branch_map=None):
         f = "✅" if f_hit else "❌"
         covered = t_hit and f_hit
         if covered:
-            status = "FULL"
+            branch_status = "FULL"
         elif t_hit or f_hit:
-            status = "PARTIAL"
+            branch_status = "PARTIAL"
         else:
-            status = "NONE"
-        print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {status:>10}")
+            branch_status = "NONE"
+        print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {branch_status:>10}")
         report_branches.append({
             "id":      bid,
             "line":    line,
@@ -173,27 +197,44 @@ def print_summary(merged, branch_map=None):
     print(f"Branch coverage: {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
 
+    # Count test run statuses
+    status_counts = {"pass": 0, "partial": 0, "timeout": 0, "crash": 0}
+    for t in test_inputs_log:
+        s = t.get("status", "pass")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    if any(v > 0 for v in status_counts.values()):
+        print(f"Test run statuses: " + "  ".join(
+            f"{k.upper()}={v}" for k, v in status_counts.items() if v > 0
+        ))
+
     report = {
         "summary": {
-            "total_branches":      total,
+            "total_branches":       total,
             "total_branches_count": total_edges,
-            "covered_branches":    covered_edges,
-            "branch_coverage_pct": round(pct, 1),
+            "covered_branches":     covered_edges,
+            "branch_coverage_pct":  round(pct, 1),
+            "coverage_pct":         round(pct, 1),   # alias used by report.py / merge_reports.py
+            "test_run_statuses":    status_counts,
             "resource_limits": {
                 "cpu_seconds":  CPU_TIME_LIMIT,
                 "memory_mb":    MEMORY_LIMIT_MB,
                 "wall_timeout": WALL_TIMEOUT
             }
         },
-        "branches": report_branches
+        "branches":  report_branches,
+        "test_runs": test_inputs_log
     }
 
-    with open("coverage_report.json", "w") as f:
+    os.makedirs("output", exist_ok=True)
+    with open("output/coverage_report.json", "w") as f:
         json.dump(report, f, indent=2)
-    print(f"\nFull report written to coverage_report.json")
+    print(f"\nFull report written to output/coverage_report.json")
+
 
 
 # * Entry point
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -234,9 +275,9 @@ if __name__ == "__main__":
             print("⚠️ Warning: No XML test cases found in suite — running with no inputs")
             work_dir = tempfile.mkdtemp(prefix="cov_")
             work_dirs.append(work_dir)
-            cov, inputs, tname = run_test(args.binary, [], "no_inputs", work_dir)
+            cov, inputs, tname, status = run_test(args.binary, [], "no_inputs", work_dir)
             all_coverages.append(cov)
-            test_inputs_log.append({"test_case": tname, "inputs": inputs})
+            test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
         else:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {}
@@ -250,16 +291,16 @@ if __name__ == "__main__":
                     )
                     futures[f] = xml_file
                 for future in as_completed(futures):
-                    cov, inputs, tname = future.result()
+                    cov, inputs, tname, status = future.result()
                     all_coverages.append(cov)
-                    test_inputs_log.append({"test_case": tname, "inputs": inputs})
+                    test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
     else:
         print("No test-suite provided — running binary once with no inputs")
         work_dir = tempfile.mkdtemp(prefix="cov_")
         work_dirs.append(work_dir)
-        cov, inputs, tname = run_test(args.binary, [], "no_inputs", work_dir)
+        cov, inputs, tname, status = run_test(args.binary, [], "no_inputs", work_dir)
         all_coverages.append(cov)
-        test_inputs_log.append({"test_case": tname, "inputs": inputs})
+        test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
 
     for d in work_dirs:
         shutil.rmtree(d, ignore_errors=True)
@@ -267,7 +308,8 @@ if __name__ == "__main__":
     merged = merge_coverage(all_coverages)
     if not merged:
         print("⚠️  Warning: No coverage data collected — all runs may have crashed")
-    with open("test_inputs_log.json", "w") as f:
+    os.makedirs("output", exist_ok=True)
+    with open("output/test_inputs_log.json", "w") as f:
         json.dump(test_inputs_log, f, indent=2)
-    print("✓ Test inputs log written to test_inputs_log.json")
-    print_summary(merged, branch_map)
+    print("✓ Test inputs log written to output/test_inputs_log.json")
+    print_summary(merged, branch_map, test_inputs_log)

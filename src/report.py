@@ -303,6 +303,7 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
             f'<tr>'
             f'<td style="padding:0.5em 1em;border-bottom:1px solid var(--border);color:var(--text);width:220px;white-space:nowrap">{t["test_case"]}</td>'
             f'<td style="padding:0.5em 1em;border-bottom:1px solid var(--border);color:var(--text)"><code style="background:var(--border);padding:0.2em 0.6em;border-radius:4px;color:var(--text);font-size:1em">{ ", ".join(t["inputs"]) if t["inputs"] else "(no inputs)" }</code></td>'
+            f'<td style="padding:0.5em 1em;border-bottom:1px solid var(--border)"><span class="run-status run-status-{t.get("status","pass")}">{t.get("status","pass").upper()}</span></td>'
             f'</tr>'
             for t in test_inputs
         )
@@ -315,6 +316,7 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
     <thead><tr>
       <th style="text-align:left;padding:0.5em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500;font-size:1em">Test Case</th>
       <th style="text-align:left;padding:0.5em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500;font-size:1em">Inputs</th>
+      <th style="text-align:left;padding:0.5em 1em;color:var(--subtext);border-bottom:1px solid var(--border);font-weight:500;font-size:1em">Status</th>
     </tr></thead>
     <tbody>{input_rows}</tbody>
   </table>
@@ -438,6 +440,11 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   .status.full    {{ background:#16a34a; color:#fff; }}
   .status.partial {{ background:#d97706; color:#fff; }}
   .status.none    {{ background:#dc2626; color:#fff; }}
+  .run-status {{ display:inline-block; padding:0.2em 0.7em; border-radius:6px; font-size:0.82em; font-weight:bold; }}
+  .run-status-pass    {{ background:#16a34a; color:#fff; }}
+  .run-status-partial {{ background:#d97706; color:#fff; }}
+  .run-status-timeout {{ background:#dc2626; color:#fff; }}
+  .run-status-crash   {{ background:#9ca3af; color:#fff; }}
   code {{ background:var(--border); padding:0.15em 0.5em; border-radius:4px; font-size:0.95em; }}
   .export-btn {{ background:var(--surface); color:var(--text); border:1px solid var(--border); padding:0.4em 1em; border-radius:6px; cursor:pointer; font-size:0.85em; margin-left:auto; }}
   .export-btn:hover {{ background:var(--border); }}
@@ -535,92 +542,83 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
     updateCount();
   }}
   function applyFilters() {{
-    const search=document.getElementById("search").value.toLowerCase();
-    const filter=document.getElementById("filter").value;
-    document.querySelectorAll("#tableBody tr").forEach(row => {{
-      const text=row.innerText.toLowerCase(), status=getStatus(row);
-      const matchS=!search||text.includes(search);
-      const matchF=filter==="all"?true:filter==="uncovered"?status!=="FULL":status===filter;
-      row.style.display=matchS&&matchF?"":"none";
+    const search = document.getElementById("search").value.toLowerCase();
+    const filter = document.getElementById("filter").value;
+    const rows   = document.querySelectorAll("#tableBody tr");
+    let visible  = 0;
+    rows.forEach(r => {{
+      const text   = r.innerText.toLowerCase();
+      const status = r.getAttribute("data-status") || "";
+      const matchSearch = !search || text.includes(search);
+      const matchFilter =
+        filter === "all"       ? true :
+        filter === "uncovered" ? status !== "FULL" :
+        status === filter;
+      const show = matchSearch && matchFilter;
+      r.style.display = show ? "" : "none";
+      if (show) visible++;
     }});
-    updateCount();
+    updateCount(visible);
   }}
-  function updateCount() {{
-    const all=document.querySelectorAll("#tableBody tr");
-    const visible=Array.from(all).filter(r=>r.style.display!=="none").length;
-    document.getElementById("rowCount").textContent=
-      visible===all.length?`Showing all ${{all.length}} branches`:`Showing ${{visible}} of ${{all.length}} branches`;
+  function updateCount(n) {{
+    const total = document.querySelectorAll("#tableBody tr").length;
+    const shown = n !== undefined ? n : total;
+    document.getElementById("rowCount").textContent =
+      shown === total ? `Showing all ${{total}} branches` : `Showing ${{shown}} of ${{total}} branches`;
   }}
+  const HEADERS = {headers_js};
   function exportCSV() {{
-    const rows=Array.from(document.querySelectorAll("#tableBody tr")).filter(r=>r.style.display!=="none");
-    const headers={headers_js};
-    const lines=[headers.join(",")];
-    rows.forEach(row => {{
-      const cells=Array.from(row.cells).map(c=>`"${{c.innerText.trim()}}"`);
+    const rows = Array.from(document.querySelectorAll("#tableBody tr"))
+                      .filter(r => r.style.display !== "none");
+    const lines = [HEADERS.join(",")];
+    rows.forEach(r => {{
+      const cells = Array.from(r.cells).map(c => JSON.stringify(c.innerText.trim()));
       lines.push(cells.join(","));
     }});
-    const blob=new Blob([lines.join("\\n")],{{type:"text/csv"}});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="coverage_export.csv";
+    const blob = new Blob([lines.join("\\n")], {{type:"text/csv"}});
+    const a    = document.createElement("a");
+    a.href     = URL.createObjectURL(blob);
+    a.download = "coverage.csv";
     a.click();
   }}
 </script>
 </body>
 </html>"""
 
-    try:
-        with open(output_path, "w") as f:
-            f.write(html)
-        print(f"✓ Wrote HTML to {output_path}")
-    except OSError as e:
-        print(f"❌ Error: could not write {output_path}: {e}")
-        sys.exit(1)
-
-    return covered_edges, total_edges, pct
+    with open(output_path, "w") as f:
+        f.write(html)
+    print(f"✓ Wrote HTML report to {output_path}")
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python3 report.py <branch_map.json> <coverage.json>")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate coverage HTML + CSV report")
+    parser.add_argument("branch_map",  help="Path to branch_map.json")
+    parser.add_argument("coverage",    help="Path to coverage.json")
+    parser.add_argument("--output",    default="output/coverage_report.html", help="Output HTML file")
+    parser.add_argument("--csv",       default="output/coverage_report.csv",  help="Output CSV file")
+    parser.add_argument("--test-inputs", default="output/test_inputs_log.json", help="Path to test inputs log JSON")
+    args = parser.parse_args()
 
-    branch_map_path = sys.argv[1]
-    coverage_path   = sys.argv[2]
+    # ✅ Create output dir FIRST before any file writes
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
-    if not os.path.exists(branch_map_path):
-        print(f"❌ Error: branch map not found: {branch_map_path}")
-        sys.exit(1)
+    branch_map_data = load_branch_map(args.branch_map)
+    coverage        = load_coverage(args.coverage)
+    test_inputs     = load_test_inputs(args.test_inputs)
+    rows            = merge(branch_map_data, coverage)
 
-    branch_map_data  = load_branch_map(branch_map_path)
-    coverage         = load_coverage(coverage_path)
-    rows             = merge(branch_map_data, coverage)
+    source_file      = branch_map_data.get("source_file", "unknown")
+    base             = os.path.splitext(args.output)[0]
+    source_html_path = base + "_source.html"
+    source_html_name = os.path.basename(source_html_path)
 
-    base             = branch_map_path.replace("_branch_map.json", "")
-    source_file      = os.path.basename(base).replace("_inst", ".c")
-    csv_out          = base + "_report.csv"
-    html_out         = base + "_report.html"
-    source_html_out  = base + "_source.html"
-    source_html_name = os.path.basename(source_html_out)
+    wrote_source = write_source_html(rows, branch_map_data, source_html_path, os.path.basename(args.output))
 
-    write_csv(rows, csv_out, source_file)
-
-    source_ok = write_source_html(
-        rows, branch_map_data, source_html_out,
-        report_html_name=os.path.basename(html_out)
-    )
-
-    per_file_log = os.environ.get("TEST_INPUTS_LOG") or base + "_test_inputs_log.json"
-    test_inputs  = load_test_inputs(per_file_log) or load_test_inputs("test_inputs_log.json")
-    covered_edges, total_edges, pct = write_html(
-        rows, html_out, source_file,
-        source_html_name=source_html_name if source_ok else None,
-        test_inputs=test_inputs
-    )
-    print(f"\n📊 Coverage: {covered_edges}/{total_edges} branches ({pct:.1f}%)")
-
-    if os.path.exists(per_file_log) and os.path.exists("test_inputs_log.json"):
-        os.remove("test_inputs_log.json")
+    write_html(rows, args.output, source_file,
+               source_html_name=source_html_name if wrote_source else None,
+               test_inputs=test_inputs if test_inputs else None)
+    write_csv(rows, args.csv, source_file)
 
 
 if __name__ == "__main__":

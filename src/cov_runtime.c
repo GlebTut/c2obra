@@ -69,4 +69,5 @@ void install_signal_handlers(void) {
     signal(SIGXCPU, signal_handler);
     signal(SIGTERM, signal_handler);
     signal(SIGABRT, signal_handler);  // ← catches abort()
+    signal(SIGSEGV, signal_handler);
 }
