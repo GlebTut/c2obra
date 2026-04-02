@@ -1,0 +1,112 @@
+name: Branch Coverage Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ─── Job 1: Install dependencies ──────────────────────────────────────────
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install tree-sitter==0.21.3 tree-sitter-c==0.21.4
+
+      - name: Cache venv
+        uses: actions/cache@v4
+        with:
+          path: venv
+          key: venv-${{ hashFiles('requirements.txt') }}
+
+  # ─── Job 2: Run pipeline on example benchmarks ────────────────────────────
+  pipeline:
+    runs-on: ubuntu-latest
+    needs: install
+
+    strategy:
+      matrix:
+        file:
+          - examples/simple_if.c
+          - examples/nested_1.c
+          - examples/loop_suite/
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Restore venv
+        uses: actions/cache@v4
+        with:
+          path: venv
+          key: venv-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies (cache miss fallback)
+        run: |
+          source venv/bin/activate 2>/dev/null || python -m venv venv
+          pip install tree-sitter==0.21.3 tree-sitter-c==0.21.4
+
+      - name: Install GCC
+        run: sudo apt-get install -y gcc
+
+      - name: Run pipeline
+        run: |
+          source venv/bin/activate
+          chmod +x run_pipeline.sh
+          ./run_pipeline.sh ${{ matrix.file }} --cpu 30 --memory 512
+
+      - name: Upload coverage artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ strategy.job-index }}
+          path: output/
+          retention-days: 7
+
+  # ─── Job 3: Verify coverage output ────────────────────────────────────────
+  verify:
+    runs-on: ubuntu-latest
+    needs: pipeline
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: output/
+
+      - name: Check coverage reports exist
+        run: |
+          echo "=== Coverage artefacts ==="
+          find output/ -name "*.html" -o -name "*.json" -o -name "*.csv" | sort
+          echo ""
+          echo "=== Coverage percentages ==="
+          for f in $(find output/ -name "*_coverage.json"); do
+            pct=$(python3 -c "import json; d=json.load(open('$f')); print(d['summary']['branch_coverage_pct'])")
+            echo "$f → $pct%"
+          done
+
+      - name: Fail if no coverage reports generated
+        run: |
+          count=$(find output/ -name "*_report.html" | wc -l)
+          echo "Found $count HTML report(s)"
+          if [ "$count" -eq 0 ]; then
+            echo "❌ No coverage reports generated"
+            exit 1
+          fi
+          echo "✅ All reports generated successfully"
