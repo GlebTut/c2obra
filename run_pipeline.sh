@@ -69,9 +69,15 @@ fi
 # Resolve the project root (directory where this script lives)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Sikraken lives as a subfolder inside the project root
+# Sikraken lives as a subfolder inside the project root.
+# Can be overridden via env variable (e.g. in CI: SIKRAKEN_DIR=/tmp/sikraken-not-installed)
 SIKRAKEN_DIR="${SIKRAKEN_DIR:-$SCRIPT_DIR/sikraken}"
 SIKRAKEN_OUT="$SIKRAKEN_DIR/sikraken_output"
+
+# Helper: returns 0 if Sikraken is installed and usable, 1 otherwise
+sikraken_available() {
+    [ -d "$SIKRAKEN_DIR" ] && [ -f "$SIKRAKEN_DIR/bin/sikraken.sh" ]
+}
 
 # ─── SINGLE FILE MODE ─────────────────────────────────────────────────────────
 if [ -f "$1" ]; then
@@ -82,18 +88,24 @@ if [ -f "$1" ]; then
     # Auto-detect: does the file use __VERIFIER_nondet?
     if grep -q "__VERIFIER_nondet" "$SRC"; then
         echo "=== Detected: input-driven file ==="
-        echo "=== Step 0: Run Sikraken ==="
-        ABS_SRC="$(realpath "$SRC")"
-        REL_SRC="$(realpath --relative-to="$SIKRAKEN_DIR" "$ABS_SRC")"
-        cd "$SIKRAKEN_DIR"
-        ./bin/sikraken.sh release budget[10] "$REL_SRC"
-        cd "$SCRIPT_DIR"
-        SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$BASENAME" | head -1)
-        if [ -z "$SUITE_DIR" ]; then
-            echo "⚠️  Warning: No Sikraken test suite found for '$BASENAME' — running with no inputs"
+
+        if ! sikraken_available; then
+            echo "⚠️  Sikraken not found at $SIKRAKEN_DIR — skipping, running with no inputs"
             SUITE_DIR="-"
+        else
+            echo "=== Step 0: Run Sikraken ==="
+            ABS_SRC="$(realpath "$SRC")"
+            REL_SRC="$(realpath --relative-to="$SIKRAKEN_DIR" "$ABS_SRC")"
+            cd "$SIKRAKEN_DIR"
+            ./bin/sikraken.sh release budget[10] "$REL_SRC"
+            cd "$SCRIPT_DIR"
+            SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$BASENAME" | head -1)
+            if [ -z "$SUITE_DIR" ]; then
+                echo "⚠️  Warning: No Sikraken test suite found for '$BASENAME' — running with no inputs"
+                SUITE_DIR="-"
+            fi
+            echo "✓ Sikraken done → $SUITE_DIR"
         fi
-        echo "✓ Sikraken done → $SUITE_DIR"
     else
         echo "=== Detected: no-input file ==="
         SUITE_DIR="-"
@@ -175,18 +187,23 @@ if [ -d "$1" ]; then
 
         # Step 0: Run Sikraken if file uses __VERIFIER_nondet
         if grep -q "__VERIFIER_nondet" "$src_file"; then
-            echo "=== Step 0: Run Sikraken for $base ==="
-            ABS_SRC="$(realpath "$src_file")"
-            REL_SRC="$(realpath --relative-to="$SIKRAKEN_DIR" "$ABS_SRC")"
-            cd "$SIKRAKEN_DIR"
-            ./bin/sikraken.sh release budget[10] "$REL_SRC" || true
-            cd "$SCRIPT_DIR"
-            SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$base" | head -1)
-            if [ -z "$SUITE_DIR" ]; then
-                echo "⚠️ No Sikraken suite found for $base — running with no inputs"
+            if ! sikraken_available; then
+                echo "⚠️  Sikraken not found at $SIKRAKEN_DIR — skipping, running with no inputs"
                 SUITE_DIR="-"
             else
-                echo "✓ Sikraken done → $SUITE_DIR"
+                echo "=== Step 0: Run Sikraken for $base ==="
+                ABS_SRC="$(realpath "$src_file")"
+                REL_SRC="$(realpath --relative-to="$SIKRAKEN_DIR" "$ABS_SRC")"
+                cd "$SIKRAKEN_DIR"
+                ./bin/sikraken.sh release budget[10] "$REL_SRC" || true
+                cd "$SCRIPT_DIR"
+                SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$base" | head -1)
+                if [ -z "$SUITE_DIR" ]; then
+                    echo "⚠️ No Sikraken suite found for $base — running with no inputs"
+                    SUITE_DIR="-"
+                else
+                    echo "✓ Sikraken done → $SUITE_DIR"
+                fi
             fi
         else
             SUITE_DIR="-"
