@@ -630,7 +630,7 @@ def main():
 
     source_file      = branch_map_data.get("source_file", "unknown")
     base             = os.path.splitext(args.output)[0]
-    source_html_path = base + "_source.html"
+    source_html_path = base.removesuffix("_report") + "_source.html"
     source_html_name = os.path.basename(source_html_path)
 
     wrote_source = write_source_html(rows, branch_map_data, source_html_path, os.path.basename(args.output))

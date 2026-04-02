@@ -316,13 +316,19 @@ if __name__ == "__main__":
                     all_coverages.append(cov)
                     test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
     else:
-        print("No test-suite provided — running binary once with no inputs")
-        work_dir = tempfile.mkdtemp(prefix="cov_")
-        work_dirs.append(work_dir)
-        cov, inputs, tname, status = run_test(args.binary, [], "no_inputs", work_dir)
-        all_coverages.append(cov)
-        test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
-
+        NO_INPUT_PROBES = [
+            ("probe_pos",  ["2"]),    # positive, even
+            ("probe_neg",  ["-1"]),   # negative, odd
+            ("probe_zero", ["0"]),    # zero, even
+        ]
+        print(f"No test-suite provided — running {len(NO_INPUT_PROBES)} probes to maximise coverage")
+        for tname, probe_inputs in NO_INPUT_PROBES:
+            work_dir = tempfile.mkdtemp(prefix="cov_")
+            work_dirs.append(work_dir)
+            cov, inputs, name, status = run_test(args.binary, probe_inputs, tname, work_dir)
+            all_coverages.append(cov)
+            test_inputs_log.append({"test_case": name, "inputs": inputs, "status": status})
+            
     for d in work_dirs:
         shutil.rmtree(d, ignore_errors=True)
 

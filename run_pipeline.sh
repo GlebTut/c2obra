@@ -71,12 +71,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Sikraken lives as a subfolder inside the project root.
 # Can be overridden via env variable (e.g. in CI: SIKRAKEN_DIR=/tmp/sikraken-not-installed)
-SIKRAKEN_DIR="${SIKRAKEN_DIR:-$SCRIPT_DIR/sikraken}"
+SIKRAKEN_DIR="${SIKRAKEN_DIR:-$(dirname "$SCRIPT_DIR")/sikraken}"
 SIKRAKEN_OUT="$SIKRAKEN_DIR/sikraken_output"
 
 # Helper: returns 0 if Sikraken is installed and usable, 1 otherwise
 sikraken_available() {
-    [ -d "$SIKRAKEN_DIR" ] && [ -f "$SIKRAKEN_DIR/bin/sikraken.sh" ]
+  [ -d "$SIKRAKEN_DIR" ] && [ -f "$SIKRAKEN_DIR/bin/sikraken.sh" ]
 }
 
 # ─── SINGLE FILE MODE ─────────────────────────────────────────────────────────
