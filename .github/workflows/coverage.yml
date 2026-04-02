@@ -38,9 +38,9 @@ jobs:
     strategy:
       matrix:
         file:
-          - examples/simple_if.c
-          - examples/nested_1.c
-          - examples/loop_suite/
+          - tests/examples/simple_if.c
+          - tests/loop-simple/nested_1.c
+          - tests/demo_test_files/
 
     steps:
       - uses: actions/checkout@v4
