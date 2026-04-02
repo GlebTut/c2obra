@@ -31,12 +31,12 @@ def load_coverage(path):
 
 def load_test_inputs(path):
     if not os.path.exists(path):
-        return []
+        return None          # ← None = "not available", [] = "available but empty"
     try:
         with open(path) as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
-        return []
+        return None
 
 
 def merge(branch_map_data, coverage):
@@ -196,6 +196,9 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
                 f'</div>'
             )
 
+    # ── FIX Bug 1: use only the filename for the back link, not a path ──
+    report_html_basename = os.path.basename(report_html_name)
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,7 +206,7 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
 <title>Source — {os.path.basename(src_path)}</title>
 <script>
   (function(){{
-    const t = localStorage.getItem("theme") || "dark";
+    const t = (function(){{try{{return localStorage.getItem("theme")}}catch(e){{return null}}}}()) || "dark";
     document.documentElement.setAttribute("data-theme", t);
   }})();
 </script>
@@ -249,7 +252,7 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
 </head>
 <body>
 <div class="topbar">
-  <a href="{report_html_name}">← Back to Report</a>
+  <a href="{report_html_basename}">← Back to Report</a>
   <span style="color:var(--subtext);font-size:0.85rem">{os.path.basename(src_path)}</span>
   <div class="legend">
     <span><span style="color:#16a34a">●</span> FULL</span>
@@ -261,14 +264,14 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
 <pre>{lines_html}</pre>
 <script>
   (function(){{
-    const t = localStorage.getItem("theme") || "dark";
+    const t = (function(){{try{{return localStorage.getItem("theme")}}catch(e){{return null}}}}()) || "dark";
     document.getElementById("themeBtn").textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
   }})();
   function toggleTheme() {{
     const curr = document.documentElement.getAttribute("data-theme") || "dark";
     const next = curr === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
+    try{{ localStorage.setItem("theme", next); }}catch(e){{}}
     document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
   }}
 </script>
@@ -291,14 +294,30 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 
     bar_color = "#16a34a" if pct >= 80 else "#d97706" if pct >= 50 else "#dc2626"
 
+    # ── FIX Bug 1: use only basename for summary link so it works after ZIP extract ──
     back_button = '<a href="summary_report.html" style="display:inline-block;margin-bottom:1.2rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;font-weight:500;">← Back to Summary</a>'
 
     source_btn = ""
     if source_html_name:
-        source_btn = f' <a href="{source_html_name}" style="display:inline-block;margin-bottom:1.2rem;margin-left:0.5rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;">📄 View Source</a>'
+        # use only the basename — works when all files sit in the same flat folder
+        src_basename = os.path.basename(source_html_name)
+        source_btn = f' <a href="{src_basename}" style="display:inline-block;margin-bottom:1.2rem;margin-left:0.5rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;">📄 View Source</a>'
 
-    inputs_html = ""
-    if test_inputs:
+    # ── FIX Bug 2: show a friendly banner when inputs are unavailable (None)
+    #              vs. show the table when inputs exist (list, even if empty)
+    if test_inputs is None:
+        # Sikraken was not run — show informational banner
+        inputs_html = """
+<div style="margin-bottom:1.5em;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.9em 1.2em;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;gap:0.75em;color:var(--subtext);font-size:0.92em;">
+  <span style="font-size:1.2em">ℹ️</span>
+  <span>No test inputs available — Sikraken was not run (CI mode or no <code style="background:var(--border);padding:0.15em 0.5em;border-radius:4px">__VERIFIER_nondet</code> calls). Binary was executed once with no inputs.</span>
+</div>"""
+    elif len(test_inputs) == 0:
+        inputs_html = """
+<div style="margin-bottom:1.5em;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.9em 1.2em;color:var(--subtext);font-size:0.92em;">
+  ℹ️ Test inputs log is empty.
+</div>"""
+    else:
         input_rows = "".join(
             f'<tr>'
             f'<td style="padding:0.5em 1em;border-bottom:1px solid var(--border);color:var(--text);width:220px;white-space:nowrap">{t["test_case"]}</td>'
@@ -360,7 +379,9 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 
         label_td = f'<td><code>{r.get("label","")}</code></td>' if has_labels else ""
 
-        src_link = f'{source_html_name}#line-{r["line"]}' if source_html_name and r["line"] != "?" else ""
+        # ── FIX Bug 1: source link uses basename only ──
+        src_basename_for_link = os.path.basename(source_html_name) if source_html_name else ""
+        src_link = f'{src_basename_for_link}#line-{r["line"]}' if src_basename_for_link and r["line"] != "?" else ""
         onclick  = f'onclick="window.open(\'{src_link}\',\'_blank\')"' if src_link else ""
         cursor   = 'style="cursor:pointer"' if src_link else ""
 
@@ -383,7 +404,7 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 <title>Coverage Report — {os.path.basename(source_file)}</title>
 <script>
   (function(){{
-    const t = localStorage.getItem("theme") || "dark";
+    const t = (function(){{try{{return localStorage.getItem("theme")}}catch(e){{return null}}}}()) || "dark";
     document.documentElement.setAttribute("data-theme", t);
   }})();
 </script>
@@ -499,14 +520,14 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 </table>
 <script>
   (function(){{
-    const t = localStorage.getItem("theme") || "dark";
+    const t = (function(){{try{{return localStorage.getItem("theme")}}catch(e){{return null}}}}()) || "dark";
     document.getElementById("themeBtn").textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
   }})();
   function toggleTheme() {{
     const curr = document.documentElement.getAttribute("data-theme") || "dark";
     const next = curr === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
+    try{{ localStorage.setItem("theme", next); }}catch(e){{}}
     document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
   }}
   let sortCol = {status_col}, sortAsc = true;
@@ -593,19 +614,18 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Generate coverage HTML + CSV report")
-    parser.add_argument("branch_map",  help="Path to branch_map.json")
-    parser.add_argument("coverage",    help="Path to coverage.json")
-    parser.add_argument("--output",    default="output/coverage_report.html", help="Output HTML file")
-    parser.add_argument("--csv",       default="output/coverage_report.csv",  help="Output CSV file")
+    parser.add_argument("branch_map",    help="Path to branch_map.json")
+    parser.add_argument("coverage",      help="Path to coverage.json")
+    parser.add_argument("--output",      default="output/coverage_report.html", help="Output HTML file")
+    parser.add_argument("--csv",         default="output/coverage_report.csv",  help="Output CSV file")
     parser.add_argument("--test-inputs", default="output/test_inputs_log.json", help="Path to test inputs log JSON")
     args = parser.parse_args()
 
-    # ✅ Create output dir FIRST before any file writes
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
     branch_map_data = load_branch_map(args.branch_map)
     coverage        = load_coverage(args.coverage)
-    test_inputs     = load_test_inputs(args.test_inputs)
+    test_inputs     = load_test_inputs(args.test_inputs)   # None if file missing
     rows            = merge(branch_map_data, coverage)
 
     source_file      = branch_map_data.get("source_file", "unknown")
@@ -617,7 +637,7 @@ def main():
 
     write_html(rows, args.output, source_file,
                source_html_name=source_html_name if wrote_source else None,
-               test_inputs=test_inputs if test_inputs else None)
+               test_inputs=test_inputs)
     write_csv(rows, args.csv, source_file)
 
 
