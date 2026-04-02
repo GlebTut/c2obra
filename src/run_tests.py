@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-import os, sys, glob, subprocess, json, resource, signal, argparse, tempfile, shutil
+import os, sys, glob, subprocess, json, resource, signal, argparse, tempfile, shutil, time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 
 
 # * Resource limits
 
 
-CPU_TIME_LIMIT = 30     # Seconds per test run
+
+CPU_TIME_LIMIT  = 30    # Seconds per test run
 MEMORY_LIMIT_MB = 512   # MB per test run
-WALL_TIMEOUT = 35       # wall-clock timeout (slightly above CPU limit)
+WALL_TIMEOUT    = 35    # wall-clock timeout (slightly above CPU limit)
+
 
 
 
@@ -21,7 +24,9 @@ def set_resource_limits():
 
 
 
+
 # * XML test input parsing
+
 
 
 def parse_inputs(xml_file):
@@ -35,7 +40,9 @@ def parse_inputs(xml_file):
 
 
 
+
 # * Single test execution
+
 
 
 def run_test(binary, inputs, test_name, work_dir):
@@ -50,7 +57,7 @@ def run_test(binary, inputs, test_name, work_dir):
     env["COVERAGE_OUTPUT"] = cov_file
 
     timed_out = False
-    killed    = False
+    crashed   = False
 
     try:
         result = subprocess.run(
@@ -63,10 +70,16 @@ def run_test(binary, inputs, test_name, work_dir):
             env=env
         )
         exit_code = result.returncode
+        if exit_code < 0:
+            crashed = True
 
     except subprocess.TimeoutExpired as e:
+        # Stage 1: SIGTERM → triggers dump_coverage() in cov_runtime.c
         try:
-            os.killpg(os.getpgid(e.process.pid), signal.SIGKILL)
+            pid = e.process.pid
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+            time.sleep(3)                                   # wait for coverage flush
+            os.killpg(os.getpgid(pid), signal.SIGKILL)     # force kill if still alive
         except Exception:
             pass
         timed_out = True
@@ -74,7 +87,7 @@ def run_test(binary, inputs, test_name, work_dir):
         print(f"  ⚠️  [{test_name}] TIMED OUT after {WALL_TIMEOUT}s — killed")
 
     except Exception as e:
-        killed    = True
+        crashed   = True
         exit_code = -1
         print(f"  ⚠️  [{test_name}] ERROR: {e}")
 
@@ -88,18 +101,18 @@ def run_test(binary, inputs, test_name, work_dir):
         print(f"  ⚠️  [{test_name}] coverage.json is malformed")
         coverage = {"branches": []}
 
-    if not timed_out and not killed:
+    if not timed_out and not crashed:
         print(f"\n=== {test_name} ===")
         print(f"  Inputs:       {inputs}")
         print(f"  Exit code:    {exit_code}")
         print(f"  Branches hit: {len(coverage.get('branches', []))}")
 
     if timed_out:
-        status = "timeout"
-    elif exit_code != 0 and len(coverage.get("branches", [])) > 0:
-        status = "partial"
-    elif exit_code != 0:
-        status = "crash"
+        branches = coverage.get("branches", [])
+        status = "partial" if branches else "timeout"
+    elif crashed:
+        branches = coverage.get("branches", [])
+        status = "partial" if branches else "crash"
     else:
         status = "pass"
 
@@ -107,7 +120,9 @@ def run_test(binary, inputs, test_name, work_dir):
 
 
 
+
 # * Coverage merging
+
 
 
 def merge_coverage(all_coverages):
@@ -123,7 +138,9 @@ def merge_coverage(all_coverages):
 
 
 
+
 # * Branch map loader
+
 
 
 def load_branch_map(map_file):
@@ -140,7 +157,9 @@ def load_branch_map(map_file):
 
 
 
+
 # * Summary + report writer
+
 
 
 def print_summary(merged, branch_map=None, test_inputs_log=None):
@@ -194,7 +213,7 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
     covered_edges = covered_true + covered_false
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
     print(f"Covered branches: {covered_edges}/{total_edges}  ({covered_true} true, {covered_false} false)")
-    print(f"Branch coverage: {pct:.1f}%")
+    print(f"Branch coverage:  {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
 
     # Count test run statuses
@@ -214,7 +233,7 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
             "total_branches_count": total_edges,
             "covered_branches":     covered_edges,
             "branch_coverage_pct":  round(pct, 1),
-            "coverage_pct":         round(pct, 1),   # alias used by report.py / merge_reports.py
+            "coverage_pct":         round(pct, 1),
             "test_run_statuses":    status_counts,
             "resource_limits": {
                 "cpu_seconds":  CPU_TIME_LIMIT,
@@ -229,11 +248,13 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
     os.makedirs("output", exist_ok=True)
     with open("output/coverage_report.json", "w") as f:
         json.dump(report, f, indent=2)
-    print(f"\nFull report written to output/coverage_report.json")
+    print(f"\n✓ Full report written to output/coverage_report.json")
+
 
 
 
 # * Entry point
+
 
 
 if __name__ == "__main__":
@@ -272,7 +293,7 @@ if __name__ == "__main__":
         xml_files = sorted(glob.glob(f"{args.suite_dir}/test_input-*.xml"))
         print(f"Found {len(xml_files)} test cases — running with {workers} workers")
         if not xml_files:
-            print("⚠️ Warning: No XML test cases found in suite — running with no inputs")
+            print("⚠️  Warning: No XML test cases found in suite — running with no inputs")
             work_dir = tempfile.mkdtemp(prefix="cov_")
             work_dirs.append(work_dir)
             cov, inputs, tname, status = run_test(args.binary, [], "no_inputs", work_dir)
@@ -308,8 +329,10 @@ if __name__ == "__main__":
     merged = merge_coverage(all_coverages)
     if not merged:
         print("⚠️  Warning: No coverage data collected — all runs may have crashed")
+
     os.makedirs("output", exist_ok=True)
     with open("output/test_inputs_log.json", "w") as f:
         json.dump(test_inputs_log, f, indent=2)
     print("✓ Test inputs log written to output/test_inputs_log.json")
+
     print_summary(merged, branch_map, test_inputs_log)
