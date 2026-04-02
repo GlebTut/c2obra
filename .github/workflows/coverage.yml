@@ -25,7 +25,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Cache venv
-        uses: actions/cache@v4.2.3
+        uses: actions/cache@v5
         with:
           path: venv
           key: venv-${{ hashFiles('requirements.txt') }}
@@ -51,7 +51,7 @@ jobs:
           python-version: "3.11"
 
       - name: Restore venv
-        uses: actions/cache@v4.2.3
+        uses: actions/cache@v5
         with:
           path: venv
           key: venv-${{ hashFiles('requirements.txt') }}
@@ -76,7 +76,7 @@ jobs:
           ./run_pipeline.sh ${{ matrix.file }} --cpu 30 --memory 512
 
       - name: Upload coverage artefacts
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-${{ strategy.job-index }}
           path: output/
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download all artefacts
-        uses: actions/download-artifact@v4.3.0
+        uses: actions/download-artifact@v5
         with:
           path: output/
 
