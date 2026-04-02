@@ -11,10 +11,10 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.11"
 
@@ -25,7 +25,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Cache venv
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: venv
           key: venv-${{ hashFiles('requirements.txt') }}
@@ -43,15 +43,15 @@ jobs:
           - tests/demo_test_files/
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.11"
 
       - name: Restore venv
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: venv
           key: venv-${{ hashFiles('requirements.txt') }}
@@ -69,8 +69,6 @@ jobs:
 
       - name: Run pipeline
         env:
-          # Sikraken is not installed on CI — point to a dummy path so
-          # run_pipeline.sh skips it and falls back to no-input mode.
           SIKRAKEN_DIR: /tmp/sikraken-not-installed
         run: |
           source venv/bin/activate
@@ -78,7 +76,7 @@ jobs:
           ./run_pipeline.sh ${{ matrix.file }} --cpu 30 --memory 512
 
       - name: Upload coverage artefacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: coverage-${{ strategy.job-index }}
           path: output/
@@ -90,10 +88,10 @@ jobs:
     needs: pipeline
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Download all artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.3.0
         with:
           path: output/
 
