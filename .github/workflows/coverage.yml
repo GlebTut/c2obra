@@ -68,6 +68,10 @@ jobs:
         run: sudo apt-get install -y gcc
 
       - name: Run pipeline
+        env:
+          # Sikraken is not installed on CI — point to a dummy path so
+          # run_pipeline.sh skips it and falls back to no-input mode.
+          SIKRAKEN_DIR: /tmp/sikraken-not-installed
         run: |
           source venv/bin/activate
           chmod +x run_pipeline.sh
@@ -100,7 +104,7 @@ jobs:
           echo ""
           echo "=== Coverage percentages ==="
           for f in $(find output/ -name "*_coverage.json"); do
-            pct=$(python3 -c "import json; d=json.load(open('$f')); print(d['summary']['branch_coverage_pct'])")
+            pct=$(python3 -c "import json; d=json.load(open('$f')); print(d['summary']['branch_coverage_pct'])" 2>/dev/null || echo "N/A")
             echo "$f → $pct%"
           done
 
