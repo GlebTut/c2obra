@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install tree-sitter==0.21.3 tree-sitter-c==0.21.4
+          pip install -r requirements.txt
 
       - name: Cache venv
         uses: actions/cache@v4
@@ -58,8 +58,11 @@ jobs:
 
       - name: Install dependencies (cache miss fallback)
         run: |
-          source venv/bin/activate 2>/dev/null || python -m venv venv
-          pip install tree-sitter==0.21.3 tree-sitter-c==0.21.4
+          if [ ! -f venv/bin/activate ]; then
+            python -m venv venv
+          fi
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Install GCC
         run: sudo apt-get install -y gcc
