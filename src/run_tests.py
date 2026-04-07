@@ -33,7 +33,9 @@ def parse_inputs(xml_file):
     try:
         tree = ET.parse(xml_file)
         root = tree.getroot()
-        return [inp.text.strip() for inp in root.findall('input') if inp.text]
+        for elem in root.iter():
+            elem.tag = elem.tag.split('}', 1)[-1] if '}' in elem.tag else elem.tag
+        return [inp.text.strip() for inp in root.findall('.//input') if inp.text]
     except ET.ParseError as e:
         print(f"⚠️  Warning: Could not parse '{xml_file}': {e} — skipping")
         return []
