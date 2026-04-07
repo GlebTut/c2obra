@@ -4,17 +4,11 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-
-
 # * Resource limits
-
-
 
 CPU_TIME_LIMIT  = 30    # Seconds per test run
 MEMORY_LIMIT_MB = 512   # MB per test run
 WALL_TIMEOUT    = 35    # wall-clock timeout (slightly above CPU limit)
-
-
 
 
 def set_resource_limits():
@@ -23,11 +17,7 @@ def set_resource_limits():
     resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
 
 
-
-
 # * XML test input parsing
-
-
 
 def parse_inputs(xml_file):
     try:
@@ -41,11 +31,7 @@ def parse_inputs(xml_file):
         return []
 
 
-
-
 # * Single test execution
-
-
 
 def run_test(binary, inputs, test_name, work_dir):
     """Run binary with given inputs. Returns (coverage, inputs, test_name, status)."""
@@ -76,12 +62,11 @@ def run_test(binary, inputs, test_name, work_dir):
             crashed = True
 
     except subprocess.TimeoutExpired as e:
-        # Stage 1: SIGTERM → triggers dump_coverage() in cov_runtime.c
         try:
             pid = e.process.pid
             os.killpg(os.getpgid(pid), signal.SIGTERM)
-            time.sleep(3)                                   # wait for coverage flush
-            os.killpg(os.getpgid(pid), signal.SIGKILL)     # force kill if still alive
+            time.sleep(3)
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
         except Exception:
             pass
         timed_out = True
@@ -121,11 +106,7 @@ def run_test(binary, inputs, test_name, work_dir):
     return coverage, inputs, test_name, status
 
 
-
-
 # * Coverage merging
-
-
 
 def merge_coverage(all_coverages):
     merged = {}
@@ -139,11 +120,7 @@ def merge_coverage(all_coverages):
     return merged
 
 
-
-
 # * Branch map loader
-
-
 
 def load_branch_map(map_file):
     try:
@@ -158,11 +135,7 @@ def load_branch_map(map_file):
         return {}
 
 
-
-
 # * Summary + report writer
-
-
 
 def print_summary(merged, branch_map=None, test_inputs_log=None):
     if branch_map is None:
@@ -218,7 +191,6 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
     print(f"Branch coverage:  {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
 
-    # Count test run statuses
     status_counts = {"pass": 0, "partial": 0, "timeout": 0, "crash": 0}
     for t in test_inputs_log:
         s = t.get("status", "pass")
@@ -253,11 +225,7 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
     print(f"\n✓ Full report written to output/coverage_report.json")
 
 
-
-
 # * Entry point
-
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -292,15 +260,10 @@ if __name__ == "__main__":
     work_dirs = []
 
     if args.suite_dir != "-":
-        xml_files = sorted(glob.glob(f"{args.suite_dir}/test_input-*.xml"))
+        xml_files = sorted(glob.glob(f"{args.suite_dir}/testinput-*.xml"))
         print(f"Found {len(xml_files)} test cases — running with {workers} workers")
         if not xml_files:
             print("⚠️  Warning: No XML test cases found in suite — running with no inputs")
-            work_dir = tempfile.mkdtemp(prefix="cov_")
-            work_dirs.append(work_dir)
-            cov, inputs, tname, status = run_test(args.binary, [], "no_inputs", work_dir)
-            all_coverages.append(cov)
-            test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
         else:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {}
@@ -317,20 +280,21 @@ if __name__ == "__main__":
                     cov, inputs, tname, status = future.result()
                     all_coverages.append(cov)
                     test_inputs_log.append({"test_case": tname, "inputs": inputs, "status": status})
-    else:
-        NO_INPUT_PROBES = [
-            ("probe_pos",  ["2"]),    # positive, even
-            ("probe_neg",  ["-1"]),   # negative, odd
-            ("probe_zero", ["0"]),    # zero, even
-        ]
-        print(f"No test-suite provided — running {len(NO_INPUT_PROBES)} probes to maximise coverage")
-        for tname, probe_inputs in NO_INPUT_PROBES:
-            work_dir = tempfile.mkdtemp(prefix="cov_")
-            work_dirs.append(work_dir)
-            cov, inputs, name, status = run_test(args.binary, probe_inputs, tname, work_dir)
-            all_coverages.append(cov)
-            test_inputs_log.append({"test_case": name, "inputs": inputs, "status": status})
-            
+
+    # Always run basic probes — even when Sikraken produced a suite
+    NO_INPUT_PROBES = [
+        ("probe_pos",  ["2"]),    # positive, even
+        ("probe_neg",  ["-1"]),   # negative, odd
+        ("probe_zero", ["0"]),    # zero, even
+    ]
+    print(f"Running {len(NO_INPUT_PROBES)} basic probes to maximise coverage")
+    for tname, probe_inputs in NO_INPUT_PROBES:
+        work_dir = tempfile.mkdtemp(prefix="cov_")
+        work_dirs.append(work_dir)
+        cov, inputs, name, status = run_test(args.binary, probe_inputs, tname, work_dir)
+        all_coverages.append(cov)
+        test_inputs_log.append({"test_case": name, "inputs": inputs, "status": status})
+
     for d in work_dirs:
         shutil.rmtree(d, ignore_errors=True)
 
