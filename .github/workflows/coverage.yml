@@ -111,7 +111,7 @@ jobs:
         with:
           path: artifacts/
 
-      - name: Flatten all reports into named subfolders
+      - name: Copy each artifact into its own subfolder
         run: |
           mkdir -p pages
           for dir in artifacts/coverage-*/; do
@@ -119,6 +119,10 @@ jobs:
             mkdir -p "pages/$name"
             find "$dir" -type f \( -name "*.html" -o -name "*.json" -o -name "*.csv" \) \
               -exec cp {} "pages/$name/" \;
+            # Make summary_report.html the index for that subfolder
+            if [ -f "pages/$name/summary_report.html" ]; then
+              cp "pages/$name/summary_report.html" "pages/$name/index.html"
+            fi
           done
           echo "=== Pages folder contents ==="
           find pages/ -type f | sort
@@ -128,6 +132,13 @@ jobs:
           python3 - <<'EOF'
           import os, json, glob
 
+          # Map job-index to human-readable names matching the matrix order
+          PIPELINE_NAMES = {
+              "coverage-0": "simple_if.c",
+              "coverage-1": "nested_1.c",
+              "coverage-2": "demo_test_files/",
+          }
+
           entries = []
           for d in sorted(os.listdir("pages")):
               subdir = f"pages/{d}"
@@ -135,30 +146,28 @@ jobs:
                   continue
 
               # Find coverage %
-              jsons = (glob.glob(f"{subdir}/*coverage_report.json")
-                       + glob.glob(f"{subdir}/coverage_report.json"))
+              jsons = (glob.glob(f"{subdir}/coverage_report.json")
+                       + glob.glob(f"{subdir}/*coverage_report.json"))
               pct = "N/A"
-              files_count = 0
+              total_e = covered_e = 0
               if jsons:
                   try:
                       data = json.load(open(jsons[0]))
-                      pct = data["summary"]["branch_coverage_pct"]
+                      pct       = data["summary"]["branch_coverage_pct"]
+                      total_e   = data["summary"].get("total_branches_count", 0)
+                      covered_e = data["summary"].get("covered_branches", 0)
                   except Exception:
                       pass
 
-              # Find summary report (multi-file) or individual report
-              summary = glob.glob(f"{subdir}/summary_report.html")
-              htmls   = glob.glob(f"{subdir}/*report.html")
-              if summary:
-                  link = f"{d}/summary_report.html"
-              elif htmls:
-                  link = f"{d}/{os.path.basename(htmls[0])}"
-              else:
-                  link = None
+              # Link → subfolder index
+              link = f"{d}/index.html" if os.path.exists(f"{subdir}/index.html") else None
 
-              # Human-readable pipeline name from artifact folder
-              label = d.replace("coverage-", "Pipeline ")
-              entries.append({"name": label, "dir": d, "pct": pct, "link": link})
+              label = PIPELINE_NAMES.get(d, d)
+              entries.append({
+                  "name": label, "dir": d,
+                  "pct": pct, "link": link,
+                  "total": total_e, "covered": covered_e
+              })
 
           def pct_color(p):
               try:
@@ -169,11 +178,10 @@ jobs:
 
           rows = ""
           for e in entries:
-              color = pct_color(e["pct"])
+              color   = pct_color(e["pct"])
               pct_str = f"{e['pct']}%" if e["pct"] != "N/A" else "N/A"
-              bar_w = e["pct"] if e["pct"] != "N/A" else 0
               try:
-                  bar_w = float(bar_w)
+                  bar_w = float(e["pct"])
               except Exception:
                   bar_w = 0
               link_cell = (f'<a href="{e["link"]}">{e["name"]}</a>'
@@ -181,26 +189,28 @@ jobs:
               rows += f"""
               <tr>
                 <td>{link_cell}</td>
+                <td style="font-family:monospace">{e["total"]}</td>
+                <td style="font-family:monospace">{e["covered"]}</td>
                 <td>
                   <div style="display:flex;align-items:center;gap:10px">
-                    <div style="flex:1;background:#334155;border-radius:999px;height:10px;max-width:200px">
+                    <div style="flex:1;background:#334155;border-radius:999px;height:10px;max-width:180px">
                       <div style="width:{bar_w}%;background:{color};height:10px;border-radius:999px"></div>
                     </div>
-                    <span style="color:{color};font-weight:600;font-family:monospace">{pct_str}</span>
+                    <span style="color:{color};font-weight:600">{pct_str}</span>
                   </div>
                 </td>
               </tr>"""
 
-          overall_jsons = glob.glob("pages/*/coverage_report.json")
-          total_e = covered_e = 0
-          for j in overall_jsons:
+          all_jsons = glob.glob("pages/*/coverage_report.json")
+          grand_total = grand_covered = 0
+          for j in all_jsons:
               try:
                   d = json.load(open(j))
-                  total_e   += d["summary"]["total_branches_count"]
-                  covered_e += d["summary"]["covered_branches"]
+                  grand_total   += d["summary"].get("total_branches_count", 0)
+                  grand_covered += d["summary"].get("covered_branches", 0)
               except Exception:
                   pass
-          overall_pct = round(covered_e / total_e * 100, 1) if total_e else 0
+          overall_pct   = round(grand_covered / grand_total * 100, 1) if grand_total else 0
           overall_color = pct_color(overall_pct)
 
           html = f"""<!DOCTYPE html>
@@ -208,34 +218,38 @@ jobs:
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Coverage Reports</title>
+            <title>Coverage Reports — C Testing Coverage Tool</title>
             <style>
               *{{box-sizing:border-box;margin:0;padding:0}}
               body{{font-family:'Segoe UI',Arial,sans-serif;background:#0f172a;
                    color:#f1f5f9;padding:2em;line-height:1.6}}
-              h1{{font-size:1.4em;margin-bottom:0.2em}}
-              .sub{{color:#94a3b8;font-size:0.85em;margin-bottom:1.5em}}
+              h1{{font-size:1.5em;margin-bottom:0.2em}}
+              .sub{{color:#94a3b8;font-size:0.85em;margin-bottom:1.8em}}
               .cards{{display:flex;gap:1em;margin-bottom:1.5em;flex-wrap:wrap}}
               .card{{background:#1e293b;border:1px solid #334155;border-radius:10px;
                     padding:1em 1.5em;min-width:140px}}
               .card .val{{font-size:1.8em;font-weight:700}}
               .card .lbl{{font-size:0.78em;color:#94a3b8;margin-top:0.2em}}
-              table{{width:100%;max-width:700px;border-collapse:collapse;
-                    background:#1e293b;border-radius:10px;overflow:hidden;
-                    border:1px solid #334155}}
-              th{{background:#0f172a;color:#94a3b8;padding:0.7em 1em;
-                 text-align:left;font-size:0.82em;text-transform:uppercase;
-                 letter-spacing:0.05em}}
-              td{{padding:0.7em 1em;border-top:1px solid #334155;font-size:0.95em}}
+              .bar-wrap{{background:#1e293b;border:1px solid #334155;border-radius:10px;
+                        padding:1.2em 1.5em;margin-bottom:1.5em}}
+              .bar-label{{display:flex;justify-content:space-between;
+                         font-size:0.88em;color:#94a3b8;margin-bottom:0.5em}}
+              .bar-bg{{background:#334155;border-radius:999px;height:18px}}
+              .bar-fg{{background:{overall_color};border-radius:999px;height:18px;
+                      width:{overall_pct}%}}
+              table{{width:100%;border-collapse:collapse;background:#1e293b;
+                    border-radius:10px;overflow:hidden;border:1px solid #334155}}
+              th{{background:#0f172a;color:#94a3b8;padding:0.7em 1em;text-align:left;
+                 font-size:0.8em;text-transform:uppercase;letter-spacing:0.05em}}
+              td{{padding:0.75em 1em;border-top:1px solid #334155;font-size:0.95em}}
               tr:hover td{{background:#263348}}
               a{{color:#60a5fa;text-decoration:none}}
               a:hover{{text-decoration:underline}}
             </style>
           </head>
           <body>
-            <h1>Branch Coverage Reports</h1>
-            <p class="sub">Generated by C Testing Coverage Tool &nbsp;·&nbsp;
-               {len(entries)} pipeline(s)</p>
+            <h1>🧪 C Testing Coverage Tool</h1>
+            <p class="sub">Branch coverage across all pipelines &nbsp;·&nbsp; {len(entries)} pipelines</p>
 
             <div class="cards">
               <div class="card">
@@ -243,11 +257,11 @@ jobs:
                 <div class="lbl">Pipelines</div>
               </div>
               <div class="card">
-                <div class="val">{total_e}</div>
+                <div class="val">{grand_total}</div>
                 <div class="lbl">Total branches</div>
               </div>
               <div class="card">
-                <div class="val">{covered_e}</div>
+                <div class="val">{grand_covered}</div>
                 <div class="lbl">Covered branches</div>
               </div>
               <div class="card">
@@ -256,9 +270,22 @@ jobs:
               </div>
             </div>
 
+            <div class="bar-wrap">
+              <div class="bar-label">
+                <span>Overall Branch Coverage</span>
+                <span>{grand_covered}/{grand_total} branches</span>
+              </div>
+              <div class="bar-bg"><div class="bar-fg"></div></div>
+            </div>
+
             <table>
               <thead>
-                <tr><th>Pipeline</th><th>Coverage</th></tr>
+                <tr>
+                  <th>Pipeline / File</th>
+                  <th>Total branches</th>
+                  <th>Covered branches</th>
+                  <th>Coverage</th>
+                </tr>
               </thead>
               <tbody>{rows}</tbody>
             </table>
@@ -267,7 +294,7 @@ jobs:
 
           with open("pages/index.html", "w") as f:
               f.write(html)
-          print("✅ index.html written with", len(entries), "entries")
+          print(f"✅ index.html written — {len(entries)} pipelines")
           EOF
 
       - name: Check coverage reports exist
