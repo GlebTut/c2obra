@@ -91,7 +91,7 @@ jobs:
           path: output/
           retention-days: 7
 
-  # ─── Job 3: Verify + merge + deploy to GitHub Pages ───────────────────────
+  # ─── Job 3: Verify + build GitHub Pages ───────────────────────────────────
   verify:
     runs-on: ubuntu-latest
     needs: pipeline
@@ -107,11 +107,30 @@ jobs:
       - name: Flatten all reports into one folder
         run: |
           mkdir -p pages
-          # Copy all HTML, JSON, CSV into a single flat folder
           find artifacts/ -type f \( -name "*.html" -o -name "*.json" -o -name "*.csv" \) \
             -exec cp {} pages/ \;
           echo "=== Pages folder contents ==="
           ls pages/
+
+      - name: Create index.html for GitHub Pages
+        run: |
+          cd pages
+          if [ -f "summary_report.html" ]; then
+            cp summary_report.html index.html
+          else
+            echo '<!DOCTYPE html><html><head><meta charset="UTF-8">
+            <title>Coverage Reports</title>
+            <style>
+              body { font-family: sans-serif; padding: 2em; background: #0f172a; color: #f1f5f9; }
+              a { color: #60a5fa; }
+              li { margin: 0.5em 0; }
+            </style></head>
+            <body><h1>Coverage Reports</h1><ul>' > index.html
+            for f in *_report.html; do
+              echo "<li><a href=\"$f\">$f</a></li>" >> index.html
+            done
+            echo '</ul></body></html>' >> index.html
+          fi
 
       - name: Check coverage reports exist
         run: |
@@ -144,7 +163,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: verify
-    # Only deploy on push to main, not on pull requests
     if: github.event_name == 'push'
 
     environment:
