@@ -137,7 +137,7 @@ if [ -f "$1" ]; then
         "output/${BASENAME}_inst_branch_map.json"
 
     # Save per-file inputs log
-    if [ -f output/test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
+    if [ -f output/test_inputs_log.json ]; then
         mv output/test_inputs_log.json "output/${BASENAME}_inst_test_inputs_log.json"
     fi
 
@@ -228,7 +228,7 @@ if [ -d "$1" ]; then
             "$OUT_DIR/${base}_inst_branch_map.json" || true
 
         # Save per-file inputs log
-        if [ -f output/test_inputs_log.json ] && [ "$SUITE_DIR" != "-" ]; then
+        if [ -f output/test_inputs_log.json ]; then
             cp output/test_inputs_log.json "$OUT_DIR/${base}_inst_test_inputs_log.json"
         fi
 
