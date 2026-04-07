@@ -151,11 +151,12 @@ if [ -f "$1" ]; then
 
     # Step 4: Generate report
     python3 src/report.py \
-        "output/${BASENAME}_inst_branch_map.json" \
-        "output/${BASENAME}_inst_coverage.json" \
-        --output      "output/${BASENAME}_inst_report.html" \
-        --csv         "output/${BASENAME}_inst_report.csv" \
-        --test-inputs "output/${BASENAME}_inst_test_inputs_log.json" || true
+    "output/${BASENAME}_inst_branch_map.json" \
+    "output/${BASENAME}_inst_coverage.json" \
+    --output      "output/${BASENAME}_inst_report.html" \
+    --csv         "output/${BASENAME}_inst_report.csv" \
+    --test-inputs "output/${BASENAME}_inst_test_inputs_log.json" \
+    --no-summary || true
 
     echo "✅ Done → open output/${BASENAME}_inst_report.html"
     exit 0

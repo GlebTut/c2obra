@@ -284,7 +284,7 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
     return True
 
 
-def write_html(rows, output_path, source_file, source_html_name=None, test_inputs=None):
+def write_html(rows, output_path, source_file, source_html_name=None, test_inputs=None, no_summary=False):
     total_edges   = len(rows) * 2
     covered_true  = sum(1 for r in rows if r["true_count"]  > 0)
     covered_false = sum(1 for r in rows if r["false_count"] > 0)
@@ -295,7 +295,10 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
     bar_color = "#16a34a" if pct >= 80 else "#d97706" if pct >= 50 else "#dc2626"
 
     # ── FIX Bug 1: use only basename for summary link so it works after ZIP extract ──
-    back_button = '<a href="summary_report.html" style="display:inline-block;margin-bottom:1.2rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;font-weight:500;">← Back to Summary</a>'
+    if no_summary:
+      back_button = ''
+    else:
+      back_button = '<a href="summary_report.html" style="display:inline-block;margin-bottom:1.2rem;padding:0.45rem 1.1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;text-decoration:none;font-size:0.88rem;font-weight:500;">← Back to Summary</a>'
 
     source_btn = ""
     if source_html_name:
@@ -619,6 +622,8 @@ def main():
     parser.add_argument("--output",      default="output/coverage_report.html", help="Output HTML file")
     parser.add_argument("--csv",         default="output/coverage_report.csv",  help="Output CSV file")
     parser.add_argument("--test-inputs", default="output/test_inputs_log.json", help="Path to test inputs log JSON")
+    parser.add_argument('--no-summary', action='store_true',
+                    help='Hide Back to Summary button (single-file mode)')
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
@@ -636,8 +641,9 @@ def main():
     wrote_source = write_source_html(rows, branch_map_data, source_html_path, os.path.basename(args.output))
 
     write_html(rows, args.output, source_file,
-               source_html_name=source_html_name if wrote_source else None,
-               test_inputs=test_inputs)
+              source_html_name=source_html_name if wrote_source else None,
+              test_inputs=test_inputs,
+              no_summary=args.no_summary)
     write_csv(rows, args.csv, source_file)
 
 
