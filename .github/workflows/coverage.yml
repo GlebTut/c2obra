@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-# Required for GitHub Pages deployment
 permissions:
   contents: read
   pages: write
@@ -73,12 +72,12 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
 
-      - name: Install GCC
-        run: sudo apt-get install -y gcc
+      - name: Install system dependencies + Sikraken
+        run: |
+          chmod +x install.sh
+          bash install.sh
 
       - name: Run pipeline
-        env:
-          SIKRAKEN_DIR: /tmp/sikraken-not-installed
         run: |
           source venv/bin/activate
           chmod +x run_pipeline.sh
