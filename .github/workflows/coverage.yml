@@ -78,6 +78,8 @@ jobs:
           bash install.sh
 
       - name: Run pipeline
+        env:
+          SIKRAKEN_DIR: /home/runner/sikraken    # ← tell pipeline where it is
         run: |
           source venv/bin/activate
           chmod +x run_pipeline.sh
