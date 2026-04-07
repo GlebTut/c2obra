@@ -1,25 +1,22 @@
 name: Branch Coverage Pipeline
 
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
-
 permissions:
   contents: read
   pages: write
   id-token: write
 
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-
 jobs:
-  # ─── Job 1: Install dependencies ──────────────────────────────────────────
+
+  # ── Job 1: Install Python deps and cache venv ────────────────────
   install:
     runs-on: ubuntu-latest
     steps:
@@ -43,17 +40,20 @@ jobs:
           key: venv-${{ hashFiles('requirements.txt') }}
 
 
-  # ─── Job 2: Run pipeline on example benchmarks ────────────────────────────
+  # ── Job 2: Run pipeline on each test file in parallel ────────────
   pipeline:
     runs-on: ubuntu-latest
     needs: install
 
     strategy:
       matrix:
-        file:
-          - tests/examples/simple_if.c
-          - tests/loop-simple/nested_1.c
-          - tests/demo_test_files/
+        include:
+          - file: tests/examples/simple_if.c
+            label: "0"
+          - file: tests/loop-simple/nested_1.c
+            label: "1"
+          - file: tests/demo_test_files/
+            label: "2"
 
     steps:
       - uses: actions/checkout@v5
@@ -93,12 +93,12 @@ jobs:
       - name: Upload coverage artefacts
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: coverage-${{ strategy.job-index }}
+          name: coverage-${{ matrix.label }}
           path: output/
           retention-days: 7
 
 
-  # ─── Job 3: Verify + build GitHub Pages ───────────────────────────────────
+  # ── Job 3: Merge artifacts + build GitHub Pages index ────────────
   verify:
     runs-on: ubuntu-latest
     needs: pipeline
@@ -117,11 +117,24 @@ jobs:
           for dir in artifacts/coverage-*/; do
             name=$(basename "$dir")
             mkdir -p "pages/$name"
-            find "$dir" -type f \( -name "*.html" -o -name "*.json" -o -name "*.csv" \) \
+
+            # directory-mode: hoist *-output/ contents up
+            subout=$(find "$dir" -maxdepth 1 -type d -name "*-output" | head -1)
+            if [ -n "$subout" ]; then
+              find "$subout" -type f \( -name "*.html" -o -name "*.json" -o -name "*.csv" \) \
+                -exec cp {} "pages/$name/" \;
+            fi
+
+            # single-file mode: copy flat files
+            find "$dir" -maxdepth 1 -type f \( -name "*.html" -o -name "*.json" -o -name "*.csv" \) \
               -exec cp {} "pages/$name/" \;
-            # Make summary_report.html the index for that subfolder
+
+            # set index.html: prefer summary_report, fall back to first *_report.html
             if [ -f "pages/$name/summary_report.html" ]; then
               cp "pages/$name/summary_report.html" "pages/$name/index.html"
+            else
+              first=$(find "pages/$name" -name "*_report.html" | head -1)
+              [ -n "$first" ] && cp "$first" "pages/$name/index.html"
             fi
           done
           echo "=== Pages folder contents ==="
@@ -129,10 +142,9 @@ jobs:
 
       - name: Generate master index.html
         run: |
-          python3 - <<'EOF'
-          import os, json, glob
+          python3 << 'PYEOF'
+          import os, json
 
-          # Map job-index to human-readable names matching the matrix order
           PIPELINE_NAMES = {
               "coverage-0": "simple_if.c",
               "coverage-1": "nested_1.c",
@@ -141,35 +153,25 @@ jobs:
 
           entries = []
           for d in sorted(os.listdir("pages")):
-              subdir = f"pages/{d}"
+              subdir = "pages/" + d
               if not os.path.isdir(subdir):
                   continue
-
-              # Find coverage %
-              jsons = (glob.glob(f"{subdir}/coverage_report.json")
-                       + glob.glob(f"{subdir}/*coverage_report.json"))
               pct = "N/A"
               total_e = covered_e = 0
-              if jsons:
+              report = subdir + "/coverage_report.json"
+              if os.path.exists(report):
                   try:
-                      data = json.load(open(jsons[0]))
+                      data = json.load(open(report))
                       pct       = data["summary"]["branch_coverage_pct"]
                       total_e   = data["summary"].get("total_branches_count", 0)
                       covered_e = data["summary"].get("covered_branches", 0)
                   except Exception:
                       pass
+              link = d + "/index.html" if os.path.exists(subdir + "/index.html") else None
+              entries.append({"name": PIPELINE_NAMES.get(d, d), "pct": pct,
+                              "link": link, "total": total_e, "covered": covered_e})
 
-              # Link → subfolder index
-              link = f"{d}/index.html" if os.path.exists(f"{subdir}/index.html") else None
-
-              label = PIPELINE_NAMES.get(d, d)
-              entries.append({
-                  "name": label, "dir": d,
-                  "pct": pct, "link": link,
-                  "total": total_e, "covered": covered_e
-              })
-
-          def pct_color(p):
+          def color(p):
               try:
                   v = float(p)
                   return "#16a34a" if v >= 80 else "#d97706" if v >= 50 else "#dc2626"
@@ -178,146 +180,83 @@ jobs:
 
           rows = ""
           for e in entries:
-              color   = pct_color(e["pct"])
-              pct_str = f"{e['pct']}%" if e["pct"] != "N/A" else "N/A"
               try:
-                  bar_w = float(e["pct"])
+                  bar = float(e["pct"])
               except Exception:
-                  bar_w = 0
-              link_cell = (f'<a href="{e["link"]}">{e["name"]}</a>'
-                           if e["link"] else e["name"])
-              rows += f"""
-              <tr>
-                <td>{link_cell}</td>
-                <td style="font-family:monospace">{e["total"]}</td>
-                <td style="font-family:monospace">{e["covered"]}</td>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <div style="flex:1;background:#334155;border-radius:999px;height:10px;max-width:180px">
-                      <div style="width:{bar_w}%;background:{color};height:10px;border-radius:999px"></div>
-                    </div>
-                    <span style="color:{color};font-weight:600">{pct_str}</span>
-                  </div>
-                </td>
-              </tr>"""
+                  bar = 0
+              c = color(e["pct"])
+              ps = str(e["pct"]) + "%" if e["pct"] != "N/A" else "N/A"
+              nm = '<a href="' + e["link"] + '">' + e["name"] + "</a>" if e["link"] else e["name"]
+              rows += ("<tr><td>" + nm + "</td><td>" + str(e["total"]) + "</td><td>"
+                      + str(e["covered"]) + "</td><td>"
+                      + '<div style="display:flex;align-items:center;gap:10px">'
+                      + '<div style="flex:1;background:#334155;border-radius:999px;height:10px;max-width:180px">'
+                      + '<div style="width:' + str(bar) + '%;background:' + c + ';height:10px;border-radius:999px"></div></div>'
+                      + '<span style="color:' + c + ';font-weight:600">' + ps + "</span></div></td></tr>")
 
-          all_jsons = glob.glob("pages/*/coverage_report.json")
-          grand_total = grand_covered = 0
-          for j in all_jsons:
-              try:
-                  d = json.load(open(j))
-                  grand_total   += d["summary"].get("total_branches_count", 0)
-                  grand_covered += d["summary"].get("covered_branches", 0)
-              except Exception:
-                  pass
-          overall_pct   = round(grand_covered / grand_total * 100, 1) if grand_total else 0
-          overall_color = pct_color(overall_pct)
+          gt = sum(e["total"]   for e in entries)
+          gc = sum(e["covered"] for e in entries)
+          ov = round(gc / gt * 100, 1) if gt else 0
+          oc = color(ov)
+          n  = len(entries)
 
-          html = f"""<!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Coverage Reports — C Testing Coverage Tool</title>
-            <style>
-              *{{box-sizing:border-box;margin:0;padding:0}}
-              body{{font-family:'Segoe UI',Arial,sans-serif;background:#0f172a;
-                   color:#f1f5f9;padding:2em;line-height:1.6}}
-              h1{{font-size:1.5em;margin-bottom:0.2em}}
-              .sub{{color:#94a3b8;font-size:0.85em;margin-bottom:1.8em}}
-              .cards{{display:flex;gap:1em;margin-bottom:1.5em;flex-wrap:wrap}}
-              .card{{background:#1e293b;border:1px solid #334155;border-radius:10px;
-                    padding:1em 1.5em;min-width:140px}}
-              .card .val{{font-size:1.8em;font-weight:700}}
-              .card .lbl{{font-size:0.78em;color:#94a3b8;margin-top:0.2em}}
-              .bar-wrap{{background:#1e293b;border:1px solid #334155;border-radius:10px;
-                        padding:1.2em 1.5em;margin-bottom:1.5em}}
-              .bar-label{{display:flex;justify-content:space-between;
-                         font-size:0.88em;color:#94a3b8;margin-bottom:0.5em}}
-              .bar-bg{{background:#334155;border-radius:999px;height:18px}}
-              .bar-fg{{background:{overall_color};border-radius:999px;height:18px;
-                      width:{overall_pct}%}}
-              table{{width:100%;border-collapse:collapse;background:#1e293b;
-                    border-radius:10px;overflow:hidden;border:1px solid #334155}}
-              th{{background:#0f172a;color:#94a3b8;padding:0.7em 1em;text-align:left;
-                 font-size:0.8em;text-transform:uppercase;letter-spacing:0.05em}}
-              td{{padding:0.75em 1em;border-top:1px solid #334155;font-size:0.95em}}
-              tr:hover td{{background:#263348}}
-              a{{color:#60a5fa;text-decoration:none}}
-              a:hover{{text-decoration:underline}}
-            </style>
-          </head>
-          <body>
-            <h1>🧪 C Testing Coverage Tool</h1>
-            <p class="sub">Branch coverage across all pipelines &nbsp;·&nbsp; {len(entries)} pipelines</p>
+          css = (
+              "*{box-sizing:border-box;margin:0;padding:0}"
+              "body{font-family:Segoe UI,Arial,sans-serif;background:#0f172a;color:#f1f5f9;padding:2em;line-height:1.6}"
+              "h1{font-size:1.5em;margin-bottom:0.2em}"
+              ".sub{color:#94a3b8;font-size:0.85em;margin-bottom:1.8em}"
+              ".cards{display:flex;gap:1em;margin-bottom:1.5em;flex-wrap:wrap}"
+              ".card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:1em 1.5em;min-width:140px}"
+              ".card .val{font-size:1.8em;font-weight:700}"
+              ".card .lbl{font-size:0.78em;color:#94a3b8;margin-top:0.2em}"
+              ".bar-wrap{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:1.2em 1.5em;margin-bottom:1.5em}"
+              ".bar-label{display:flex;justify-content:space-between;font-size:0.88em;color:#94a3b8;margin-bottom:0.5em}"
+              ".bar-bg{background:#334155;border-radius:999px;height:18px}"
+              "table{width:100%;border-collapse:collapse;background:#1e293b;border-radius:10px;overflow:hidden;border:1px solid #334155}"
+              "th{background:#0f172a;color:#94a3b8;padding:0.7em 1em;text-align:left;font-size:0.8em;text-transform:uppercase;letter-spacing:0.05em}"
+              "td{padding:0.75em 1em;border-top:1px solid #334155;font-size:0.95em}"
+              "tr:hover td{background:#263348}"
+              "a{color:#60a5fa;text-decoration:none}"
+              "a:hover{text-decoration:underline}"
+          )
 
-            <div class="cards">
-              <div class="card">
-                <div class="val">{len(entries)}</div>
-                <div class="lbl">Pipelines</div>
-              </div>
-              <div class="card">
-                <div class="val">{grand_total}</div>
-                <div class="lbl">Total branches</div>
-              </div>
-              <div class="card">
-                <div class="val">{grand_covered}</div>
-                <div class="lbl">Covered branches</div>
-              </div>
-              <div class="card">
-                <div class="val" style="color:{overall_color}">{overall_pct}%</div>
-                <div class="lbl">Overall coverage</div>
-              </div>
-            </div>
-
-            <div class="bar-wrap">
-              <div class="bar-label">
-                <span>Overall Branch Coverage</span>
-                <span>{grand_covered}/{grand_total} branches</span>
-              </div>
-              <div class="bar-bg"><div class="bar-fg"></div></div>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Pipeline / File</th>
-                  <th>Total branches</th>
-                  <th>Covered branches</th>
-                  <th>Coverage</th>
-                </tr>
-              </thead>
-              <tbody>{rows}</tbody>
-            </table>
-          </body>
-          </html>"""
+          html = (
+              '<!DOCTYPE html><html lang="en"><head>'
+              '<meta charset="UTF-8">'
+              '<meta name="viewport" content="width=device-width,initial-scale=1">'
+              '<title>Coverage Reports - C Testing Coverage Tool</title>'
+              "<style>" + css
+              + ".bar-fg{background:" + oc + ";border-radius:999px;height:18px;width:" + str(ov) + "%}"
+              + "</style></head><body>"
+              + '<h1>&#x1f9ea; C Testing Coverage Tool</h1>'
+              + '<p class="sub">Branch coverage across all pipelines &middot; ' + str(n) + ' pipelines</p>'
+              + '<div class="cards">'
+              + '<div class="card"><div class="val">' + str(n) + '</div><div class="lbl">Pipelines</div></div>'
+              + '<div class="card"><div class="val">' + str(gt) + '</div><div class="lbl">Total branches</div></div>'
+              + '<div class="card"><div class="val">' + str(gc) + '</div><div class="lbl">Covered branches</div></div>'
+              + '<div class="card"><div class="val" style="color:' + oc + '">' + str(ov) + '%</div><div class="lbl">Overall coverage</div></div>'
+              + '</div><div class="bar-wrap">'
+              + '<div class="bar-label"><span>Overall Branch Coverage</span><span>' + str(gc) + "/" + str(gt) + ' branches</span></div>'
+              + '<div class="bar-bg"><div class="bar-fg"></div></div></div>'
+              + '<table><thead><tr>'
+              + '<th>Pipeline / File</th><th>Total branches</th><th>Covered branches</th><th>Coverage</th>'
+              + '</tr></thead><tbody>' + rows + '</tbody></table></body></html>'
+          )
 
           with open("pages/index.html", "w") as f:
               f.write(html)
-          print(f"✅ index.html written — {len(entries)} pipelines")
-          EOF
-
-      - name: Check coverage reports exist
-        run: |
-          echo "=== Coverage percentages ==="
-          for f in $(find artifacts/ -name "coverage_report.json"); do
-            pct=$(python3 -c "
-          import json
-          d = json.load(open('$f'))
-          print(d['summary']['branch_coverage_pct'])
-          " 2>/dev/null || echo "N/A")
-            echo "$f → $pct%"
-          done
+          print("index.html written - " + str(n) + " pipelines")
+          PYEOF
 
       - name: Fail if no coverage reports generated
         run: |
           count=$(find pages/ -name "*report.html" | wc -l)
           echo "Found $count HTML report(s)"
           if [ "$count" -eq 0 ]; then
-            echo "❌ No coverage reports generated"
+            echo "No coverage reports generated"
             exit 1
           fi
-          echo "✅ All reports generated successfully"
+          echo "All reports present"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -325,7 +264,7 @@ jobs:
           path: pages/
 
 
-  # ─── Job 4: Deploy to GitHub Pages ────────────────────────────────────────
+  # ── Job 4: Deploy to GitHub Pages (push to main only) ────────────
   deploy:
     runs-on: ubuntu-latest
     needs: verify
