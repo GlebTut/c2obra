@@ -1,28 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
-
 echo "=== Step 1: Installing system dependencies ==="
 sudo apt install -y python3.12-venv gcc-multilib wget unzip
-
 
 echo "=== Step 2: Setting up Python environment ==="
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-
+python -m pip install -r requirements.txt
 
 echo "=== Step 3: Installing Sikraken ==="
 SIKRAKEN_DIR="$HOME/sikraken"
 SIKRAKEN_BIN="$SIKRAKEN_DIR/bin/sikraken.sh"
-
 
 # Remove broken/incomplete installation if bin/sikraken.sh is missing
 if [ -d "$SIKRAKEN_DIR" ] && [ ! -f "$SIKRAKEN_BIN" ]; then
     echo "⚠️  Sikraken folder exists but is incomplete — removing and reinstalling..."
     rm -rf "$SIKRAKEN_DIR"
 fi
-
 
 if [ ! -d "$SIKRAKEN_DIR" ]; then
     echo "Downloading Sikraken from Zenodo (record 18062402, v35, Dec 2025)..."
@@ -44,7 +39,6 @@ else
     echo "✓ Sikraken already installed — skipping"
 fi
 
-
 # Verify
 if [ ! -f "$SIKRAKEN_BIN" ]; then
     echo "❌ ERROR: $SIKRAKEN_BIN still not found after install. Check the zip structure."
@@ -53,16 +47,14 @@ if [ ! -f "$SIKRAKEN_BIN" ]; then
     exit 1
 fi
 
-
-echo "=== Step 4: Patching run_pipeline.sh to auto-activate venv ==="
-if ! grep -q "venv/bin/activate" run_pipeline.sh; then
-    sed -i 's|^set -e$|set -e\nsource "$(dirname "$0")/venv/bin/activate"|' run_pipeline.sh
-    echo "✓ venv auto-activation added to run_pipeline.sh"
+echo "=== Step 4: Patching c2obra.sh to auto-activate venv ==="
+if ! grep -q "venv/bin/activate" c2obra.sh; then
+    sed -i 's|^set -e$|set -e\nsource "$(dirname "$0")/venv/bin/activate"|' c2obra.sh
+    echo "✓ venv auto-activation added to c2obra.sh"
 else
-    echo "✓ run_pipeline.sh already patched — skipping"
+    echo "✓ c2obra.sh already patched — skipping"
 fi
-
 
 echo ""
 echo "=== Installation Complete! ==="
-echo "Run: bash run_pipeline.sh filePATH/fileNAME"
+echo "Run: bash c2obra.sh filePATH/fileNAME"
