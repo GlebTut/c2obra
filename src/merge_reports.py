@@ -14,7 +14,7 @@ def load_branch_map(path):
         with open(path) as f:
             return json.load(f)["branches"]
     except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
-        print(f"⚠️  Skipping {path}: {e}")
+        print(f"\u26a0\ufe0f  Skipping {path}: {e}")
         return []
 
 
@@ -72,7 +72,7 @@ def collect_file_stats(directory):
 
 
 def write_summary_html(files, output_path):
-    total_edges   = sum(f["total_edges"] for f in files)
+    total_edges   = sum(f["total_edges"]   for f in files)
     covered_edges = sum(f["covered_edges"] for f in files)
     overall_pct   = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
     date_str      = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -81,19 +81,21 @@ def write_summary_html(files, output_path):
 
     table_rows = ""
     for f in files:
-        fc    = "#16a34a" if f["pct"] >= 80 else "#d97706" if f["pct"] >= 50 else "#dc2626"
-        bar_w = f"{f['pct']:.1f}"
+        fc      = "#16a34a" if f["pct"] >= 80 else "#d97706" if f["pct"] >= 50 else "#dc2626"
+        bar_w   = f"{f['pct']:.1f}"
+        row_cls = "full" if f["pct"] >= 80 else ("partial" if f["pct"] >= 50 else "none")
         source_cell = (
-            f'<td><a href="{f["source_html"]}" title="View source">📄</a></td>'
+            f'<td><a href="{f["source_html"]}" style="color:#60a5fa;font-size:1.1em" title="View source">\U0001f4c4</a></td>'
             if f["source_html"]
-            else '<td style="color:var(--subtext)">—</td>'
+            else '<td style="color:var(--subtext)">\u2014</td>'
         )
         table_rows += (
-            f'<tr>'
-            f'<td><a href="{f["html"]}">{f["name"]}</a></td>'
+            f'<tr class="{row_cls}">'
+            f'<td><a href="{f["html"]}" style="color:#60a5fa;font-weight:500">{f["name"]}</a></td>'
             f'<td>{f["total_edges"]}</td>'
             f'<td>{f["covered_edges"]}</td>'
-            f'<td><div class="mini-bar-bg"><div class="mini-bar-fg" style="width:{bar_w}%;background:{fc}"></div></div></td>'
+            f'<td><div style="background:var(--border);border-radius:999px;height:10px;width:120px">'
+            f'<div style="background:{fc};border-radius:999px;height:10px;width:{bar_w}%"></div></div></td>'
             f'<td style="color:{fc};font-weight:bold">{f["pct"]:.1f}%</td>'
             f'{source_cell}'
             f'</tr>'
@@ -103,10 +105,10 @@ def write_summary_html(files, output_path):
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Coverage Summary Report</title>
+<title>C\u00b2oBra \u2014 Coverage Summary</title>
 <script>
   (function(){{
-    const t = (function(){{ try {{ return localStorage.getItem("theme"); }} catch(e) {{ return null; }} }})() || "dark";
+    const t = (function(){{try{{return localStorage.getItem("theme")}}catch(e){{return null}}}}()) || "dark";
     document.documentElement.setAttribute("data-theme", t);
   }})();
 </script>
@@ -115,98 +117,164 @@ def write_summary_html(files, output_path):
   :root {{
     --bg:#0f172a; --surface:#1e293b; --text:#f1f5f9; --subtext:#94a3b8;
     --border:#334155; --header:#0f172a; --header-hover:#1e3a5f;
+    --row-full:#0f3320;    --row-full-hover:#134a2c;
+    --row-partial:#4a2500; --row-partial-hover:#5e3000;
+    --row-none:#4a0a0a;    --row-none-hover:#600e0e;
   }}
   [data-theme="light"] {{
     --bg:#f5f7fa; --surface:#ffffff; --text:#1a1a2e; --subtext:#555;
     --border:#e5e7eb; --header:#1a1a2e; --header-hover:#2d2d5e;
+    --row-full:#bbf7d0;    --row-full-hover:#86efac;
+    --row-partial:#fde68a; --row-partial-hover:#fcd34d;
+    --row-none:#fecaca;    --row-none-hover:#fca5a5;
   }}
-  body {{ font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); padding: 2em; transition: background 0.2s, color 0.2s; }}
-  h1 {{ font-size: 1.5em; margin-bottom: 0.2em; }}
-  .subtitle {{ color: var(--subtext); font-size: 0.9em; margin-bottom: 1.5em; }}
-  .topbar {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5em; }}
-  .toggle-btn {{ background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.4em 0.9em; border-radius: 6px; cursor: pointer; font-size: 0.85em; }}
-  .toggle-btn:hover {{ background: var(--border); }}
-  .cards {{ display: flex; gap: 1em; margin-bottom: 1.5em; flex-wrap: wrap; }}
-  .card {{ background: var(--surface); border-radius: 10px; padding: 1em 1.5em; box-shadow: 0 2px 8px rgba(0,0,0,0.2); min-width: 150px; border: 1px solid var(--border); }}
-  .card .val {{ font-size: 1.8em; font-weight: bold; }}
-  .card .lbl {{ font-size: 0.8em; color: var(--subtext); margin-top: 0.2em; }}
-  .bar-wrap {{ background: var(--surface); border-radius: 10px; padding: 1.2em 1.5em; box-shadow: 0 2px 8px rgba(0,0,0,0.2); margin-bottom: 1.5em; border: 1px solid var(--border); }}
-  .bar-label {{ display: flex; justify-content: space-between; margin-bottom: 0.5em; font-size: 0.9em; color: var(--subtext); }}
-  .bar-bg {{ background: var(--border); border-radius: 999px; height: 22px; width: 100%; }}
-  .bar-fg {{ background: {bar_color}; border-radius: 999px; height: 22px; width: {overall_pct:.1f}%; }}
-  .controls {{ display: flex; gap: 0.8em; margin-bottom: 0.6em; align-items: center; flex-wrap: wrap; }}
-  .controls input {{ padding: 0.4em 0.8em; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9em; width: 260px; background: var(--surface); color: var(--text); }}
-  .row-count {{ font-size: 0.82em; color: var(--subtext); margin-bottom: 0.8em; }}
-  table {{ width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 1px solid var(--border); }}
-  th {{ background: var(--header); color: #fff; padding: 0.75em 1em; text-align: left; font-size: 0.92em; cursor: pointer; user-select: none; white-space: nowrap; }}
-  th:hover {{ background: var(--header-hover); }}
-  th.sorted-asc::after {{ content: " ▲"; font-size: 0.75em; }}
-  th.sorted-desc::after {{ content: " ▼"; font-size: 0.75em; }}
-  td {{ padding: 0.55em 1em; font-size: 0.95em; border-bottom: 1px solid var(--border); }}
-  tr:last-child td {{ border-bottom: none; }}
-  tr:hover td {{ background: var(--border); }}
-  a {{ color: #60a5fa; text-decoration: none; }}
-  a:hover {{ text-decoration: underline; }}
-  .mini-bar-bg {{ background: var(--border); border-radius: 999px; height: 10px; width: 120px; }}
-  .mini-bar-fg {{ border-radius: 999px; height: 10px; }}
+  body {{ font-family:"Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--text); transition:background 0.2s,color 0.2s; min-height:100vh; }}
+  .topbar {{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:0.7rem 2rem; background:var(--header);
+    border-bottom:2px solid var(--border);
+    position:sticky; top:0; z-index:100;
+  }}
+  .topbar-left {{ display:flex; align-items:center; gap:1rem; }}
+  .topbar-right {{ display:flex; align-items:center; gap:0.6rem; }}
+  .toggle-btn {{
+    background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.3);
+    color:var(--subtext); padding:0.38em 0.9em; border-radius:7px;
+    cursor:pointer; font-size:0.84rem; transition:background 0.15s;
+  }}
+  .toggle-btn:hover {{ background:rgba(96,165,250,0.25); }}
+  .page {{ max-width:1100px; margin:0 auto; padding:1.6rem 2rem 3rem; }}
+  .file-meta {{ font-size:0.82rem; color:var(--subtext); margin-bottom:1.6rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }}
+  .file-meta strong {{ color:var(--text); }}
+  .cards {{ display:flex; gap:1rem; margin-bottom:1.4rem; flex-wrap:wrap; }}
+  .card {{
+    background:var(--surface); border:1px solid var(--border);
+    border-top:3px solid {bar_color};
+    border-radius:10px; padding:1rem 1.4rem;
+    box-shadow:0 2px 12px rgba(0,0,0,0.25); min-width:140px; flex:1;
+  }}
+  .card .val {{ font-size:2rem; font-weight:800; line-height:1; letter-spacing:-0.5px; }}
+  .card .lbl {{ font-size:0.78rem; color:var(--subtext); margin-top:0.35rem; font-weight:500; text-transform:uppercase; letter-spacing:0.04em; }}
+  .bar-wrap {{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:1.1rem 1.4rem;
+    box-shadow:0 2px 12px rgba(0,0,0,0.2); margin-bottom:1.6rem;
+  }}
+  .bar-label {{ display:flex; justify-content:space-between; margin-bottom:0.6rem; font-size:0.88rem; color:var(--subtext); }}
+  .bar-label strong {{ color:var(--text); }}
+  .bar-bg {{ background:var(--border); border-radius:999px; height:20px; overflow:hidden; }}
+  .bar-fg {{
+    background:linear-gradient(90deg,{bar_color},{bar_color}cc);
+    border-radius:999px; height:20px; width:{overall_pct:.1f}%;
+    transition:width 0.8s cubic-bezier(.4,0,.2,1);
+  }}
+  .section-heading {{
+    font-size:0.82rem; font-weight:700; color:#569cd6;
+    text-transform:uppercase; letter-spacing:0.1em;
+    margin:1.8rem 0 0.9rem; display:flex; align-items:center; gap:0.6rem;
+  }}
+  .section-heading::before {{
+    content:\'\'; display:inline-block; width:3px; height:1em;
+    background:#569cd6; border-radius:2px; flex-shrink:0;
+  }}
+  .controls {{ display:flex; gap:0.7rem; margin-bottom:0.6rem; align-items:center; flex-wrap:wrap; }}
+  .controls input {{
+    padding:0.42em 0.8em; border:1px solid var(--border);
+    border-radius:7px; font-size:0.88rem; width:260px;
+    background:var(--surface); color:var(--text); transition:border-color 0.15s;
+  }}
+  .controls input:focus {{ outline:none; border-color:#569cd6; }}
+  .row-count {{ font-size:0.8rem; color:var(--subtext); margin-bottom:0.7rem; }}
+  .table-wrap {{ overflow-x:auto; border-radius:10px; border:1px solid var(--border); box-shadow:0 2px 12px rgba(0,0,0,0.2); }}
+  table {{ width:100%; border-collapse:collapse; background:var(--surface); }}
+  th {{
+    background:var(--header); color:#fff;
+    padding:0.7em 1em; text-align:left; font-size:0.84rem; font-weight:600;
+    cursor:pointer; user-select:none; white-space:nowrap;
+    border-bottom:2px solid var(--border);
+  }}
+  th:hover {{ background:var(--header-hover); }}
+  th.sorted-asc::after  {{ content:" \u25b2"; font-size:0.7em; }}
+  th.sorted-desc::after {{ content:" \u25bc"; font-size:0.7em; }}
+  td {{ padding:0.52em 1em; font-size:0.93rem; border-bottom:1px solid var(--border); }}
+  tr:last-child td {{ border-bottom:none; }}
+  tr.full    {{ background:var(--row-full); }}
+  tr.partial {{ background:var(--row-partial); }}
+  tr.none    {{ background:var(--row-none); }}
+  tr.full:hover    {{ background:var(--row-full-hover); }}
+  tr.partial:hover {{ background:var(--row-partial-hover); }}
+  tr.none:hover    {{ background:var(--row-none-hover); }}
+  a {{ color:#60a5fa; text-decoration:none; }}
+  a:hover {{ text-decoration:underline; }}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div>
-    <h1>📊 Coverage Summary Report</h1>
-    <p class="subtitle"><strong>Directory:</strong> {os.path.basename(os.path.dirname(output_path))} &nbsp;|&nbsp; <strong>Generated:</strong> {date_str}</p>
+  <div class="topbar-left">
+    <span style="font-size:1rem;font-weight:800;color:#569cd6;letter-spacing:-0.5px">
+      C<sup style="font-size:0.6em;vertical-align:super">2</sup><span style="color:var(--text)">oBra</span>
+    </span>
   </div>
-  <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light</button>
+  <div class="topbar-right">
+    <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">&#9728;&#65039; Light</button>
+  </div>
 </div>
-
+<div class="page">
+<div class="file-meta">
+  <strong>Summary Report</strong>
+  <span style="opacity:0.4">&nbsp;|&nbsp;</span>
+  {os.path.basename(os.path.dirname(output_path))}
+  <span style="opacity:0.4">&nbsp;|&nbsp;</span>
+  Generated: {date_str}
+</div>
 <div class="cards">
-  <div class="card"><div class="val">{len(files)}</div><div class="lbl">Files</div></div>
+  <div class="card"><div class="val">{len(files)}</div><div class="lbl">Files analysed</div></div>
   <div class="card"><div class="val">{total_edges}</div><div class="lbl">Total branches</div></div>
   <div class="card"><div class="val">{covered_edges}</div><div class="lbl">Covered branches</div></div>
   <div class="card"><div class="val" style="color:{bar_color}">{overall_pct:.1f}%</div><div class="lbl">Overall coverage</div></div>
 </div>
-
 <div class="bar-wrap">
-  <div class="bar-label"><span>Overall Branch Coverage</span><span>{covered_edges}/{total_edges} branches</span></div>
+  <div class="bar-label">
+    <span><strong>Overall Branch Coverage</strong></span>
+    <span>{covered_edges}/{total_edges} branches &nbsp;&mdash;&nbsp; <strong style="color:{bar_color}">{overall_pct:.1f}%</strong></span>
+  </div>
   <div class="bar-bg"><div class="bar-fg"></div></div>
 </div>
-
+<div class="section-heading">Files</div>
 <div class="controls">
-  <input type="text" id="search" placeholder="🔍 Search by filename…" oninput="applySearch()">
+  <input type="text" id="search" placeholder="&#128269; Search by filename&#8230;" oninput="applySearch()">
 </div>
 <div class="row-count" id="rowCount"></div>
-
-<table id="covTable">
-  <thead>
-  <tr>
-    <th onclick="sortTable(0)">File</th>
-    <th onclick="sortTable(1)">Total branches</th>
-    <th onclick="sortTable(2)">Covered branches</th>
-    <th onclick="sortTable(3)">Bar</th>
-    <th onclick="sortTable(4)">Coverage %</th>
-    <th>Source</th>
-  </tr>
-  </thead>
-  <tbody id="tableBody">
+<div class="table-wrap">
+  <table id="covTable">
+    <thead><tr>
+      <th onclick="sortTable(0)">File</th>
+      <th onclick="sortTable(1)">Total branches</th>
+      <th onclick="sortTable(2)">Covered branches</th>
+      <th>Bar</th>
+      <th onclick="sortTable(4)">Coverage %</th>
+      <th>Source</th>
+    </tr></thead>
+    <tbody id="tableBody">
 {table_rows}
-  </tbody>
-</table>
-
+    </tbody>
+  </table>
+</div>
+</div>
 <script>
   (function(){{
-    const t = (function(){{ try {{ return localStorage.getItem("theme"); }} catch(e) {{ return null; }} }})() || "dark";
-    document.getElementById("themeBtn").textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
+    const t = (function(){{try{{return localStorage.getItem("theme")}}catch(e){{return null}}}}()) || "dark";
+    document.getElementById("themeBtn").textContent = t === "dark" ? "\u2600\ufe0f Light" : "\U0001f319 Dark";
   }})();
   function toggleTheme() {{
     const curr = document.documentElement.getAttribute("data-theme") || "dark";
     const next = curr === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
-    try {{ localStorage.setItem("theme", next); }} catch(e) {{}}
-    document.getElementById("themeBtn").textContent = next === "dark" ? "☀️ Light" : "🌙 Dark";
+    try{{ localStorage.setItem("theme", next); }}catch(e){{}}
+    document.getElementById("themeBtn").textContent = next === "dark" ? "\u2600\ufe0f Light" : "\U0001f319 Dark";
   }}
   let sortCol = 4, sortAsc = false;
-  (function defaultSort() {{
+  (function(){{
     sortByCol(4, false);
     document.querySelectorAll("th")[4].classList.add("sorted-desc");
     updateCount();
@@ -215,49 +283,46 @@ def write_summary_html(files, output_path):
     const tbody = document.getElementById("tableBody");
     const rows  = Array.from(tbody.querySelectorAll("tr"));
     rows.sort((a, b) => {{
-      const av = a.cells[col].innerText.trim();
-      const bv = b.cells[col].innerText.trim();
+      const av = a.cells[col].innerText.trim(), bv = b.cells[col].innerText.trim();
       const an = parseFloat(av), bn = parseFloat(bv);
-      const cmp = isNaN(an) || isNaN(bn) ? av.localeCompare(bv) : an - bn;
+      const cmp = isNaN(an)||isNaN(bn) ? av.localeCompare(bv) : an-bn;
       return asc ? cmp : -cmp;
     }});
     rows.forEach(r => tbody.appendChild(r));
   }}
   function sortTable(col) {{
-    if (sortCol === col) sortAsc = !sortAsc; else {{ sortCol = col; sortAsc = true; }}
+    if (sortCol===col) sortAsc=!sortAsc; else {{sortCol=col; sortAsc=true;}}
     sortByCol(col, sortAsc);
-    document.querySelectorAll("th").forEach((th, i) => {{
-      th.classList.remove("sorted-asc", "sorted-desc");
-      if (i === col) th.classList.add(sortAsc ? "sorted-asc" : "sorted-desc");
+    document.querySelectorAll("th").forEach((th,i) => {{
+      th.classList.remove("sorted-asc","sorted-desc");
+      if (i===col) th.classList.add(sortAsc?"sorted-asc":"sorted-desc");
     }});
     updateCount();
   }}
   function applySearch() {{
     const q = document.getElementById("search").value.toLowerCase();
-    document.querySelectorAll("#tableBody tr").forEach(row => {{
-      row.style.display = !q || row.innerText.toLowerCase().includes(q) ? "" : "none";
+    const rows = document.querySelectorAll("#tableBody tr");
+    let visible = 0;
+    rows.forEach(r => {{
+      const show = !q || r.innerText.toLowerCase().includes(q);
+      r.style.display = show ? "" : "none";
+      if (show) visible++;
     }});
-    updateCount();
+    updateCount(visible);
   }}
-  function updateCount() {{
-    const all     = document.querySelectorAll("#tableBody tr");
-    const visible = Array.from(all).filter(r => r.style.display !== "none").length;
+  function updateCount(n) {{
+    const total = document.querySelectorAll("#tableBody tr").length;
+    const shown = n !== undefined ? n : total;
     document.getElementById("rowCount").textContent =
-      visible === all.length ? `Showing all ${{all.length}} files`
-                             : `Showing ${{visible}} of ${{all.length}} files`;
+      shown === total ? `Showing all ${{total}} files` : `Showing ${{shown}} of ${{total}} files`;
   }}
 </script>
 </body>
 </html>"""
 
-    try:
-        with open(output_path, "w") as f:
-            f.write(html)
-        print(f"✓ Wrote summary report to {output_path}")
-    except OSError as e:
-        print(f"❌ Error writing {output_path}: {e}")
-        sys.exit(1)
-
+    with open(output_path, "w") as f:
+        f.write(html)
+    print(f"\u2713 Wrote summary report to {output_path}")
     return overall_pct, covered_edges, total_edges
 
 
@@ -268,17 +333,17 @@ def main():
 
     directory = sys.argv[1].rstrip("/")
     if not os.path.isdir(directory):
-        print(f"❌ Error: '{directory}' is not a directory")
+        print(f"\u274c Error: \'{directory}\' is not a directory")
         sys.exit(1)
 
     files = collect_file_stats(directory)
     if not files:
-        print(f"⚠️  No branch map files found in '{directory}'")
+        print(f"\u26a0\ufe0f  No branch map files found in \'{directory}\'")
         sys.exit(1)
 
     output_path = os.path.join(directory, "summary_report.html")
     overall_pct, covered_edges, total_edges = write_summary_html(files, output_path)
-    print(f"\n📊 Overall coverage: {covered_edges}/{total_edges} branches ({overall_pct:.1f}%) across {len(files)} file(s)")
+    print(f"\n\U0001f4ca Overall coverage: {covered_edges}/{total_edges} branches ({overall_pct:.1f}%) across {len(files)} file(s)")
 
 
 if __name__ == "__main__":
