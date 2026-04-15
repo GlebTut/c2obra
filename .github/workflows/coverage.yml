@@ -1,4 +1,4 @@
-name: Branch Coverage Pipeline
+name: C²oBra Coverage Pipeline
 
 on:
   push:
@@ -16,7 +16,7 @@ env:
 
 jobs:
 
-  # ── Job 1: Install Python deps and cache venv ────────────────────
+  # ── Job 1: Install Python deps and cache venv ────────────────────────────────────
   install:
     runs-on: ubuntu-latest
     steps:
@@ -40,7 +40,7 @@ jobs:
           key: venv-${{ hashFiles('requirements.txt') }}
 
 
-  # ── Job 2: Run pipeline on each test file in parallel ────────────
+  # ── Job 2: Run pipeline on each test file in parallel ────────────────────────
   pipeline:
     runs-on: ubuntu-latest
     needs: install
@@ -82,13 +82,13 @@ jobs:
           chmod +x install.sh
           bash install.sh
 
-      - name: Run pipeline
+      - name: Run C²oBra pipeline
         env:
           SIKRAKEN_DIR: /home/runner/sikraken
         run: |
           source venv/bin/activate
-          chmod +x run_pipeline.sh
-          ./run_pipeline.sh ${{ matrix.file }} --cpu 30 --memory 512
+          chmod +x c2obra.sh
+          ./c2obra.sh ${{ matrix.file }} --cpu 30 --memory 512
 
       - name: Upload coverage artefacts
         uses: actions/upload-artifact@v4.6.2
@@ -98,7 +98,7 @@ jobs:
           retention-days: 7
 
 
-  # ── Job 3: Merge artifacts + build GitHub Pages index ────────────
+  # ── Job 3: Merge artifacts + build GitHub Pages index ────────────────────────
   verify:
     runs-on: ubuntu-latest
     needs: pipeline
@@ -140,7 +140,7 @@ jobs:
           echo "=== Pages folder contents ==="
           find pages/ -type f | sort
 
-      - name: Generate master index.html
+      - name: Generate C²oBra master index
         run: |
           python3 << 'PYEOF'
           import os, json
@@ -224,11 +224,11 @@ jobs:
               '<!DOCTYPE html><html lang="en"><head>'
               '<meta charset="UTF-8">'
               '<meta name="viewport" content="width=device-width,initial-scale=1">'
-              '<title>Coverage Reports - C Testing Coverage Tool</title>'
+              '<title>C²oBra — Dashboard</title>'
               "<style>" + css
               + ".bar-fg{background:" + oc + ";border-radius:999px;height:18px;width:" + str(ov) + "%}"
               + "</style></head><body>"
-              + '<h1>&#x1f9ea; C Testing Coverage Tool</h1>'
+              + '<h1>C²oBra — Coverage Dashboard</h1>'
               + '<p class="sub">Branch coverage across all pipelines &middot; ' + str(n) + ' pipelines</p>'
               + '<div class="cards">'
               + '<div class="card"><div class="val">' + str(n) + '</div><div class="lbl">Pipelines</div></div>'
@@ -264,7 +264,7 @@ jobs:
           path: pages/
 
 
-  # ── Job 4: Deploy to GitHub Pages (push to main only) ────────────
+  # ── Job 4: Deploy to GitHub Pages (push to main only) ────────────────────────
   deploy:
     runs-on: ubuntu-latest
     needs: verify
