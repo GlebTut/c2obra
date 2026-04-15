@@ -1,4 +1,4 @@
-// Implementation of C Testing Coverage Tool runtime library
+// Implementation of C²oBra runtime library
 // Provides coverage data collection and JSON output generation
 
 #include "cov_runtime.h"

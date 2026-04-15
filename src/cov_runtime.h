@@ -1,4 +1,4 @@
-// Header file for C Testing Coverage Tool runtime library
+// Header file for C²oBra runtime library
 // Provides the cover() macro and coverage tracking functionality
 
 #ifndef COV_RUNTIME_H

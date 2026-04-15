@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C Testing Coverage Tool - Summary Report Generator
+C²oBra - Summary Report Generator
 Reads all *_branch_map.json + *_coverage.json in a directory and outputs:
   - summary_report.html  (overall stats + per-file breakdown with links)
 """

@@ -6,8 +6,8 @@ set -e
 usage() {
   cat << 'EOF'
 Usage:
-  run_pipeline.sh <source.c> [options]
-  run_pipeline.sh <source_dir/> [options]
+  c2obra.sh <source.c> [options]
+  c2obra.sh <source_dir/> [options]
 
 
 Arguments:
@@ -47,7 +47,7 @@ fi
 
 
 if [ -z "$1" ]; then
-    echo "❌ Usage: ./run_pipeline.sh <source.c|source_dir/> [--cpu N] [--memory N] [--wall N]"
+    echo "❌ Usage: ./c2obra.sh <source.c|source_dir/> [--cpu N] [--memory N] [--wall N]"
     exit 1
 fi
 if [ ! -e "$1" ]; then

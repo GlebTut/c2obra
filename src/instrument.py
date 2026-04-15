@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C Testing Coverage Tool - Source Instrumenter
+C²oBra - Source Instrumenter
 Iteration 1: Basic branch instrumentation ->
 Iteration 2: Switch instrumentation + error handling + multi-file directory support ->
 Iteration 3: Explicit else branch metadata tracking
