@@ -6,7 +6,7 @@
 [![Screenshots](https://img.shields.io/badge/screenshots-docs%2Fscreenshots-blueviolet?style=flat-square)](#screenshots)
 
 <p align="center">
-  <img src="docs/logo.png" width="400" alt="C²oBra Logo">
+  <img src="docs/logo.png" width="300" alt="C²oBra Logo">
 </p>
 
 A source-level **branch coverage instrumentation tool** for C programs.
@@ -124,7 +124,6 @@ bash c2obra.sh path/to/directory/
 Recursively instruments all `.c` files, assigns globally unique branch IDs across all files,
 compiles and runs each benchmark, then generates a summary report at `output/summary_report.html`.
 
-
 ### Benchmark a file against a Sikraken test suite (timed)
 
 ```bash
@@ -157,6 +156,15 @@ Runs the full pipeline with per-step timing and prints a structured results bloc
  TOTAL:         18501ms
 ========================================
 ```
+
+### Inspect a report locally (no server needed)
+
+Open `covcheck.html` in your browser and drag-and-drop any `coverage_report.json` file to view:
+- KPI cards (total branches, full/partial/none counts, test run count)
+- Segmented coverage progress bar (green = fully covered, amber = partial, grey = not covered)
+- Filterable branch table with status badges
+- Test run list with inputs, status, and pass/fail/timeout/crash classification
+- Multi-file comparison mode when multiple JSON files are loaded simultaneously
 
 ### Generate HTML/CSV report manually
 
@@ -239,6 +247,7 @@ C_Testing_Coverage_Tool/
 ├── c2obra.sh               # End-to-end pipeline script
 ├── benchmark_cobra.sh      # Timed benchmarking script
 ├── smoke_test.sh           # Post-install sanity check
+├── covcheck.html           # Standalone drag-and-drop report viewer (no server needed)
 ├── install.sh              # One-command installer
 └── requirements.txt
 ```
