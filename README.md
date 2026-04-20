@@ -3,6 +3,7 @@
 [![Coverage](https://img.shields.io/badge/C²oBra-Coverage%20Tool-569cd6?style=flat-square)](https://glebtut.github.io/C_Testing_Coverage_Tool)
 [![CI](https://img.shields.io/github/actions/workflow/status/GlebTut/C_Testing_Coverage_Tool/coverage.yml?style=flat-square&label=CI)](https://github.com/GlebTut/C_Testing_Coverage_Tool/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Screenshots](https://img.shields.io/badge/screenshots-docs%2Fscreenshots-blueviolet?style=flat-square)](#screenshots)
 
 A source-level **branch coverage instrumentation tool** for C programs.
 C²oBra automatically instruments C source files to track which branches are executed during testing,
@@ -118,6 +119,40 @@ bash c2obra.sh path/to/directory/
 
 Recursively instruments all `.c` files, assigns globally unique branch IDs across all files,
 compiles and runs each benchmark, then generates a summary report at `output/summary_report.html`.
+
+
+### Benchmark a file against a Sikraken test suite (timed)
+
+```bash
+bash benchmark_cobra.sh PATH/TO/FILE.c PATH/TO/test-suite
+```
+
+Runs the full pipeline with per-step timing and prints a structured results block:
+
+```
+========================================
+ C²oBra Benchmark: Problem_16
+ Suite:  /home/user/sikraken_output/Problem_16/test-suite
+ Date:   Mon Apr 20 16:35:50 IST 2026
+========================================
+[1/4] Instrumenting...   ✅ Done in 4253ms — branches: 14472
+[2/4] Compiling...       ✅ Done in 5317ms
+[3/4] Running tests...   ✅ Done in 462ms (exit 0)
+[4/4] Generating report...✅ Done in 8469ms
+
+========================================
+ RESULTS: Problem_16
+========================================
+ Coverage:      17.9%
+ Branches:      2592 / 14472
+----------------------------------------
+ Instrument:    4253ms
+ Compile:       5317ms
+ Run tests:     462ms
+ Report:        8469ms
+ TOTAL:         18501ms
+========================================
+```
 
 ### Generate HTML/CSV report manually
 
@@ -241,6 +276,21 @@ unreachable code. Reachability filtering is planned for Iteration 4.
 - **2,230** branches instrumented across the benchmark suite
 - **~2–4ms** instrumentation overhead per file (negligible)
 - **3.91s** instrumentation time on a 5.7 MB, 171,590-line file
+
+---
+
+## Screenshots
+
+> Screenshots stored in [`docs/screenshots/`](docs/screenshots/)
+
+### HTML Coverage Report
+<img src="docs/screenshots/report_overview.png" width="800" alt="C²oBra HTML Coverage Report">
+
+### Source View with Branch Highlighting
+<img src="docs/screenshots/source_view.png" width="800" alt="C²oBra Source View">
+
+### Summary Dashboard
+<img src="docs/screenshots/summary_dashboard.png" width="800" alt="C²oBra Summary Dashboard">
 
 ---
 
