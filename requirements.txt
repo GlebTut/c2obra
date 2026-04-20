@@ -1,2 +1,5 @@
+BenchExec==3.34
+numpy==2.4.4
+PyYAML==6.0.3
 tree-sitter==0.21.3
 tree-sitter-c==0.21.3

@@ -15,9 +15,9 @@ import tree_sitter_c
 # Verifier boilerplate that conflicts with verifier_stubs.c at link time
 # These are stripped from instrumented output
 VERIFIER_STUB_PATTERNS = [
-    r'void\s+reach_error\s*\([^)]*\)\s*\{[\s\S]*?\}',
-    r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[\s\S]*?\}',
-    r'extern\s+void\s+__assert_fail\s*\([^;]*\)\s*;',
+    r'void\s+reach_error\s*\([^)]*\)\s*\{[^}]*\}',
+    r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[^}]*\}',
+    r'extern\s+[^;]*__assert_fail[^;]*;',
     r'typedef\s+unsigned\s+int\s+size_t\s*;',
 ]
 
@@ -39,14 +39,16 @@ def parse_c_file(filename):
 
 
 def find_branches(tree):
-    """Find all branch points in the AST"""
+    """Find all branch points in the AST — iterative to avoid recursion overhead"""
+    BRANCH_TYPES = frozenset([
+        'if_statement', 'for_statement', 'while_statement',
+        'switch_statement', 'do_statement', 'conditional_expression'
+    ])
     branches = []
-
-    def walk_tree(node):
-        if node.type in [
-            'if_statement', 'for_statement', 'while_statement',
-            'switch_statement', 'do_statement', 'conditional_expression'
-        ]:
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        if node.type in BRANCH_TYPES:
             branches.append({
                 'type':        node.type,
                 'node':        node,
@@ -55,10 +57,7 @@ def find_branches(tree):
                 'start_point': node.start_point,
                 'end_point':   node.end_point,
             })
-        for child in node.children:
-            walk_tree(child)
-
-    walk_tree(tree.root_node)
+        stack.extend(node.children)
     return branches
 
 
@@ -171,20 +170,50 @@ class SourceRewriter:
         self.edits.append((start, end, text))
 
     def apply(self):
-        result = self.source
-        for start, end, text in sorted(self.edits, key=lambda e: e[0], reverse=True):
-            result = result[:start] + text.encode() + result[end:]
-        return result.decode('utf-8')
+        result = []
+        prev = 0
+        for start, end, text in sorted(self.edits, key=lambda e: e[0]):
+            result.append(self.source[prev:start])
+            result.append(text.encode())
+            prev = end
+        result.append(self.source[prev:])
+        return b''.join(result).decode('utf-8')
 
 
 def strip_verifier_boilerplate(code: str) -> str:
-    """
-    Remove reach_error() / __VERIFIER_error() definitions and __assert_fail
-    declarations that conflict with verifier_stubs.c at link time.
-    """
-    for pattern in VERIFIER_STUB_PATTERNS:
-        code = re.sub(pattern, '/* removed: defined in verifier_stubs.c */', code, flags=re.DOTALL)
-    return code
+    simple_patterns = [
+        r'extern\s+[^;]*__assert_fail[^;]*;',
+        r'extern\s+[^;]*__assert_perror_fail[^;]*;',
+        r'extern\s+[^;]*__assert\s*\([^;]*;',
+        r'typedef\s+unsigned\s+int\s+size_t\s*;',
+    ]
+    for pattern in simple_patterns:
+        code = re.sub(pattern, '', code, flags=re.DOTALL)
+
+    def remove_function_def(src, fname):
+        lines = src.split('\n')
+        out = []
+        skip = False
+        depth = 0
+        for line in lines:
+            if not skip:
+                if re.search(rf'\bvoid\s+{fname}\s*\(', line) and '{' in line:
+                    skip = True
+                    depth = line.count('{') - line.count('}')
+                    if depth <= 0:
+                        skip = False
+                    continue
+                out.append(line)
+            else:
+                depth += line.count('{') - line.count('}')
+                if depth <= 0:
+                    skip = False
+        return '\n'.join(out)  # ← always returns
+
+    for fname in ['reach_error', '__VERIFIER_error']:
+        code = remove_function_def(code, fname)
+
+    return code  # ← always returns
 
 
 def instrument_code(source_code, branches, start_id=1):
@@ -357,13 +386,8 @@ def instrument_file(input_file, output_file, start_id=1):
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:
-        total_branch_edges = len(branches) * 2
-        print(f"✓ Found {total_branch_edges} branches ({len(branches)} branch constructs):")
-        for i, branch in enumerate(branches, 1):
-            line = branch['start_point'][0] + 1
-            btype = branch['type'].replace('_statement', '').replace('_', '-')
-            print(f"  {i}. {btype} at line {line}  →  true branch + false branch")
-
+        print(f"✓ Found {len(branches) * 2} branch edges ({len(branches)} constructs: each has true + false path)")
+        
     instrumented_code = instrument_code(source_code, branches, start_id=start_id)
 
     try:
