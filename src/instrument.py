@@ -31,8 +31,9 @@ def parse_c_file(filename):
         print(f"❌ Error reading file: {e}")
         sys.exit(1)
 
-    C_LANGUAGE = Language(tree_sitter_c.language())
-    parser = Parser(C_LANGUAGE)
+    C_LANGUAGE = Language(tree_sitter_c.language(), "c")
+    parser = Parser()
+    parser.set_language(C_LANGUAGE)
     tree = parser.parse(source_code)
     return tree, source_code
 
