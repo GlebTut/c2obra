@@ -240,20 +240,22 @@ if [ -d "$1" ]; then
     /home/glebt/c2obra/venv/bin/python3 src/merge_reports.py "$OUT_DIR"
 
     # Step 6: Write aggregate coverage_report.json for CI index page
-    /home/glebt/c2obra/venv/bin/python3 - <<'PYEOF'
-import os, json, glob
-out_dir = glob.glob("output/*-output")[0]
+    /home/glebt/c2obra/venv/bin/python3 - "$OUT_DIR" <<'PYEOF'
+import os, json, glob, sys
+out_dir = sys.argv[1]  # passed explicitly — no glob guessing
 jsons = glob.glob(f"{out_dir}/*_inst_coverage.json")
 total_e = covered_e = 0
 for j in jsons:
     try:
-        d = json.load(open(j))
+        with open(j) as f:
+            d = json.load(f)
         total_e   += d["summary"].get("total_branches_count", 0)
         covered_e += d["summary"].get("covered_branches", 0)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️  Skipping {j}: {e}")
 pct = round(covered_e / total_e * 100, 1) if total_e else 0
-with open("output/coverage_report.json", "w") as f:
+out_path = os.path.join(out_dir, "coverage_report.json")
+with open(out_path, "w") as f:
     json.dump({
         "summary": {
             "total_branches_count": total_e,
