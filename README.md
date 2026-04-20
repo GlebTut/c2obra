@@ -6,7 +6,7 @@
 [![Screenshots](https://img.shields.io/badge/screenshots-docs%2Fscreenshots-blueviolet?style=flat-square)](#screenshots)
 
 <p align="center">
-  <img src="docs/logo.png" width="180" alt="C²oBra Logo">
+  <img src="docs/logo.png" width="300" alt="C²oBra Logo">
 </p>
 
 A source-level **branch coverage instrumentation tool** for C programs.
