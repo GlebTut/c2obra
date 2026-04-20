@@ -1,9 +1,13 @@
-# C²oBra — C Coverage Branch Analyser
+# C²oBra — C Coverage Branch Testing
 
 [![Coverage](https://img.shields.io/badge/C²oBra-Coverage%20Tool-569cd6?style=flat-square)](https://glebtut.github.io/C_Testing_Coverage_Tool)
 [![CI](https://img.shields.io/github/actions/workflow/status/GlebTut/C_Testing_Coverage_Tool/coverage.yml?style=flat-square&label=CI)](https://github.com/GlebTut/C_Testing_Coverage_Tool/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Screenshots](https://img.shields.io/badge/screenshots-docs%2Fscreenshots-blueviolet?style=flat-square)](#screenshots)
+
+<p align="center">
+  <img src="docs/logo.png" width="180" alt="C²oBra Logo">
+</p>
 
 A source-level **branch coverage instrumentation tool** for C programs.
 C²oBra automatically instruments C source files to track which branches are executed during testing,
@@ -233,6 +237,7 @@ C_Testing_Coverage_Tool/
 ├── examples/
 │   └── simple_if.c         # Minimal smoke-test example
 ├── c2obra.sh               # End-to-end pipeline script
+├── benchmark_cobra.sh      # Timed benchmarking script
 ├── smoke_test.sh           # Post-install sanity check
 ├── install.sh              # One-command installer
 └── requirements.txt
@@ -251,31 +256,46 @@ C_Testing_Coverage_Tool/
 
 ## Benchmark Results
 
+### Iteration 3 — Full Scale Validation (538 programs)
+
+| Tool        | Avg Coverage | Programs | Notes |
+|-------------|--------------|----------|-------|
+| **C²oBra**  | **62.7%**    | 538      | Syntactic AST, no reachability filter |
+| TestCov     | 69.9%        | 538      | Post-compilation filtering (smaller denominator) |
+| TestCoCa    | 48.0%        | 538      | Syntactic AST, no filter |
+
+> TestCov's higher average is due to reachability filtering — it excludes unreachable branches from the denominator. C²oBra's denominator is more conservative (all syntactic branches).
+
+### Iteration 3 — Problem_16 Benchmark
+
+| Step        | Time          |
+|-------------|---------------|
+| Instrument  | 4,253 ms      |
+| Compile     | 5,317 ms      |
+| Run tests   | 462 ms        |
+| Report      | 8,469 ms      |
+| **Total**   | **18,501 ms** |
+
+- **14,472** branches detected &nbsp;|&nbsp; **2,592** covered &nbsp;|&nbsp; **17.9%** coverage
+
 ### Iteration 3 — Tool Comparison (functions_test.c)
 
-| Tool        | Branches  | Coverage % | Filtering Strategy          |
-|-------------|-----------|------------|-----------------------------|
-| TestCov     | 7 / 18    | 38.89%     | Post-compilation filtering  |
-| Sikraken    | 7 / 20    | 35.00%     | CFG-reachable from main     |
-| TestCoCa    | 7 / 24    | 29.17%     | Syntactic AST, no filter    |
-| **C²oBra**  | **7 / 24**| **29.17%** | Syntactic AST, no filter    |
+| Tool        | Branches   | Coverage % | Filtering Strategy          |
+|-------------|------------|------------|-----------------------------|
+| TestCov     | 7 / 18     | 38.89%     | Post-compilation filtering  |
+| Sikraken    | 7 / 20     | 35.00%     | CFG-reachable from main     |
+| TestCoCa    | 7 / 24     | 29.17%     | Syntactic AST, no filter    |
+| **C²oBra**  | **7 / 24** | **29.17%** | Syntactic AST, no filter    |
 
-C²oBra correctly covered all 4 truly reachable branches — equivalent to 100% of coverable branches.
-The higher denominator (24 vs 18) is because C²oBra counts all syntactic branches including
-unreachable code. Reachability filtering is planned for Iteration 4.
+C²oBra correctly covered all 4 truly reachable branches — **100% of coverable branches**.
 
-### Iteration 2 — Scale Results
+### Iteration 2 — Scale Results (for reference)
 
-| Benchmark Set            | C²oBra | TestCoCa | testcov |
+| Benchmark Set            | C²oBra | TestCoCa | TestCov |
 |--------------------------|--------|----------|---------|
 | Custom benchmarks (12)   | 84.9%  | 79.8%    | 76.3%   |
 | SV-COMP benchmarks (145) | 58.1%  | 50.4%    | 47.7%   |
 | All benchmarks (157)     | 60.2%  | 53.3%    | 51.0%   |
-
-- **145/145** SV-COMP benchmarks compiled and ran successfully
-- **2,230** branches instrumented across the benchmark suite
-- **~2–4ms** instrumentation overhead per file (negligible)
-- **3.91s** instrumentation time on a 5.7 MB, 171,590-line file
 
 ---
 
@@ -360,4 +380,4 @@ A `partial` badge means the run was killed (timeout/crash) but branch data was s
 
 ---
 
-*C²oBra — C² Coverage Branch Analyser*
+*C²oBra — C Coverage Branch Testing*
