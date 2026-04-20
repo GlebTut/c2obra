@@ -1,0 +1,603 @@
+file,c2obra_pct,testcoca_pct,testcov_pct,c2obra_covered,c2obra_total,notes
+2Nested-1.c,100.0,100.0,100.0,8,4,
+2Nested-2.c,100.0,100.0,100.0,2,1,
+4BitCounterPointer.c,100.0,N/A,N/A,8,4,testcoca:no_suite testcov:no_suite
+4NestedWith3Variables-1.c,100.0,78.6,100.0,8,4,
+4NestedWith3Variables-2.c,100.0,100.0,100.0,2,1,
+Ackermann-1.c,100.0,87.5,100.0,6,3,
+Ackermann-2.c,100.0,91.7,100.0,10,5,
+Ackermann01-2.c,90.0,72.2,90.0,9,5,
+Ackermann02.c,100.0,81.2,100.0,10,5,
+Ackermann03.c,90.0,83.3,90.0,9,5,
+Ackermann04.c,90.0,83.3,90.0,9,5,
+Addition01-2.c,66.7,62.5,66.67,8,6,
+Addition02.c,75.0,68.8,75.0,9,6,
+Addition02WithOverflowBug.c,87.5,87.5,87.5,7,4,
+Addition03-1.c,75.0,66.7,75.0,6,4,
+Addition03-2.c,75.0,66.7,75.0,6,4,
+AdditionIntMax.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+AdditionIntMin.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+Arrays01-EquivalentConstantIndices-1.c,100.0,100.0,100.0,4,2,
+Arrays01-EquivalentConstantIndices-2.c,100.0,100.0,100.0,2,1,
+Arrays02-EquivalentConstantIndices.c,100.0,100.0,100.0,2,1,
+Arrays03-ValueRestictsIndex-1.c,50.0,40.0,50.0,3,3,
+Arrays03-ValueRestictsIndex-2.c,100.0,83.3,100.0,8,4,
+BallRajamani-SPIN2000-Fig1.c,75.0,75.0,75.0,3,2,
+Bangalore-1.c,50.0,50.0,50.0,2,2,
+Bangalore-2.c,100.0,100.0,100.0,4,2,
+Bangalore_v2.c,100.0,100.0,100.0,4,2,
+Bangalore_v3.c,100.0,100.0,100.0,4,2,
+Bangalore_v4.c,100.0,100.0,100.0,4,2,
+Benghazi.c,100.0,100.0,100.0,2,1,
+Benghazi_nondet-1.c,100.0,100.0,100.0,2,1,
+Benghazi_nondet-2.c,100.0,78.6,100.0,8,4,
+Binary_Search-1.c,100.0,100.0,100.0,4,2,
+Binary_Search-2.c,100.0,83.3,100.0,8,4,
+Cairo.c,100.0,100.0,100.0,4,2,
+Cairo_nondet.c,100.0,100.0,100.0,4,2,
+Cairo_step2-1.c,100.0,100.0,100.0,4,2,
+Cairo_step2-2.c,100.0,100.0,100.0,4,2,
+Cairo_step2-3.c,100.0,100.0,100.0,4,2,
+Collatz.c,25.0,25.0,25.0,1,2,
+Collatz_bounded.c,16.7,16.7,16.67,1,3,
+ConversionToSignedInt.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+Copenhagen.c,100.0,75.0,100.0,2,1,
+Copenhagen_disj-1.c,100.0,100.0,100.0,2,1,
+Copenhagen_disj-2.c,100.0,83.3,100.0,6,3,
+Division-1.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+Division-2.c,50.0,50.0,50.0,1,1,
+EvenOdd01-1.c,83.3,78.6,80.0,10,6,
+EvenOdd03.c,83.3,78.6,80.0,10,6,
+EvenOdd03WithOverflowBug.c,80.0,75.0,75.0,8,5,
+Fibonacci01-1.c,87.5,80.0,85.71,7,4,
+Fibonacci02.c,83.3,83.3,80.0,5,3,
+Fibonacci03.c,87.5,70.0,85.71,7,4,
+Fibonacci04-overflow.c,100.0,87.5,100.0,6,3,
+Fibonacci04.c,87.5,90.0,100.0,7,4,
+Fibonacci05-overflow.c,100.0,87.5,100.0,6,3,
+Fibonacci05.c,100.0,90.0,100.0,8,4,
+Gothenburg-1.c,91.7,72.7,91.67,11,6,
+Gothenburg-2.c,100.0,83.3,100.0,4,2,
+Gothenburg_v2-1.c,91.7,70.8,91.67,11,6,
+Gothenburg_v2-2.c,100.0,75.0,100.0,4,2,
+Hanoi_2vars.c,100.0,100.0,100.0,2,1,
+Hanoi_3vars.c,100.0,100.0,100.0,2,1,
+Hanoi_plus.c,100.0,100.0,100.0,2,1,
+IntegerPromotion-1.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+LexIndexValue-Array-1.c,100.0,87.5,100.0,6,3,
+LexIndexValue-Array-2.c,100.0,100.0,100.0,4,2,
+LexIndexValue-Pointer-1.c,83.3,0.0,,5,3,
+LexIndexValue-Pointer-2.c,83.3,0.0,,5,3,
+LexIndexValue-Pointer-3.c,83.3,0.0,,5,3,
+Lobnya-Boolean-Reordered-1.c,100.0,100.0,100.0,4,2,
+Lobnya-Boolean-Reordered-2.c,83.3,83.3,100.0,5,3,
+Madrid.c,50.0,0.0,,1,1,
+Makefile-detect-compiler.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+McCarthy91-1.c,100.0,87.5,100.0,4,2,
+McCarthy91-2.c,75.0,75.0,75.0,3,2,
+McCarthy91_Iteration.c,100.0,100.0,100.0,4,2,
+McCarthy91_Recursion.c,100.0,100.0,100.0,2,1,
+MenloPark.c,100.0,100.0,100.0,2,1,
+MultCommutative-2.c,80.0,55.6,80.0,8,5,
+Multiplication-1.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+Multiplication-2.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+MutualRecursion_1a.c,75.0,75.0,75.0,3,2,
+MutualRecursion_1b.c,100.0,100.0,100.0,4,2,
+Mysore-1.c,100.0,100.0,100.0,4,2,
+Mysore-2.c,100.0,83.3,100.0,8,4,
+Mysore-3.c,87.5,75.0,87.5,7,4,
+NestedRecursion_1a-1.c,25.0,25.0,25.0,1,2,
+NestedRecursion_1a-2.c,33.3,33.3,50.0,2,3,
+NestedRecursion_1b.c,100.0,100.0,100.0,4,2,
+NestedRecursion_1c.c,75.0,75.0,75.0,3,2,
+NestedRecursion_1d.c,100.0,100.0,100.0,4,2,
+NestedRecursion_2a.c,100.0,100.0,100.0,2,1,
+NestedRecursion_2b.c,75.0,75.0,75.0,3,2,
+NestedRecursion_2c.c,100.0,100.0,100.0,4,2,
+NoConversion.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+NoNegativeIntegerConstant.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+NonTermination1.c,50.0,0.0,,1,1,
+NonTermination2.c,100.0,50.0,100.0,2,1,
+NonTermination3-1.c,100.0,87.5,100.0,4,2,
+NonTermination3-2.c,100.0,100.0,100.0,4,2,
+NonTermination4.c,100.0,0.0,,2,1,
+NonTerminationSimple2.c,100.0,0.0,,2,1,
+NonTerminationSimple3.c,100.0,100.0,100.0,2,1,
+NonTerminationSimple4.c,50.0,50.0,50.0,2,2,
+NonTerminationSimple5.c,100.0,100.0,100.0,4,2,
+NonTerminationSimple6.c,100.0,0.0,,2,1,
+NonTerminationSimple7.c,50.0,50.0,50.0,2,2,
+NonTerminationSimple8.c,100.0,100.0,100.0,10,5,
+NonTerminationSimple9.c,100.0,100.0,100.0,2,1,
+Nyala-2lex-1.c,100.0,100.0,75.0,4,2,
+Nyala-2lex-2.c,100.0,100.0,100.0,4,2,
+Parallel.c,100.0,100.0,100.0,4,2,
+Piecewise.c,83.3,80.0,83.33,5,3,
+PostfixDecrement.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+PostfixIncrement.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+PrefixDecrement.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+PrefixIncrement.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+Primes.c,43.8,47.7,43.75,14,16,
+Pure2Phase-1.c,100.0,91.7,100.0,10,5,
+Pure2Phase-2.c,100.0,100.0,100.0,4,2,
+Pure3Phase-1.c,100.0,85.7,100.0,10,5,
+Pure3Phase-2.c,100.0,100.0,100.0,4,2,
+RecursiveMultiplication-1.c,100.0,83.3,100.0,8,4,
+RecursiveMultiplication-2.c,0.0,50.0,0,0,2,
+RecursiveNonterminating-1.c,75.0,66.7,100.0,3,2,
+RecursiveNonterminating-2.c,100.0,100.0,100.0,2,1,
+Rotation180-1.c,50.0,50.0,60.0,3,3,
+Rotation180-2.c,50.0,0.0,,1,1,
+Singapore-1.c,100.0,100.0,100.0,4,2,
+Singapore-2.c,100.0,83.3,100.0,8,4,
+Singapore_plus.c,75.0,75.0,75.0,3,2,
+Singapore_v1.c,75.0,75.0,75.0,3,2,
+Singapore_v2.c,75.0,75.0,75.0,3,2,
+Stockholm-1.c,90.0,75.0,90.0,9,5,
+Stockholm-2.c,100.0,100.0,100.0,4,2,
+SyntaxSupportPointer01-1.c,100.0,0.0,,2,1,
+SyntaxSupportPointer01-2.c,100.0,0.0,,2,1,
+SyntaxSupportPointer01-3.c,100.0,0.0,,2,1,
+TelAviv-Amir-Minimum.c,100.0,100.0,100.0,8,4,
+Thun-1.c,100.0,100.0,100.0,2,1,
+Thun-2.c,100.0,80.0,100.0,6,3,
+Toulouse-BranchesToLoop-1.c,100.0,100.0,100.0,4,2,
+Toulouse-BranchesToLoop-2.c,100.0,100.0,100.0,8,4,
+Toulouse-MultiBranchesToLoop-1.c,100.0,100.0,100.0,20,10,
+Toulouse-MultiBranchesToLoop-2.c,100.0,100.0,100.0,24,12,
+UnaryMinus.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+UsualArithmeticConversions.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+Waldkirch.c,100.0,100.0,100.0,2,1,
+WhileFalse.c,50.0,50.0,100.0,1,1,
+WhileTrue.c,50.0,0.0,,1,1,
+aaron2-1.c,100.0,100.0,100.0,10,5,
+aaron2-2.c,100.0,100.0,100.0,4,2,
+aaron3-1.c,100.0,79.2,100.0,14,7,
+aaron3-2.c,100.0,100.0,100.0,4,2,
+alt_test.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+alternating_list-1.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+alternating_list-2.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+array-1.c,83.3,83.3,83.33,5,3,
+array-2.c,100.0,100.0,100.0,6,3,
+bigshot_p.c,100.0,N/A,N/A,4,2,testcoca:no_suite testcov:no_suite
+bigshot_s.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+bigshot_s2.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+bist_cell.cil.c,70.5,69.8,70.45,62,44,
+bubble_sort-1.c,3.1,0.0,,1,16,
+bubble_sort-2.c,2.1,2.1,N/A,2,47,testcov:exit1
+butterfly.c,50.0,N/A,N/A,7,7,testcoca:no_suite testcov:no_suite
+byte_add-1.c,98.2,98.3,N/A,55,28,testcov:exit1
+byte_add-2.c,98.2,98.3,N/A,55,28,testcov:exit1
+byte_add_1-1.c,73.2,73.3,N/A,41,28,testcov:exit1
+byte_add_1-2.c,73.2,73.3,N/A,41,28,testcov:exit1
+byte_add_2-1.c,73.2,75.0,N/A,41,28,testcov:exit1
+byte_add_2-2.c,73.2,75.0,N/A,41,28,testcov:exit1
+cdaudio_simpl1.cil-1.c,68.1,25.4,26.63,98,72,
+cdaudio_simpl1.cil-2.c,68.1,25.5,26.78,98,72,
+compact.c,100.0,16.7,16.67,6,3,
+count_up_down-1.c,75.0,75.0,75.0,3,2,
+count_up_down-2.c,75.0,75.0,75.0,3,2,
+dekker-b-unfair.c,21.4,N/A,N/A,3,7,testcoca:no_suite testcov:no_suite
+dekker-b.c,21.4,N/A,N/A,3,7,testcoca:no_suite testcov:no_suite
+dekker-unfair.c,21.4,N/A,N/A,3,7,testcoca:no_suite testcov:no_suite
+dekker.c,21.4,N/A,N/A,3,7,testcoca:no_suite testcov:no_suite
+diskperf_simpl1.cil.c,50.0,0.0,,16,16,
+dll_of_dll-1.c,89.3,0.0,,25,14,
+easy1.c,100.0,100.0,100.0,4,2,
+easy2-1.c,100.0,100.0,100.0,2,1,
+easy2-2.c,100.0,100.0,100.0,2,1,
+eureka_01-1.c,87.5,75.0,87.5,21,12,
+eureka_01-2.c,88.9,N/A,N/A,16,9,testcoca:no_suite testcov:no_suite
+eureka_05.c,83.3,N/A,N/A,10,6,testcoca:no_suite testcov:no_suite
+fib_safe-10.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_safe-11.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_safe-12.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_safe-5.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_safe-6.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_safe-7.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_unsafe-10.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_unsafe-11.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_unsafe-12.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_unsafe-5.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_unsafe-6.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+fib_unsafe-7.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+float-div1.c,37.5,N/A,N/A,3,4,testcoca:no_suite testcov:no_suite
+float-flags-simp1.c,50.0,50.0,N/A,38,38,testcov:exit1
+float-no-simp1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+float-no-simp2.c,50.0,50.0,N/A,37,37,testcov:exit1
+float-no-simp3.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+float-no-simp4.c,4.2,13.9,N/A,1,12,testcov:exit1
+float-no-simp6.c,50.0,N/A,N/A,3,3,testcoca:no_suite testcov:no_suite
+float-no-simp7.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+float-no-simp8.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+float-rounding1.c,N/A,40.0,N/A,N/A,N/A,c2obra:exit1 testcov:exit1
+float-to-double1.c,50.0,16.7,N/A,1,1,testcov:exit1
+float-to-double2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+float-zero-sum1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+float1.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+float11.c,50.0,N/A,N/A,30,30,testcoca:no_suite testcov:no_suite
+float12.c,25.0,75.0,75.0,1,2,
+float13.c,50.0,N/A,N/A,8,8,testcoca:no_suite testcov:no_suite
+float14.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+float18.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+float19.c,25.0,16.7,N/A,1,2,testcov:exit1
+float2.c,50.0,N/A,N/A,4,4,testcoca:no_suite testcov:no_suite
+float20.c,8.3,8.3,N/A,1,6,testcov:exit1
+float21.c,7.1,7.3,N/A,2,14,testcov:exit1
+float22.c,50.0,N/A,N/A,4,4,testcoca:no_suite testcov:no_suite
+float3.c,75.0,75.0,75.0,3,2,
+float4.c,50.0,53.3,N/A,44,44,testcov:exit1
+float5.c,25.0,58.3,75.0,1,2,
+float6.c,25.7,52.5,73.08,19,37,
+float8.c,50.0,50.0,N/A,2,2,testcov:exit1
+float_lib1.c,50.0,N/A,N/A,8,8,testcoca:no_suite testcov:no_suite
+float_lib2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+floppy_simpl3.cil-1.c,69.5,27.9,31.49,57,41,
+floppy_simpl3.cil-2.c,69.5,27.9,31.49,57,41,
+floppy_simpl4.cil-1.c,68.8,40.3,44.15,117,85,
+floppy_simpl4.cil-2.c,68.8,40.3,44.15,117,85,
+fo_test.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+for_bounded_loop1.c,80.0,80.0,80.0,8,5,
+for_infinite_loop_1.c,12.5,12.5,14.29,1,4,
+for_infinite_loop_2.c,12.5,12.5,14.29,1,4,
+gcd-2.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+gcd01-1.c,83.3,59.1,83.33,10,6,
+gcd02.c,61.1,57.7,61.11,11,9,
+gcd_1.c,80.0,75.0,80.0,8,5,
+gcd_2.c,90.0,90.0,90.0,9,5,
+gcd_3.c,90.0,90.0,90.0,9,5,
+gcd_4.c,66.7,66.7,66.67,8,6,
+heavy-1.c,50.0,N/A,N/A,4,4,testcoca:no_suite testcov:no_suite
+heavy-2.c,50.0,N/A,N/A,4,4,testcoca:no_suite testcov:no_suite
+indexer.c,88.9,N/A,N/A,16,9,testcoca:no_suite testcov:no_suite
+insertion_sort-1-2.c,7.1,6.2,7.14,1,7,
+insertion_sort-1.c,25.0,0.0,,3,6,
+insertion_sort-2-2.c,8.3,7.1,8.33,1,6,
+insertion_sort-2.c,30.0,0.0,,3,5,
+interleave_bits.c,75.0,75.0,N/A,3,2,testcov:exit1
+invert_string-1.c,0.0,10.0,0,0,5,
+invert_string-2.c,37.5,0.0,,3,4,
+invert_string-3.c,87.5,87.5,87.5,7,4,
+jain_1-1.c,50.0,0.0,,2,2,
+jain_1-2.c,50.0,0.0,,2,2,
+jain_2-1.c,50.0,0.0,,2,2,
+jain_2-2.c,50.0,0.0,,2,2,
+jain_4-1.c,50.0,0.0,,2,2,
+jain_4-2.c,50.0,0.0,,2,2,
+jain_5-1.c,50.0,0.0,,2,2,
+jain_5-2.c,50.0,0.0,,2,2,
+jain_6-1.c,50.0,0.0,,2,2,
+jain_6-2.c,50.0,0.0,,2,2,
+jain_7-1.c,50.0,0.0,,2,2,
+jain_7-2.c,50.0,0.0,,2,2,
+kbfiltr_simpl1.cil.c,79.1,51.5,54.84,68,43,
+kbfiltr_simpl2.cil-1.c,81.0,59.8,64.0,128,79,
+kbfiltr_simpl2.cil-2.c,81.0,59.8,64.0,128,79,
+kundu.cil.c,50.0,0.0,,20,20,
+kundu1.cil.c,50.0,0.0,,15,15,
+kundu2.cil.c,50.0,0.0,,20,20,
+lamport-b.c,21.4,N/A,N/A,6,14,testcoca:no_suite testcov:no_suite
+lamport.c,21.4,N/A,N/A,6,14,testcoca:no_suite testcov:no_suite
+lazy01.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+linear_sea.ch.c,50.0,16.7,12.5,1,1,
+linear_search.c,10.0,14.3,10.0,1,5,
+list-1.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+list-2.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+list_flag-1.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+list_flag-2.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+list_search-1.c,62.5,N/A,N/A,5,4,testcoca:no_suite testcov:no_suite
+list_search-2.c,85.7,N/A,N/A,12,7,testcoca:no_suite testcov:no_suite
+lu.cmp.c,88.2,N/A,N/A,30,17,testcoca:no_suite testcov:no_suite
+ludcmp.c,17.6,N/A,N/A,6,17,testcoca:no_suite testcov:no_suite
+matrix-1.c,75.0,0.0,,6,4,
+matrix-2-2.c,57.1,56.2,57.14,8,7,
+matrix-2.c,50.0,50.0,50.0,6,6,
+mem_slave_tlm.1.cil.c,50.0,0.0,,17,17,
+mem_slave_tlm.2.cil.c,50.0,0.0,,17,17,
+mem_slave_tlm.3.cil.c,50.0,0.0,,17,17,
+mem_slave_tlm.4.cil.c,50.0,0.0,,17,17,
+mem_slave_tlm.5.cil.c,50.0,0.0,,17,17,
+merge_sort-1.c,29.2,7.1,N/A,7,12,testcov:exit1
+modulus-1.c,91.7,91.7,N/A,11,6,testcov:exit1
+modulus-2.c,N/A,25.0,N/A,N/A,N/A,c2obra:exit139 testcov:exit1
+n.c11.c,83.3,75.0,83.33,5,3,
+n.c24.c,79.2,70.0,N/A,19,12,testcov:exit1
+n.c40.c,50.0,37.5,33.33,2,2,
+nec11.c,33.3,0.0,,2,3,
+nec20.c,90.0,83.3,90.0,9,5,
+nec40.c,25.0,30.0,25.0,2,4,
+nested_structure-2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+nested_structure_noptr-1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+nested_structure_ptr-2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+newton_1_1.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_1_2.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_1_3.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_1_4.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_1_5.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_1_6.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_1_7.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_1_8.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_2_1.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_2_2.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_2_3.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_2_4.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_2_5.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_2_6.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_2_7.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_2_8.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_3_1.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_3_2.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_3_3.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_3_4.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_3_5.c,50.0,66.7,N/A,2,2,testcov:exit1
+newton_3_6.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_3_7.c,50.0,83.3,N/A,2,2,testcov:exit1
+newton_3_8.c,50.0,83.3,N/A,2,2,testcov:exit1
+num_conversion_1.c,83.3,83.3,83.33,5,3,
+num_conversion_2.c,83.3,83.3,83.33,5,3,
+parity.c,37.5,37.5,N/A,3,4,testcov:exit1
+pc_sfifo_1.cil-1.c,66.7,56.0,59.26,32,24,
+pc_sfifo_1.cil-2.c,50.0,0.0,,10,10,
+pc_sfifo_2.cil-1.c,50.0,0.0,,19,19,
+pc_sfifo_2.cil-2.c,70.6,64.7,66.67,48,34,
+pc_sfifo_3.cil.c,50.0,0.0,,21,21,
+peterson-b.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+peterson.c,75.0,N/A,N/A,3,2,testcoca:no_suite testcov:no_suite
+pipeline.cil-1.c,75.7,70.3,70.22,159,105,
+pipeline.cil-2.c,75.7,70.3,70.22,159,105,
+qrcu-1.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+qrcu-2.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+queue.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+queue_longer.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+queue_longest.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+queue_ok.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+queue_ok_longer.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+queue_ok_longest.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+read_write_lock-1.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+read_write_lock-1b.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+read_write_lock-2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+read_write_lock-2b.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+recHanoi01.c,87.5,80.0,87.5,7,4,
+recHanoi02-2.c,83.3,75.0,83.33,5,3,
+recHanoi03-2.c,83.3,75.0,83.33,5,3,
+reorder_2-2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+reorder_2-race.c,62.5,N/A,N/A,15,12,testcoca:no_suite testcov:no_suite
+reorder_2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+reorder_5-2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+reorder_5-race.c,62.5,N/A,N/A,15,12,testcoca:no_suite testcov:no_suite
+reorder_5.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+rule60_list.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+rule60_list2.c,25.0,0.0,,2,4,
+rule60_list2.c_1.c,50.0,0.0,,2,2,
+s3_clnt_1.BV.c.cil-1.c,50.0,0.0,,8,8,
+s3_clnt_1.BV.c.cil-1a.c,50.0,0.0,,8,8,
+s3_clnt_1.BV.c.cil-2.c,50.0,0.0,,8,8,
+s3_clnt_1.BV.c.cil-2a.c,50.0,0.0,,8,8,
+s3_clnt_2.BV.c.cil-1.c,50.0,0.0,,9,9,
+s3_clnt_2.BV.c.cil-1a.c,50.0,0.0,,9,9,
+s3_clnt_2.BV.c.cil-2.c,50.0,0.0,,9,9,
+s3_clnt_2.BV.c.cil-2a.c,50.0,0.0,,9,9,
+s3_clnt_3.BV.c.cil-1.c,50.0,0.0,,10,10,
+s3_clnt_3.BV.c.cil-1a.c,50.0,0.0,,10,10,
+s3_clnt_3.BV.c.cil-2.c,50.0,0.0,,10,10,
+s3_clnt_3.BV.c.cil-2a.c,50.0,0.0,,10,10,
+s3_srvr_1.BV.c.cil.c,N/A,4.5,4.57,N/A,N/A,c2obra:exit1
+s3_srvr_1_alt.BV.c.cil.c,N/A,5.5,5.53,N/A,N/A,c2obra:exit1
+s3_srvr_1a.BV.c.cil.c,N/A,4.5,4.57,N/A,N/A,c2obra:exit1
+s3_srvr_1a_alt.BV.c.cil.c,N/A,5.5,5.53,N/A,N/A,c2obra:exit1
+s3_srvr_2.BV.c.cil.c,90.0,4.5,4.89,9,5,
+s3_srvr_2_alt.BV.c.cil.c,90.0,4.5,4.89,9,5,
+s3_srvr_2a.BV.c.cil.c,70.0,3.5,3.55,7,5,
+s3_srvr_2a_alt.BV.c.cil.c,70.0,3.5,3.55,7,5,
+s3_srvr_3.BV.c.cil.c,90.0,4.5,4.89,9,5,
+s3_srvr_3_alt.BV.c.cil.c,90.0,4.5,4.89,9,5,
+s3_srvr_3a.BV.c.cil.c,90.0,4.5,4.89,9,5,
+s3_srvr_3a_alt.BV.c.cil.c,90.0,4.5,4.89,9,5,
+scull.c,N/A,N/A,,N/A,N/A,c2obra:exit11 testcoca:exit1
+sigma.c,80.0,N/A,N/A,8,5,testcoca:no_suite testcov:no_suite
+simple-1.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+simple-2.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+simple_built_from_end.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+sine_1.c,50.0,75.0,N/A,2,2,testcov:exit1
+sine_2.c,50.0,75.0,N/A,2,2,testcov:exit1
+sine_3.c,50.0,75.0,N/A,2,2,testcov:exit1
+sine_4.c,50.0,62.5,N/A,2,2,testcov:exit1
+sine_5.c,50.0,62.5,N/A,2,2,testcov:exit1
+sine_6.c,50.0,62.5,N/A,2,2,testcov:exit1
+sine_7.c,50.0,62.5,N/A,2,2,testcov:exit1
+sine_8.c,50.0,62.5,N/A,2,2,testcov:exit1
+singleton-b.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+singleton.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+singleton_with-uninit-problems-b.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+singleton_with-uninit-problems.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+sizeofparameters_test.c,0,50.0,50.0,0,0,
+sll_to_dll_rev-1.c,22.7,2.8,N/A,5,11,testcov:exit1
+sll_to_dll_rev-2.c,63.6,2.8,N/A,14,11,testcov:exit1
+soft_float_1-1.c.cil.c,67.5,35.1,35.53,27,20,
+soft_float_1-2.c.cil.c,67.5,34.2,34.62,27,20,
+soft_float_1-2a.c.cil.c,67.5,34.2,34.62,27,20,
+soft_float_1-3.c.cil.c,67.5,35.1,35.53,27,20,
+soft_float_1-3a.c.cil.c,67.5,35.1,35.53,27,20,
+soft_float_2.c.cil.c,73.1,37.5,38.0,19,13,
+soft_float_2a.c.cil.c,73.1,37.5,38.0,19,13,
+soft_float_3.c.cil.c,76.9,39.6,40.0,20,13,
+soft_float_3a.c.cil.c,76.9,39.6,40.0,20,13,
+soft_float_4-1.c.cil.c,70.0,31.0,31.82,14,10,
+soft_float_4-2.c.cil.c,70.0,29.6,30.43,14,10,
+soft_float_4-2a.c.cil.c,70.0,29.6,30.43,14,10,
+soft_float_4-3.c.cil.c,60.0,26.2,27.27,12,10,
+soft_float_4-3a.c.cil.c,70.0,31.0,31.82,14,10,
+soft_float_5.c.cil.c,73.1,37.5,38.0,19,13,
+soft_float_5a.c.cil.c,73.1,37.5,38.0,19,13,
+splice-1.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+splice-2.c,N/A,0.0,,N/A,N/A,c2obra:exit2
+square_1.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_2.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_3.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_4.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_5.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_6.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_7.c,50.0,62.5,N/A,2,2,testcov:exit1
+square_8.c,50.0,62.5,N/A,2,2,testcov:exit1
+stack-1.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+stack-2.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+stack_longer-1.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+stack_longer-2.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+stack_longest-1.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+stack_longest-2.c,N/A,0.0,,N/A,N/A,c2obra:exit11
+stateful01-1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+stateful01-2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+stateful_check.c,4.2,6.7,8.0,1,12,
+string-1.c,45.5,84.6,N/A,10,11,testcov:exit1
+string-2.c,90.9,92.3,N/A,20,11,testcov:exit1
+sum01-1.c,83.3,37.5,N/A,5,3,testcov:exit1
+sum01-2.c,83.3,70.0,N/A,5,3,testcov:exit1
+sum01_bug02.c,75.0,40.0,N/A,6,4,testcov:exit1
+sum01_bug02_sum01_bug02_base.case.c,83.3,37.5,N/A,5,3,testcov:exit1
+sum02-1.c,75.0,66.7,75.0,3,2,
+sum02-2.c,66.7,62.5,66.67,4,3,
+sum03-1.c,83.3,100.0,N/A,5,3,testcov:exit1
+sum03-2.c,50.0,0.0,,2,2,
+sum04-1.c,83.3,N/A,N/A,5,3,testcoca:no_suite testcov:no_suite
+sum04-2.c,75.0,N/A,N/A,3,2,testcoca:no_suite testcov:no_suite
+sum_array-1.c,40.0,0.0,,4,5,
+sum_array-2-1.c,5.6,5.6,N/A,1,9,testcov:exit1
+sum_array-2-2.c,4.5,4.5,N/A,1,11,testcov:exit1
+sum_array-2.c,25.0,0.0,,4,8,
+sync01.c,66.7,N/A,N/A,4,3,testcoca:no_suite testcov:no_suite
+szymanski-b.c,40.0,N/A,N/A,8,10,testcoca:no_suite testcov:no_suite
+szymanski.c,40.0,N/A,N/A,8,10,testcoca:no_suite testcov:no_suite
+terminator_01.c,75.0,75.0,75.0,3,2,
+terminator_02-1.c,83.3,75.0,83.33,5,3,
+terminator_02-2.c,81.2,85.0,81.25,13,8,
+terminator_02-2_abstracted.c,81.2,83.3,81.25,13,8,
+terminator_03-1.c,100.0,90.0,100.0,6,3,
+terminator_03-2.c,70.0,71.4,N/A,7,5,testcov:exit1
+terminator_03-2_abstracted.c,75.0,75.0,N/A,9,6,testcov:exit1
+test01.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test02.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test03.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test04.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test05.c,50.0,N/A,N/A,3,3,testcoca:no_suite testcov:no_suite
+test06.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+test07.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+test08.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+test09.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+test10.c,50.0,50.0,50.0,1,1,
+test11.c,50.0,0.0,,2,2,
+test12.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test13.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test14.c,50.0,0.0,,1,1,
+test15.c,50.0,50.0,50.0,1,1,
+test16.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test17.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test18.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test19.c,50.0,50.0,50.0,1,1,
+test20.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test21-1.c,50.0,0.0,,2,2,
+test21-2.c,50.0,0.0,,2,2,
+test22-1.c,16.7,0.0,,1,3,
+test22-2.c,16.7,0.0,,1,3,
+test22-3.c,75.0,7.1,20.0,6,4,
+test23-1.c,66.7,0.0,,4,3,
+test23-2.c,66.7,0.0,,4,3,
+test24-1.c,16.7,25.0,16.67,1,3,
+test24-2.c,37.5,40.0,37.5,3,4,
+test25-1.c,30.0,33.3,30.0,3,5,
+test25-2.c,30.0,33.3,30.0,3,5,
+test26-1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test26-2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test27-1.c,30.0,0.0,,3,5,
+test27-2.c,30.0,0.0,,3,5,
+test28-1.c,50.0,0.0,,2,2,
+test28-2.c,50.0,0.0,,2,2,
+test29-1.c,50.0,0.0,,2,2,
+test29-2.c,50.0,0.0,,2,2,
+test30-1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test30-2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test_address.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+test_malloc-1.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+test_malloc-2.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+test_overflow.c,0,N/A,N/A,0,0,testcoca:no_suite testcov:no_suite
+test_union_cast-1.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+test_union_cast-2.c,50.0,N/A,N/A,1,1,testcoca:no_suite testcov:no_suite
+time_var_mutex.c,66.7,N/A,N/A,4,3,testcoca:no_suite testcov:no_suite
+token_ring.01.cil-1.c,59.7,55.7,58.11,43,36,
+token_ring.01.cil-2.c,61.1,50.0,52.38,44,36,
+token_ring.02.cil-1.c,58.8,55.0,57.14,60,51,
+token_ring.02.cil-2.c,62.7,53.6,55.65,64,51,
+token_ring.03.cil-1.c,61.4,53.6,55.48,81,66,
+token_ring.03.cil-2.c,62.9,59.2,61.03,83,66,
+token_ring.04.cil-1.c,61.7,58.1,59.88,100,81,
+token_ring.04.cil-2.c,58.0,51.2,53.11,94,81,
+token_ring.05.cil-1.c,58.9,55.3,57.07,113,96,
+token_ring.05.cil-2.c,63.0,56.5,58.17,121,96,
+token_ring.06.cil-1.c,60.8,54.8,56.49,135,111,
+token_ring.06.cil-2.c,58.6,55.0,56.77,130,111,
+token_ring.07.cil-1.c,60.7,57.2,58.85,153,126,
+token_ring.07.cil-2.c,61.9,56.2,57.78,156,126,
+token_ring.08.cil-1.c,62.1,58.6,60.14,175,141,
+token_ring.08.cil-2.c,61.0,55.5,57.14,172,141,
+token_ring.09.cil-1.c,61.2,57.7,59.32,191,156,
+token_ring.09.cil-2.c,62.5,57.2,58.73,195,156,
+token_ring.10.cil-1.c,60.8,55.7,57.3,208,171,
+token_ring.10.cil-2.c,59.4,55.9,57.51,203,171,
+token_ring.11.cil-1.c,58.3,53.4,55.08,217,186,
+token_ring.11.cil-2.c,58.3,54.9,56.51,217,186,
+token_ring.12.cil-1.c,61.7,56.8,58.35,248,201,
+token_ring.12.cil-2.c,60.9,57.5,59.04,245,201,
+token_ring.13.cil-1.c,58.1,53.4,55.04,251,216,
+token_ring.13.cil-2.c,58.1,54.7,56.28,251,216,
+token_ring.14.cil.c,60.9,56.7,58.19,245,201,
+token_ring.15.cil.c,60.4,56.2,57.74,261,216,
+toy.cil.c,50.0,0.0,,34,34,
+toy1.cil.c,50.0,0.0,,34,34,
+toy2.cil.c,50.0,0.0,,34,34,
+transmitter.01.cil.c,50.0,0.0,,20,20,
+transmitter.02.cil.c,50.0,0.0,,29,29,
+transmitter.03.cil.c,50.0,0.0,,38,38,
+transmitter.04.cil.c,50.0,0.0,,47,47,
+transmitter.05.cil.c,50.0,0.0,,56,56,
+transmitter.06.cil.c,50.0,0.0,,65,65,
+transmitter.07.cil.c,50.0,0.0,,74,74,
+transmitter.08.cil.c,50.0,0.0,,83,83,
+transmitter.09.cil.c,50.0,0.0,,92,92,
+transmitter.10.cil.c,50.0,0.0,,101,101,
+transmitter.11.cil.c,50.0,0.0,,110,110,
+transmitter.12.cil.c,50.0,0.0,,119,119,
+transmitter.13.cil.c,50.0,0.0,,128,128,
+transmitter.15.cil.c,50.0,24.4,24.37,107,107,
+transmitter.16.cil.c,50.0,24.3,24.26,114,114,
+tree-1.c,64.3,12.5,N/A,18,14,testcov:exit1
+tree-4.c,46.4,21.9,N/A,13,14,testcov:exit1
+trex01-1.c,100.0,100.0,100.0,12,6,
+trex01-2.c,85.0,78.6,N/A,17,10,testcov:exit1
+trex02-1.c,83.3,83.3,83.33,5,3,
+trex02-2.c,100.0,100.0,100.0,6,3,
+trex03-1.c,100.0,93.8,100.0,8,4,
+trex03-2.c,87.5,75.0,85.71,7,4,
+trex03-2_abstracted.c,83.3,60.0,83.33,5,3,
+trex04.c,5.0,4.5,5.0,1,10,
+trex04_abstracted.c,81.8,70.8,72.73,18,11,
+triangular-1.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+triangular-2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+triangular-longer-1.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+triangular-longer-2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+triangular-longest-1.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+triangular-longest-2.c,N/A,N/A,N/A,N/A,N/A,c2obra:exit1 testcoca:no_suite testcov:no_suite
+twostage_3-2.c,53.1,N/A,N/A,17,16,testcoca:no_suite testcov:no_suite
+twostage_3-race.c,52.9,N/A,N/A,18,17,testcoca:no_suite testcov:no_suite
+twostage_3.c,52.9,N/A,N/A,18,17,testcoca:no_suite testcov:no_suite
+veris.c_NetBSD-libc_loop.c,75.0,N/A,N/A,3,2,testcoca:no_suite testcov:no_suite
+veris.c_OpenSER_cases1_stripFullBoth_arr.c,56.2,0.0,,9,8,
+veris.c_sendmail_tTflag_arr_one_loop.c,83.3,87.5,83.33,5,3,
+verisec_NetBSD-libc_loop.c,75.0,N/A,N/A,3,2,testcoca:no_suite testcov:no_suite
+verisec_OpenSER_cases1_stripFullBoth_arr.c,40.9,0.0,,9,11,
+vogal-1.c,86.4,86.4,N/A,19,11,testcov:exit1
+vogal-2.c,100.0,100.0,N/A,18,9,testcov:exit1
+while_infinite_loop_1.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+while_infinite_loop_2.c,50.0,N/A,N/A,2,2,testcoca:no_suite testcov:no_suite
+while_infinite_loop_3.c,50.0,N/A,N/A,3,3,testcoca:no_suite testcov:no_suite
+while_infinite_loop_4.c,50.0,N/A,N/A,3,3,testcoca:no_suite testcov:no_suite
+AVERAGE,62.66,48.03,69.91,,,processed=538 skipped=62
+AVERAGE,N/A,N/A,N/A,,,processed=0 skipped=600

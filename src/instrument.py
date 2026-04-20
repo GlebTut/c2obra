@@ -42,7 +42,10 @@ def find_branches(tree):
     branches = []
 
     def walk_tree(node):
-        if node.type in ['if_statement', 'for_statement', 'while_statement', 'switch_statement', 'do_statement']:
+        if node.type in [
+            'if_statement', 'for_statement', 'while_statement',
+            'switch_statement', 'do_statement', 'conditional_expression'
+        ]:
             branches.append({
                 'type':        node.type,
                 'node':        node,
@@ -221,6 +224,18 @@ def instrument_code(source_code, branches, start_id=1):
             has_default = any(c['kind'] == 'default' for c in switch_meta['cases'])
             current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
+        elif branch_type == 'conditional_expression':
+            # ternary: condition ? true_expr : false_expr
+            # condition is the first child node before '?'
+            condition_node = node.children[0] if node.children else None
+            if condition_node:
+                cond_start     = condition_node.start_byte
+                cond_end       = condition_node.end_byte
+                condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
+                if condition_text:
+                    rewriter.replace(cond_start, cond_end, f"cover({condition_text}, {current_id})")
+                    current_id += 1
+
     code = rewriter.apply()
     code = strip_verifier_boilerplate(code)
     VERIFIER_PREAMBLE = '''\
@@ -284,6 +299,16 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "type":       branch_type,
                 "true_label": true_label,
                 "false_label": false_label,
+            })
+            current_id += 1
+
+        elif branch_type == 'conditional_expression':
+            branch_map.append({
+                "id":          current_id,
+                "line":        branch['start_point'][0] + 1,
+                "type":        "ternary_expression",
+                "true_label":  "ternary (true)",
+                "false_label": "ternary (false)",
             })
             current_id += 1
 
@@ -383,10 +408,10 @@ def instrument_directory(input_dir, output_dir):
 
     total_branches = next_id - 1
     print(f"✅ Directory instrumentation complete.")
-    print(f"   Files instrumented : {len(c_files)}")
+    print(f"   Files instrumented      : {len(c_files)}")
     total_branch_edges = total_branches * 2
-    print(f"  Total branch constructs : {total_branches}")
-    print(f"  Total branches          : {total_branch_edges}")
+    print(f"   Total branch constructs : {total_branches}")
+    print(f"   Total branches          : {total_branch_edges}")
     print(f"BRANCH_COUNTERS={total_branch_edges}")
 
 

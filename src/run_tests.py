@@ -21,6 +21,8 @@ def set_resource_limits():
     soft = max(1, CPU_TIME_LIMIT - 1)
     hard = CPU_TIME_LIMIT
     resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
+    mem_bytes = MEMORY_LIMIT_MB * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
 
 
 
