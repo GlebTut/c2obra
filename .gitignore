@@ -39,3 +39,4 @@ parsers_testing/
 test_inputs_log.json
 tests/test_designed_coverage.c
 tests/test-comp_files/
+benchmark_results.csv
