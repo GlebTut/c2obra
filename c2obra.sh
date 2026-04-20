@@ -104,7 +104,7 @@ if [ -f "$1" ]; then
 
     # Step 1: Instrument source
     echo "=== Step 1: Instrument ==="
-    INST_OUT=$(/home/glebt/c2obra/venv/bin/python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c)
+    INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c)
     echo "$INST_OUT"
     BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
 
@@ -119,7 +119,7 @@ if [ -f "$1" ]; then
 
     # Step 3: Run tests and collect coverage
     echo "=== Step 3: Run Tests ==="
-    /home/glebt/c2obra/venv/bin/python3 src/run_tests.py \
+    python3 src/run_tests.py \
         "build/${BASENAME}_test" \
         "${SUITE_DIR:-"-"}" \
         "output/${BASENAME}_inst_branch_map.json"
@@ -137,7 +137,7 @@ if [ -f "$1" ]; then
     fi
 
     # Step 4: Generate HTML report
-    /home/glebt/c2obra/venv/bin/python3 src/report.py \
+    python3 src/report.py \
         "output/${BASENAME}_inst_branch_map.json" \
         "output/${BASENAME}_inst_coverage.json" \
         --output      "output/${BASENAME}_inst_report.html" \
@@ -161,7 +161,7 @@ if [ -d "$1" ]; then
 
     # Step 1: Instrument all .c files with globally unique branch IDs
     echo "=== Step 1: Instrument ==="
-    INST_OUTPUT=$(/home/glebt/c2obra/venv/bin/python3 src/instrument.py "$SRC" "$OUT_DIR")
+    INST_OUTPUT=$(python3 src/instrument.py "$SRC" "$OUT_DIR")
     echo "$INST_OUTPUT"
     GLOBAL_MAX=$(echo "$INST_OUTPUT" | grep '^BRANCH_COUNTERS=' | tail -1 | cut -d= -f2)
     echo "Global MAX_BRANCHES: ${GLOBAL_MAX}"
@@ -209,7 +209,7 @@ if [ -d "$1" ]; then
         echo "✓ Built build/${base}_test"
 
         # Step 3: Run tests
-        /home/glebt/c2obra/venv/bin/python3 src/run_tests.py \
+        python3 src/run_tests.py \
             "build/${base}_test" \
             "$SUITE_DIR" \
             "$OUT_DIR/${base}_inst_branch_map.json" || true
@@ -226,7 +226,7 @@ if [ -d "$1" ]; then
         fi
 
         # Step 4: Generate per-file HTML report
-        /home/glebt/c2obra/venv/bin/python3 src/report.py \
+        python3 src/report.py \
             "$OUT_DIR/${base}_inst_branch_map.json" \
             "$OUT_DIR/${base}_inst_coverage.json" \
             --output      "$OUT_DIR/${base}_inst_report.html" \
@@ -237,10 +237,10 @@ if [ -d "$1" ]; then
     # Step 5: Generate summary report across all files
     echo ""
     echo "=== Summary Report ==="
-    /home/glebt/c2obra/venv/bin/python3 src/merge_reports.py "$OUT_DIR"
+    python3 src/merge_reports.py "$OUT_DIR"
 
     # Step 6: Write aggregate coverage_report.json for CI index page
-    /home/glebt/c2obra/venv/bin/python3 - "$OUT_DIR" <<'PYEOF'
+    python3 - "$OUT_DIR" <<'PYEOF'
 import os, json, glob, sys
 out_dir = sys.argv[1]  # passed explicitly — no glob guessing
 jsons = glob.glob(f"{out_dir}/*_inst_coverage.json")
