@@ -111,6 +111,14 @@ jobs:
           mkdir -p pages
           cp user_resources.html pages/user_resources.html
           cp covcheck.html pages/covcheck.html
+          if [ -d docs/screenshots ]; then
+            mkdir -p pages/docs/screenshots
+            cp docs/screenshots/*.png pages/docs/screenshots/ 2>/dev/null || true
+          fi
+          if [ -f docs/logo.png ]; then
+            mkdir -p pages/docs
+            cp docs/logo.png pages/docs/logo.png
+          fi
 
       - name: Download all artefacts
         uses: actions/download-artifact@v4.3.0
