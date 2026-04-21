@@ -108,6 +108,7 @@ jobs:
 
       - name: Add user resources and covcheck to pages
         run: |
+          set -x
           mkdir -p pages
           cp user_resources.html pages/user_resources.html
           cp covcheck.html pages/covcheck.html
