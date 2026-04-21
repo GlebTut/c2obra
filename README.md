@@ -41,8 +41,8 @@ a summary dashboard, and full CI/CD integration via GitHub Actions.
 ### Option A — Quick install (recommended)
 
 ```bash
-git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
-cd C_Testing_Coverage_Tool
+git clone https://github.com/GlebTut/c2obra.git
+cd c2obra
 chmod +x install.sh
 bash install.sh
 ```
@@ -58,8 +58,8 @@ sudo apt install python3.12-venv gcc-multilib
 #### 2. Clone and set up the project
 
 ```bash
-git clone https://github.com/GlebTut/C_Testing_Coverage_Tool.git
-cd C_Testing_Coverage_Tool
+git clone https://github.com/GlebTut/c2obra.git
+cd c2obra
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
