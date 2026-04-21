@@ -106,6 +106,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Add user resources and covcheck to pages
+        run: |
+          mkdir -p pages
+          cp user_resources.html pages/user_resources.html
+          cp covcheck.html pages/covcheck.html
+
       - name: Download all artefacts
         uses: actions/download-artifact@v4.3.0
         with:
