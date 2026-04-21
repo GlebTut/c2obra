@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>C²oBra — Coverage Viewer</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #111827; --panel2: #1f2937;
+      --text: #e5e7eb; --muted: #94a3b8; --accent: #60a5fa;
+      --border: #334155; --code: #0b1220;
+      --green: #22c55e; --amber: #f59e0b; --red: #ef4444; --grey: #475569;
+    }
+    [data-theme="light"] {
+      --bg: #f1f5f9; --panel: #ffffff; --panel2: #f8fafc;
+      --text: #0f172a; --muted: #64748b; --border: #cbd5e1; --code: #f1f5f9;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; transition: background .2s, color .2s; }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(11,16,32,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; gap: 10px; height: 52px;
+    }
+    [data-theme="light"] nav { background: rgba(255,255,255,.92); }
+    .brand { font-weight: 700; font-size: 1rem; color: var(--accent); }
+    .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); padding: 5px 10px; cursor: pointer; font-size: .85rem; }
+    .theme-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .file-count { font-size: .85rem; color: var(--muted); }
+
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 20px; padding: 56px 32px;
+      text-align: center; cursor: pointer; transition: border-color .2s, background .2s;
+      background: rgba(96,165,250,.04);
+    }
+    .dropzone.drag-over { border-color: var(--accent); background: rgba(96,165,250,.1); }
+    .dropzone h2 { font-size: 1.4rem; margin-bottom: 10px; }
+    .dropzone p { color: var(--muted); margin-bottom: 20px; }
+    .drop-btn { display: inline-block; padding: 10px 24px; background: linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; border-radius:10px; font-size:.95rem; cursor:pointer; border:none; font-weight:600; }
+    #fileInput { display: none; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 14px; margin-bottom: 24px; }
+    .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px 16px; text-align: center; }
+    .kpi .val { font-size: 2rem; font-weight: 700; }
+    .kpi .lbl { font-size: .82rem; color: var(--muted); margin-top: 4px; }
+    .kpi.full .val    { color: var(--green); }
+    .kpi.partial .val { color: var(--amber); }
+    .kpi.none .val    { color: var(--red); }
+    .kpi.total .val   { color: var(--accent); }
+    .kpi.runs .val    { color: #c084fc; }
+
+    .prog-wrap { margin-bottom: 28px; }
+    .prog-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: .9rem; color: var(--muted); }
+    .prog-bar { height: 18px; border-radius: 999px; overflow: hidden; display: flex; background: var(--panel2); border: 1px solid var(--border); }
+    .prog-seg { height: 100%; transition: width .5s ease; }
+    .seg-full { background: var(--green); } .seg-partial { background: var(--amber); } .seg-none { background: var(--grey); }
+    .prog-legend { display: flex; gap: 18px; margin-top: 8px; font-size: .82rem; color: var(--muted); flex-wrap: wrap; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
+
+    .sec-head { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 12px; flex-wrap: wrap; gap: 8px; }
+    .sec-head h3 { font-size: 1.15rem; }
+    .filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn { padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); background: none; color: var(--muted); cursor: pointer; font-size: .83rem; }
+    .filter-btn.active { background: rgba(96,165,250,.18); border-color: var(--accent); color: var(--accent); }
+    input[type=text] { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-size: .88rem; width: 200px; }
+
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th { background: var(--panel2); padding: 10px 12px; text-align: left; border-bottom: 2px solid var(--border); color: var(--accent); cursor: pointer; user-select: none; white-space: nowrap; }
+    th:hover { color: #bfdbfe; }
+    td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+    [data-theme="light"] td { border-bottom: 1px solid var(--border); }
+    tr:hover td { background: rgba(255,255,255,.03); }
+    [data-theme="light"] tr:hover td { background: rgba(0,0,0,.03); }
+
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+    .b-full    { background: rgba(34,197,94,.18);  color: #86efac; }
+    .b-partial { background: rgba(245,158,11,.18); color: #fcd34d; }
+    .b-none    { background: rgba(239,68,68,.18);  color: #fca5a5; }
+    .b-pass    { background: rgba(34,197,94,.18);  color: #86efac; }
+    .b-crash   { background: rgba(239,68,68,.18);  color: #fca5a5; }
+    .b-timeout { background: rgba(239,68,68,.18);  color: #fca5a5; }
+
+    .hit-y { color: var(--green); font-weight: 700; }
+    .hit-n { color: var(--red); }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .tab { padding: 7px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel2); color: var(--muted); cursor: pointer; font-size: .88rem; transition: all .15s; }
+    .tab.active { background: rgba(96,165,250,.18); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .tab .close { margin-left: 8px; color: var(--muted); font-size: .75rem; }
+    .tab .close:hover { color: var(--red); }
+
+    .cmp-table td:first-child { font-family: monospace; font-size: .85rem; color: var(--muted); }
+
+    .empty { color: var(--muted); padding: 24px; text-align: center; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 22px; margin-bottom: 24px; }
+    .hidden { display: none !important; }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(96,165,250,.12); border-radius: 5px; padding: 2px 6px; font-size: .88em; }
+  </style>
+</head>
+<body>
+  <nav>
+    <span style="font-size:1.2rem;">🐍</span>
+    <span class="brand">C²oBra Coverage Viewer</span>
+    <div class="nav-right">
+      <span class="file-count" id="fileCount"></span>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light</button>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <div class="dropzone" id="dropzone">
+      <h2>Drop coverage_report.json here</h2>
+      <p>Drag and drop one or more <code>coverage_report.json</code> files, or click to browse.<br>
+         Load multiple files to enable side-by-side comparison mode.</p>
+      <label class="drop-btn" for="fileInput">📂 Choose File(s)</label>
+      <input type="file" id="fileInput" accept=".json" multiple>
+    </div>
+
+    <div id="viewer" class="hidden">
+      <div id="tabBar" class="tabs hidden"></div>
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="panel prog-wrap" id="progPanel"></div>
+      <div id="compareSection" class="panel hidden">
+        <h3 style="margin-bottom:14px;">📊 File Comparison</h3>
+        <div class="tbl-wrap">
+          <table class="cmp-table">
+            <thead><tr><th>File</th><th>Coverage %</th><th>Full</th><th>Partial</th><th>None</th><th>Total</th><th>Test Runs</th></tr></thead>
+            <tbody id="cmpBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="sec-head">
+          <h3>🌿 Branches</h3>
+          <div class="filter-row">
+            <input type="text" id="branchSearch" placeholder="Search…" oninput="renderBranches()">
+            <button class="filter-btn active" data-f="all"     onclick="setFilter(this,'branch')">All</button>
+            <button class="filter-btn"        data-f="full"    onclick="setFilter(this,'branch')">Full</button>
+            <button class="filter-btn"        data-f="partial" onclick="setFilter(this,'branch')">Partial</button>
+            <button class="filter-btn"        data-f="none"    onclick="setFilter(this,'branch')">None</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th onclick="sortBy('id')">ID ↕</th>
+              <th onclick="sortBy('line')">Line ↕</th>
+              <th>Type</th>
+              <th onclick="sortBy('_th')">True Hit ↕</th>
+              <th onclick="sortBy('_fh')">False Hit ↕</th>
+              <th onclick="sortBy('_status')">Status ↕</th>
+            </tr></thead>
+            <tbody id="branchBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="sec-head">
+          <h3>▶️ Test Runs</h3>
+          <div class="filter-row">
+            <button class="filter-btn active" data-f="all"     onclick="setFilter(this,'run')">All</button>
+            <button class="filter-btn"        data-f="pass"    onclick="setFilter(this,'run')">Pass</button>
+            <button class="filter-btn"        data-f="partial" onclick="setFilter(this,'run')">Partial</button>
+            <button class="filter-btn"        data-f="timeout" onclick="setFilter(this,'run')">Timeout</button>
+            <button class="filter-btn"        data-f="crash"   onclick="setFilter(this,'run')">Crash</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Test Case</th><th>Inputs</th><th>Status</th><th>Exit Code</th></tr></thead>
+            <tbody id="runBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const files = [];
+    let activeIdx = 0, branchFilter = 'all', runFilter = 'all', sortKey = 'id', sortAsc = true;
+
+    function toggleTheme() {
+      const isLight = document.body.getAttribute('data-theme') === 'light';
+      document.body.setAttribute('data-theme', isLight ? '' : 'light');
+      document.getElementById('themeBtn').textContent = isLight ? '☀️ Light' : '🌙 Dark';
+    }
+
+    const dz = document.getElementById('dropzone');
+    dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+    document.getElementById('fileInput').addEventListener('change', e => handleFiles(e.target.files));
+
+    function handleFiles(list) {
+      Array.from(list).forEach(f => {
+        const r = new FileReader();
+        r.onload = ev => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            const ex = files.findIndex(x => x.name === f.name);
+            if (ex >= 0) files[ex] = { name: f.name, data };
+            else files.push({ name: f.name, data });
+            activeIdx = files.length - 1;
+            render();
+          } catch(e) { alert('Could not parse ' + f.name + '\n' + e.message); }
+        };
+        r.readAsText(f);
+      });
+    }
+
+    function render() {
+      document.getElementById('dropzone').classList.add('hidden');
+      document.getElementById('viewer').classList.remove('hidden');
+      document.getElementById('fileCount').textContent = files.length + ' file' + (files.length > 1 ? 's' : '') + ' loaded';
+      renderTabs(); renderKPI(); renderProgress(); renderCompare(); renderBranches(); renderRuns();
+    }
+
+    function ad() { return files[activeIdx].data; }
+
+    // ── helper: normalise a branch record ──────────────────────────────────
+    function normBranch(b) {
+      // hit counts: support true_hit / true_count / true (raw key)
+      const th = b.true_hit  !== undefined ? b.true_hit
+               : b.true_count !== undefined ? b.true_count
+               : b['true']   !== undefined ? b['true'] : 0;
+      const fh = b.false_hit  !== undefined ? b.false_hit
+               : b.false_count !== undefined ? b.false_count
+               : b['false']   !== undefined ? b['false'] : 0;
+      // status: support status field OR covered bool OR derive from hits
+      let status = b.status;
+      if (!status) {
+        if (b.covered !== undefined) {
+          status = b.covered ? 'full' : 'none';
+        } else {
+          const tHit = th > 0, fHit = fh > 0;
+          status = (tHit && fHit) ? 'full' : (tHit || fHit) ? 'partial' : 'none';
+        }
+      }
+      return { ...b, _th: th, _fh: fh, _status: status };
+    }
+
+    // ── helper: normalise summary ──────────────────────────────────────────
+    function normSummary(d) {
+      const s = d.summary || {};
+      // total edges = total_branches_count (edges) OR total_branches * 2 OR total_branches
+      const total = s.total_branches_count || s.total_branches || 0;
+      // fully_covered may be missing — count from branches array
+      let full    = s.fully_covered    !== undefined ? s.fully_covered    : -1;
+      let partial = s.partially_covered !== undefined ? s.partially_covered : -1;
+      let none    = s.not_covered       !== undefined ? s.not_covered       : -1;
+      // fallback: derive from branches array
+      if (full < 0 || partial < 0 || none < 0) {
+        full = 0; partial = 0; none = 0;
+        (d.branches || []).forEach(b => {
+          const nb = normBranch(b);
+          if (nb._status === 'full')    full++;
+          else if (nb._status === 'partial') partial++;
+          else none++;
+        });
+      }
+      // coverage pct
+      const pct = s.branch_coverage_pct !== undefined ? s.branch_coverage_pct
+                : s.coverage_pct        !== undefined ? s.coverage_pct
+                : total ? ((full / (d.branches||[]).length || 0) * 100) : 0;
+      const runs = (d.test_runs || []).length;
+      return { total, full, partial, none, pct, runs };
+    }
+
+    function renderTabs() {
+      const bar = document.getElementById('tabBar');
+      if (files.length <= 1) { bar.classList.add('hidden'); return; }
+      bar.classList.remove('hidden');
+      bar.innerHTML = files.map((f,i) =>
+        `<div class="tab ${i===activeIdx?'active':''}" onclick="switchTab(${i})">
+          ${f.name}<span class="close" onclick="event.stopPropagation();removeFile(${i})">✕</span>
+        </div>`
+      ).join('') + `<label class="tab" for="fileInput" style="cursor:pointer;">+ Add file</label>`;
+    }
+
+    function switchTab(i) { activeIdx = i; render(); }
+    function removeFile(i) {
+      files.splice(i,1);
+      if (!files.length) { location.reload(); return; }
+      activeIdx = Math.min(activeIdx, files.length-1);
+      render();
+    }
+
+    function renderKPI() {
+      const { total, full, partial, none, pct, runs } = normSummary(ad());
+      document.getElementById('kpiGrid').innerHTML = `
+        <div class="kpi total"><div class="val">${total}</div><div class="lbl">Total Branch Edges</div></div>
+        <div class="kpi full"><div class="val">${full}</div><div class="lbl">Fully Covered</div></div>
+        <div class="kpi partial"><div class="val">${partial}</div><div class="lbl">Partially Covered</div></div>
+        <div class="kpi none"><div class="val">${none}</div><div class="lbl">Not Covered</div></div>
+        <div class="kpi runs"><div class="val">${runs}</div><div class="lbl">Test Runs</div></div>
+        <div class="kpi total"><div class="val">${parseFloat(pct).toFixed(1)}%</div><div class="lbl">Coverage</div></div>`;
+    }
+
+    function renderProgress() {
+      const { total, full, partial, none, pct } = normSummary(ad());
+      const t = total || 1;
+      const fp = (full/t*100).toFixed(1), pp = (partial/t*100).toFixed(1), np = (none/t*100).toFixed(1);
+      document.getElementById('progPanel').innerHTML = `
+        <div class="prog-label"><span>Branch Coverage</span><span>${parseFloat(pct).toFixed(1)}%</span></div>
+        <div class="prog-bar">
+          <div class="prog-seg seg-full"    style="width:${fp}%"></div>
+          <div class="prog-seg seg-partial" style="width:${pp}%"></div>
+          <div class="prog-seg seg-none"    style="width:${np}%"></div>
+        </div>
+        <div class="prog-legend">
+          <span><span class="dot" style="background:var(--green)"></span>Fully covered (${full})</span>
+          <span><span class="dot" style="background:var(--amber)"></span>Partially covered (${partial})</span>
+          <span><span class="dot" style="background:var(--grey)"></span>Not covered (${none})</span>
+        </div>`;
+    }
+
+    function renderCompare() {
+      const sec = document.getElementById('compareSection');
+      if (files.length <= 1) { sec.classList.add('hidden'); return; }
+      sec.classList.remove('hidden');
+      document.getElementById('cmpBody').innerHTML = files.map(f => {
+        const { total, full, partial, none, pct, runs } = normSummary(f.data);
+        return `<tr>
+          <td>${f.name}</td>
+          <td><strong>${parseFloat(pct).toFixed(1)}%</strong></td>
+          <td style="color:var(--green)">${full}</td>
+          <td style="color:var(--amber)">${partial}</td>
+          <td style="color:var(--red)">${none}</td>
+          <td>${total}</td>
+          <td>${runs}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderBranches() {
+      const search = (document.getElementById('branchSearch').value||'').toLowerCase();
+      let branches = (ad().branches||[]).map(normBranch);
+      if (branchFilter !== 'all') branches = branches.filter(b => b._status === branchFilter);
+      if (search) branches = branches.filter(b =>
+        String(b.id).includes(search) ||
+        String(b.line||'').includes(search) ||
+        (b.type||'').toLowerCase().includes(search)
+      );
+      branches = [...branches].sort((a,b) => {
+        let av = a[sortKey], bv = b[sortKey];
+        if (av===undefined) av = a['_'+sortKey.replace('_','')];
+        if (bv===undefined) bv = b['_'+sortKey.replace('_','')];
+        if (av < bv) return sortAsc ? -1 : 1;
+        if (av > bv) return sortAsc ?  1 : -1;
+        return 0;
+      });
+      document.getElementById('branchBody').innerHTML = branches.map(b =>
+        `<tr>
+          <td>${b.id}</td>
+          <td>${b.line || b.line_number || '—'}</td>
+          <td><code>${b.type||'—'}</code></td>
+          <td class="${b._th?'hit-y':'hit-n'}">${b._th ? '✓ '+b._th : '✗'}</td>
+          <td class="${b._fh?'hit-y':'hit-n'}">${b._fh ? '✓ '+b._fh : '✗'}</td>
+          <td><span class="badge b-${b._status}">${b._status.toUpperCase()}</span></td>
+        </tr>`
+      ).join('') || '<tr><td colspan="6" class="empty">No branches match.</td></tr>';
+    }
+
+    function renderRuns() {
+      let runs = (ad().test_runs||[]);
+      if (runFilter !== 'all') runs = runs.filter(r => (r.status||'pass') === runFilter);
+      document.getElementById('runBody').innerHTML = runs.map((r,i) => {
+        const status  = r.status || 'pass';
+        const inputs  = Array.isArray(r.inputs) ? r.inputs.join(', ') : (r.input||'—');
+        const tc      = r.test_case || r.name || ('Run '+(i+1));
+        const exit    = r.exit_code !== undefined ? r.exit_code : '—';
+        return `<tr>
+          <td>${i+1}</td>
+          <td style="font-family:monospace;font-size:.85rem">${tc}</td>
+          <td style="font-family:monospace;font-size:.85rem;max-width:320px;word-break:break-all">${inputs}</td>
+          <td><span class="badge b-${status}">${status.toUpperCase()}</span></td>
+          <td>${exit}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="5" class="empty">No runs match.</td></tr>';
+    }
+
+    function setFilter(btn, type) {
+      btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (type==='branch') { branchFilter = btn.dataset.f; renderBranches(); }
+      else                 { runFilter    = btn.dataset.f; renderRuns(); }
+    }
+
+    function sortBy(key) {
+      sortAsc = sortKey === key ? !sortAsc : true;
+      sortKey = key;
+      renderBranches();
+    }
+  </script>
+</body>
+</html>

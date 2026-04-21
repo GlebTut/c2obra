@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>C²oBra — User Resources</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+      --code: #0b1220;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: linear-gradient(180deg, #0b1020 0%, #0f172a 100%);
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(11,16,32,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 56px;
+    }
+    nav img { height: 32px; border-radius: 8px; }
+    nav .brand { font-weight: 700; font-size: 1.05rem; color: var(--accent); }
+    nav .nav-links { margin-left: auto; display: flex; gap: 22px; flex-wrap: wrap; }
+    nav .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .9rem;
+      transition: color .2s;
+    }
+    nav .nav-links a:hover { color: var(--accent); }
+
+    /* WRAP */
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 20px 100px; }
+
+    /* HERO */
+    .hero {
+      background: linear-gradient(135deg, rgba(96,165,250,.18), rgba(34,197,94,.10));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px 32px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.3);
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+    .hero img {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      border-radius: 20px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      padding: 8px;
+      flex-shrink: 0;
+    }
+    .hero-text h1 { font-size: 2.2rem; margin-bottom: 6px; }
+    .hero-text .sub { color: var(--muted); font-size: 1rem; margin-bottom: 16px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: .84rem;
+      border: 1px solid var(--border);
+    }
+    .ok   { background: rgba(34,197,94,.14);  color: #86efac; }
+    .warn { background: rgba(245,158,11,.14); color: #fcd34d; }
+    .info { background: rgba(96,165,250,.14); color: #93c5fd; }
+
+    /* SECTIONS */
+    .section {
+      margin-top: 32px;
+      background: rgba(17,24,39,.8);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 28px 24px;
+    }
+    h2 {
+      font-size: 1.55rem;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      color: #f1f5f9;
+    }
+    h3 { font-size: 1.1rem; margin: 22px 0 8px; color: #bfdbfe; }
+    p  { margin-bottom: 12px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+    a  { color: #93c5fd; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* CODE */
+    pre {
+      background: var(--code);
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 14px 18px;
+      overflow-x: auto;
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .93rem;
+      margin: 10px 0 16px;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: rgba(96,165,250,.12);
+      border-radius: 5px;
+      padding: 2px 6px;
+      font-size: .91em;
+    }
+
+    /* GRID CARDS */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .card {
+      background: rgba(31,41,55,.85);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+    .card h3 { margin-top: 0; }
+    .card p { margin-bottom: 0; font-size: .95rem; }
+    .card a {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 7px 14px;
+      background: rgba(96,165,250,.15);
+      border: 1px solid rgba(96,165,250,.3);
+      border-radius: 8px;
+      color: #93c5fd;
+      font-size: .88rem;
+      transition: background .2s;
+    }
+    .card a:hover {
+      background: rgba(96,165,250,.28);
+      text-decoration: none;
+    }
+
+    /* STEPS */
+    .steps { counter-reset: step; margin: 16px 0; }
+    .step {
+      counter-increment: step;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .step-num {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .9rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-num::before { content: counter(step); }
+
+    /* SCREENSHOT BOX */
+    .imgbox {
+      background: rgba(15,23,42,.7);
+      border: 1px dashed #475569;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin: 12px 0 20px;
+      font-size: .9rem;
+      color: #94a3b8;
+    }
+    .imgbox strong { color: #bfdbfe; }
+
+    /* PIPELINE FLOW */
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 14px 0;
+    }
+    .pipe-step {
+      background: rgba(31,41,55,.9);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: .88rem;
+      color: #bfdbfe;
+    }
+    .pipe-arrow { color: var(--muted); font-size: 1.1rem; }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: .93rem; }
+    th {
+      background: rgba(31,41,55,.9);
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+      color: #93c5fd;
+    }
+    td { padding: 9px 14px; border-bottom: 1px solid #1e293b; }
+    tr:hover td { background: rgba(255,255,255,.03); }
+
+    /* FAQ */
+    details {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 16px 18px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1rem;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(31,41,55,.7);
+      color: var(--text);
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary:hover { background: rgba(31,41,55,1); }
+    summary::after { content: "+"; font-size: 1.3rem; color: var(--accent); margin-left: 12px; flex-shrink: 0; }
+    details[open] summary::after { content: "−"; }
+    .faq-body { padding: 16px 18px 20px; background: rgba(17,24,39,.6); font-size: .97rem; }
+    .faq-body p { margin-bottom: 10px; }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .88rem;
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <img src="docs/logo.png" alt="C²oBra Logo">
+    <span class="brand">C²oBra</span>
+    <div class="nav-links">
+      <a href="#requirements">Requirements</a>
+      <a href="#install">Install</a>
+      <a href="#smoke">Smoke Test</a>
+      <a href="#usage">Usage</a>
+      <a href="#reports">Reports</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/GlebTut/c2obra" target="_blank">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+
+    <!-- HERO -->
+    <section class="hero">
+      <img src="docs/logo.png" alt="C²oBra Logo">
+      <div class="hero-text">
+        <h1>C²oBra User Resources</h1>
+        <p class="sub">C Coverage Branch Testing — Source-Level Branch Coverage Instrumentation for C</p>
+        <div class="badges">
+          <span class="badge ok">Linux / Ubuntu / WSL</span>
+          <span class="badge ok">Python 3.10+</span>
+          <span class="badge ok">GCC</span>
+          <span class="badge ok">MIT License</span>
+          <span class="badge warn">Sikraken required for input-driven files</span>
+          <span class="badge info"><a href="https://glebtut.github.io/C_Testing_Coverage_Tool" style="color:inherit;text-decoration:none;" target="_blank">Live Reports ↗</a></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHAT IS -->
+    <section class="section">
+      <h2>What is C²oBra?</h2>
+      <p>C²oBra is a source-level <strong>branch coverage instrumentation tool</strong> for C programs. It automatically instruments C source files to track which branches are executed during testing, then reports coverage results as interactive HTML and CSV reports with a VS Code-style source view, a summary dashboard, and full CI/CD integration via GitHub Actions.</p>
+      <div class="pipeline">
+        <div class="pipe-step">📄 C Source File</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">🔧 Instrument</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">⚙️ Compile</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">▶️ Run Tests</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">📊 HTML Report</div>
+      </div>
+      <p>Each branch construct (<code>if</code>, <code>while</code>, <code>for</code>, <code>do-while</code>, <code>switch</code>, ternary) produces two tracked edges — a <strong>true path</strong> and a <strong>false path</strong>. Coverage is calculated as:</p>
+      <pre>coverage % = (true_branches_hit + false_branches_hit) / total_branches × 100</pre>
+    </section>
+
+    <!-- REQUIREMENTS -->
+    <section class="section" id="requirements">
+      <h2>System Requirements</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>🖥️ Operating System</h3>
+          <p>Ubuntu or Debian-based Linux. WSL (Windows Subsystem for Linux) is fully supported.</p>
+        </div>
+        <div class="card">
+          <h3>🐍 Python</h3>
+          <p>Python 3.10 or later with <code>python3-venv</code> for virtual environment support.</p>
+        </div>
+        <div class="card">
+          <h3>⚙️ GCC</h3>
+          <p>GCC compiler with <code>gcc-multilib</code> for 32-bit compilation support required by Sikraken.</p>
+        </div>
+        <div class="card">
+          <h3>🔬 Sikraken</h3>
+          <p>Required for symbolic execution and automatic test input generation on input-driven benchmarks.</p>
+        </div>
+      </div>
+      <h3>Installing Sikraken</h3>
+      <ol>
+        <li>Download from <a href="https://zenodo.org/records/18062402" target="_blank">zenodo.org/records/18062402</a></li>
+        <li>Extract to <code>~/sikraken/</code> so the main script is at <code>~/sikraken/bin/sikraken.sh</code></li>
+        <li>Fix execute permissions (the zip does not preserve them):</li>
+      </ol>
+      <pre>chmod +x ~/sikraken/bin/sikraken.sh
+chmod -R +x ~/sikraken/bin/
+chmod -R +x ~/sikraken/eclipse/</pre>
+    </section>
+
+    <!-- INSTALLATION -->
+    <section class="section" id="install">
+      <h2>Installation</h2>
+      <h3>Option A — Quick Install (Recommended)</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div>Clone the repository:
+            <pre>git clone https://github.com/GlebTut/c2obra.git
+cd c2obra</pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div>Run the one-command installer:
+            <pre>chmod +x install.sh
+bash install.sh</pre>
+          </div>
+        </div>
+      </div>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/install_terminal.png — terminal showing install completing successfully.</div>
+
+      <h3>Option B — Manual Setup</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div>Install system dependencies:
+            <pre>sudo apt install python3.12-venv gcc-multilib</pre>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div>Clone, create venv, and install Python packages:
+            <pre>git clone https://github.com/GlebTut/c2obra.git
+cd c2obra
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SMOKE TEST -->
+    <section class="section" id="smoke">
+      <h2>Smoke Test</h2>
+      <p>After installation, run the smoke test to verify that instrumentation, compilation, execution, and reporting all work end-to-end on a minimal example.</p>
+      <pre>bash smoke_test.sh</pre>
+      <p>Expected output:</p>
+      <pre>✓ Found 4 branches (2 branch constructs)
+Branch coverage: 100.0%
+✅ Smoke test passed. Open smoke_report.html to view coverage.</pre>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/smoke_test_pass.png — terminal showing ✅ Smoke test passed.</div>
+    </section>
+
+    <!-- USAGE -->
+    <section class="section" id="usage">
+      <h2>How to Use</h2>
+
+      <h3>Run on a Single C File</h3>
+      <pre>bash c2obra.sh path/to/file.c</pre>
+      <p>The pipeline auto-detects whether the file uses <code>__VERIFIER_nondet_*</code> inputs and runs Sikraken if needed. It then instruments, compiles, runs all tests, and generates a report.</p>
+      <p>Example output:</p>
+      <pre>=== Detected: input-driven file ===
+=== Step 0: Run Sikraken ===
+✓ Sikraken done → ~/sikraken/sikraken_output/benchmark01/test-suite
+=== Step 1: Instrument ===
+=== Step 2: Compile ===
+=== Step 3: Run Tests ===
+=== Step 4: Report ===
+✓ Wrote report to output/benchmark01_inst_report.html</pre>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/pipeline_single_file.png — terminal showing Step 0–4 completing with report path.</div>
+
+      <h3>Run on a Directory</h3>
+      <pre>bash c2obra.sh path/to/directory/</pre>
+      <p>Recursively instruments all <code>.c</code> files, assigns globally unique branch IDs, runs each benchmark, and generates <code>output/summary_report.html</code>.</p>
+
+      <h3>Run a Timed Benchmark</h3>
+      <pre>bash benchmark_cobra.sh PATH/TO/FILE.c PATH/TO/test-suite</pre>
+      <p>Outputs structured per-step timings for instrumentation, compilation, test execution, and report generation:</p>
+      <pre>========================================
+ RESULTS: Problem_16
+========================================
+ Coverage:      17.9%
+ Branches:      2592 / 14472
+----------------------------------------
+ Instrument:    4253ms
+ Compile:       5317ms
+ Run tests:     462ms
+ Report:        8469ms
+ TOTAL:         18501ms
+========================================</pre>
+
+      <h3>Generate Reports Manually</h3>
+      <pre>source venv/bin/activate
+
+# Single file report
+python3 src/report.py output/benchmark_inst_branch_map.json output/benchmark_inst_coverage.json
+
+# Summary across all benchmarks
+python3 src/merge_reports.py output/</pre>
+
+      <h3>Run Status Classification</h3>
+      <table>
+        <tr><th>Status</th><th>Condition</th></tr>
+        <tr><td><code>pass</code></td><td>Clean exit — full coverage data saved</td></tr>
+        <tr><td><code>partial</code></td><td>Timeout or crash — branch data was still saved</td></tr>
+        <tr><td><code>timeout</code></td><td>Timed out with no branch data saved</td></tr>
+        <tr><td><code>crash</code></td><td>Signal kill (SIGSEGV / SIGABRT / SIGFPE), no data</td></tr>
+      </table>
+      <p>Partial coverage is always preserved — no coverage data is lost regardless of how a run terminates.</p>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="section" id="reports">
+      <h2>Reading the Reports</h2>
+
+      <h3>HTML Coverage Report</h3>
+      <p>The main report shows per-branch hit/miss status, true/false edge coverage, run-status badges for each test input, dark/light mode toggle, sorting, and filtering. Open <code>output/*_report.html</code> in any browser.</p>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/report_overview.png</div>
+
+      <h3>Source View</h3>
+      <p>The VS Code-style source view highlights branch lines — green for covered, red for missed. Open <code>output/*_source.html</code>.</p>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/source_view.png</div>
+
+      <h3>Summary Dashboard</h3>
+      <p>When running on a directory, <code>output/summary_report.html</code> shows KPI cards, a progress bar, and a per-file table with coverage %, branch counts, and colour-coded rows.</p>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/summary_dashboard.png</div>
+
+      <h3>Local Viewer — covcheck.html</h3>
+      <p>Open <code>covcheck.html</code> in your browser and drag-and-drop any <code>coverage_report.json</code> to inspect results locally — no server required. Supports multi-file comparison mode.</p>
+      <div class="imgbox"><strong>Screenshot:</strong> docs/screenshots/covcheck_viewer.png</div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <h2>FAQ</h2>
+
+      <details>
+        <summary>Why does python3 -m venv venv fail with "ensurepip is not available"?</summary>
+        <div class="faq-body">
+          <p>The <code>python3-venv</code> package is not installed. Fix it with:</p>
+          <pre>sudo apt install python3.12-venv</pre>
+        </div>
+      </details>
+
+      <details>
+        <summary>Why does Sikraken fail with Permission denied on .sh or eclipse binaries?</summary>
+        <div class="faq-body">
+          <p>The Sikraken zip archive does not preserve execute permissions. Run both:</p>
+          <pre>chmod -R +x ~/sikraken/bin/
+chmod -R +x ~/sikraken/eclipse/</pre>
+        </div>
+      </details>
+
+      <details>
+        <summary>Why do I get bits/wordsize.h: No such file or directory?</summary>
+        <div class="faq-body">
+          <p>Sikraken requires 32-bit compilation support. Install the multilib package:</p>
+          <pre>sudo apt install gcc-multilib</pre>
+        </div>
+      </details>
+
+      <details>
+        <summary>Why does a benchmark show 0% coverage after a successful run?</summary>
+        <div class="faq-body">
+          <p>The binary was likely terminated before branch coverage data was flushed to disk. Always run through <code>bash c2obra.sh</code> rather than executing the binary directly — the script uses a two-stage kill (SIGTERM then SIGKILL) to ensure coverage is saved before the process exits.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What does a "partial" badge mean in the report?</summary>
+        <div class="faq-body">
+          <p>A <code>partial</code> run means the test timed out or crashed, but branch data was saved before termination and is included in the coverage total. No coverage data is ever discarded.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Why does C²oBra show a higher branch count than other tools?</summary>
+        <div class="faq-body">
+          <p>C²oBra uses syntactic AST-level instrumentation via tree-sitter, so it counts all branches including unreachable ones (dead code, uncalled functions). Tools like TestCov apply post-compilation reachability filtering to reduce the denominator. Reachability-aware filtering is planned for a future iteration.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- SUPPORT -->
+    <section class="section">
+      <h2>Support &amp; Links</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>📦 Repository</h3>
+          <p>Source code, issues, and pull requests.</p>
+          <a href="https://github.com/GlebTut/c2obra" target="_blank">View on GitHub →</a>
+        </div>
+        <div class="card">
+          <h3>📊 Live Reports</h3>
+          <p>Auto-generated coverage reports published on every push to main.</p>
+          <a href="https://glebtut.github.io/C_Testing_Coverage_Tool" target="_blank">View Live Reports →</a>
+        </div>
+        <div class="card">
+          <h3>⚙️ CI Status</h3>
+          <p>GitHub Actions pipeline — install, run, verify, deploy.</p>
+          <a href="https://github.com/GlebTut/c2obra/actions" target="_blank">View CI Pipeline →</a>
+        </div>
+        <div class="card">
+          <h3>📚 Citation</h3>
+          <p>Tutubalin, G. (2026). <em>C²oBra: A Source-Level Branch Coverage Instrumentation Tool for C Programs</em>. SETU, Ireland.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>C²oBra — C Coverage Branch Testing &nbsp;·&nbsp; Gleb Tutubalin C00290944 &nbsp;·&nbsp; SETU 2026 &nbsp;·&nbsp;
+      <a href="https://github.com/GlebTut/c2obra" target="_blank">GitHub</a></p>
+    </footer>
+
+  </div>
+</body>
+</html>

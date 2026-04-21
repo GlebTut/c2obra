@@ -54,7 +54,10 @@ python3 "$TOOL_DIR/src/run_tests.py" "$TMP/smoke_bin" "$TMP/suite" "$TMP/smoke_i
 
 echo ""
 echo "=== Generating HTML report ==="
-python3 "$TOOL_DIR/src/report.py" "$TMP/smoke_inst_branch_map.json" coverage_report.json
+python3 "$TOOL_DIR/src/report.py" \
+    "$TMP/smoke_inst_branch_map.json" \
+    output/coverage_report.json \
+    --output smoke_report.html
 
 echo ""
 echo "✅ Smoke test passed. Open smoke_report.html to view coverage."
