@@ -108,18 +108,16 @@ jobs:
 
       - name: Add user resources and covcheck to pages
         run: |
-          set -x
-          mkdir -p pages
+          mkdir -p pages/docs/screenshots
           cp user_resources.html pages/user_resources.html
           cp covcheck.html pages/covcheck.html
-          if [ -d docs/screenshots ]; then
-            mkdir -p pages/docs/screenshots
-            cp docs/screenshots/*.png pages/docs/screenshots/ 2>/dev/null || true
-          fi
-          if [ -f docs/logo.png ]; then
-            mkdir -p pages/docs
-            cp docs/logo.png pages/docs/logo.png
-          fi
+          cp docs/logo.png pages/docs/logo.png
+          for f in docs/screenshots/*.png; do
+            echo "Copying $f"
+            cp "$f" pages/docs/screenshots/
+          done
+          echo "=== Screenshot dir ==="
+          ls -la pages/docs/screenshots/
 
       - name: Download all artefacts
         uses: actions/download-artifact@v4.3.0
@@ -170,6 +168,8 @@ jobs:
           for d in sorted(os.listdir("pages")):
               subdir = "pages/" + d
               if not os.path.isdir(subdir):
+                  continue
+              if not d.startswith("coverage-"):
                   continue
               pct = "N/A"
               total_e = covered_e = 0
