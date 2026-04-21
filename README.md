@@ -1,7 +1,7 @@
 # C²oBra — C Coverage Branch Testing
 
-[![Coverage](https://img.shields.io/badge/C²oBra-Coverage%20Tool-569cd6?style=flat-square)](https://glebtut.github.io/C_Testing_Coverage_Tool)
-[![CI](https://img.shields.io/github/actions/workflow/status/GlebTut/C_Testing_Coverage_Tool/coverage.yml?style=flat-square&label=CI)](https://github.com/GlebTut/C_Testing_Coverage_Tool/actions)
+[![Coverage](https://img.shields.io/badge/C²oBra-Coverage%20Tool-569cd6?style=flat-square)](https://glebtut.github.io/c2obra)
+[![CI](https://img.shields.io/github/actions/workflow/status/GlebTut/c2obra/coverage.yml?style=flat-square&label=CI)](https://github.com/GlebTut/c2obra/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Screenshots](https://img.shields.io/badge/screenshots-docs%2Fscreenshots-blueviolet?style=flat-square)](#screenshots)
 
@@ -13,6 +13,10 @@ A source-level **branch coverage instrumentation tool** for C programs.
 C²oBra automatically instruments C source files to track which branches are executed during testing,
 then reports coverage results as interactive HTML/CSV reports with VS Code-style source view,
 a summary dashboard, and full CI/CD integration via GitHub Actions.
+
+📖 **[User Resources](https://glebtut.github.io/c2obra/user_resources.html)** — full installation guide, usage docs, and FAQ  
+🔍 **[Coverage Viewer](https://glebtut.github.io/c2obra/covcheck.html)** — drag-and-drop `coverage_report.json` inspector  
+📊 **[Live Reports](https://glebtut.github.io/c2obra)** — auto-published coverage reports on every push to `main`
 
 ---
 
@@ -89,7 +93,7 @@ Branch coverage: 100.0%
 ### Run the full pipeline on a single file
 
 ```bash
-bash c2obra.sh filePATH/fileNAME
+bash c2obra.sh path/to/file.c
 ```
 
 The pipeline runs these steps automatically:
@@ -223,7 +227,7 @@ Partial coverage is always preserved — no data is lost regardless of how a run
 ## Project Structure
 
 ```
-C_Testing_Coverage_Tool/
+c2obra/
 ├── src/
 │   ├── instrument.py       # Core instrumentation logic (tree-sitter AST)
 │   ├── run_tests.py        # Parallel test runner with status classification
@@ -234,20 +238,20 @@ C_Testing_Coverage_Tool/
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions
 ├── tests/                  # C benchmark files (SV-COMP / custom)
 │   ├── loop-simple/        # Loop-focused test cases
-│   └── *.c                 # Conjunctive / linear / disjunctive benchmarks
+│   └── examples/           # Simple example files
 ├── output/                 # Instrumented files and reports (generated, not tracked)
 ├── build/                  # Compiled test binaries (generated, not tracked)
 ├── .github/
 │   └── workflows/
 │       └── coverage.yml    # GitHub Actions CI/CD pipeline (4-job workflow)
 ├── docs/
-│   └── testing-notes/      # Manual testing logs
-├── examples/
-│   └── simple_if.c         # Minimal smoke-test example
+│   ├── logo.png            # Project logo
+│   └── screenshots/        # UI screenshots for README and user resources page
 ├── c2obra.sh               # End-to-end pipeline script
 ├── benchmark_cobra.sh      # Timed benchmarking script
 ├── smoke_test.sh           # Post-install sanity check
 ├── covcheck.html           # Standalone drag-and-drop report viewer (no server needed)
+├── user_resources.html     # Full user guide (also at glebtut.github.io/c2obra/user_resources.html)
 ├── install.sh              # One-command installer
 └── requirements.txt
 ```
@@ -332,7 +336,7 @@ Every push to `main` triggers a four-job GitHub Actions pipeline:
 3. **verify** — merges artefacts, generates master `index.html` with aggregate KPIs
 4. **deploy** — publishes all reports to GitHub Pages
 
-📊 **Live reports:** [https://glebtut.github.io/C_Testing_Coverage_Tool](https://glebtut.github.io/C_Testing_Coverage_Tool)
+📊 **Live reports:** [https://glebtut.github.io/c2obra](https://glebtut.github.io/c2obra)
 
 ---
 
