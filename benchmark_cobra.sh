@@ -11,6 +11,14 @@ TESTCOV_BIN="${HOME}/test-suite-validator/bin/testcov"
 TESTCOV_GOAL="${HOME}/test-suite-validator/contrib/goal_files/coverage-branches.prp"
 TOOL_TIMEOUT=120
 
+# Compiler flags shared by the Clang scan (instrument.py) and gcc, so branches are counted in
+# the code that is actually compiled. Override from the environment, e.g.
+#   CFLAGS="-DLARGE_INT=1000000 -I include" bash benchmark_cobra.sh file.c suite/     (CFLAGS="" = no flags)
+# Default: SV-COMP files use LARGE_INT without defining it (same value as cov_runtime.h).
+CFLAGS="${CFLAGS--DLARGE_INT=1000000}"
+read -ra CFLAGS_ARR <<< "$CFLAGS"
+echo "Compiler flags (CFLAGS): ${CFLAGS:-(none)}"
+
 BASE=$(basename "$FILE" .c)
 FILE_OUT="${SCRIPT_DIR}/output/benchmark_cobra/${BASE}"
 RESULTS="${FILE_OUT}/results.txt"
@@ -69,7 +77,7 @@ printf "  [1/4] Instrumenting...   " | tee -a "$RESULTS"
 T_INST_START=$(now_ms)
 
 INST_OUT=$(python3 "${SCRIPT_DIR}/src/instrument.py" "$FILE" \
-    "${SCRIPT_DIR}/output/${BASE}_inst.c" 2>&1)
+    "${SCRIPT_DIR}/output/${BASE}_inst.c" -- "${CFLAGS_ARR[@]}" 2>&1)
 INST_EC=$?
 BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
 T_INST=$(( $(now_ms) - T_INST_START ))
@@ -90,7 +98,7 @@ gcc "${SCRIPT_DIR}/output/${BASE}_inst.c" \
     "${SCRIPT_DIR}/src/verifier_stubs.c" \
     -o "${SCRIPT_DIR}/build/${BASE}_test" \
     -I "${SCRIPT_DIR}/src/" \
-    -DMAX_BRANCHES=${BRANCH_COUNTERS:-131072} -w
+    -DMAX_BRANCHES=${BRANCH_COUNTERS:-131072} "${CFLAGS_ARR[@]}" -w
 COMP_EC=$?
 T_COMP=$(( $(now_ms) - T_COMP_START ))
 

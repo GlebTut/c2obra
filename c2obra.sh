@@ -64,6 +64,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIKRAKEN_DIR="${SIKRAKEN_DIR:-$(dirname "$SCRIPT_DIR")/sikraken}"
 SIKRAKEN_OUT="$SIKRAKEN_DIR/sikraken_output"
 
+# Compiler flags shared by the Clang scan (instrument.py) and gcc, so branches are counted in
+# the code that is actually compiled. Override from the environment, e.g.
+#   CFLAGS="-DLARGE_INT=1000000 -I include" ./c2obra.sh file.c     (CFLAGS="" = no flags)
+# Default: SV-COMP files use LARGE_INT without defining it (same value as cov_runtime.h).
+CFLAGS="${CFLAGS--DLARGE_INT=1000000}"
+read -ra CFLAGS_ARR <<< "$CFLAGS"
+echo "Compiler flags (CFLAGS): ${CFLAGS:-(none)}"
+
 
 # Returns 0 if Sikraken is installed and usable
 sikraken_available() {
@@ -104,7 +112,9 @@ if [ -f "$1" ]; then
 
     # Step 1: Instrument source
     echo "=== Step 1: Instrument ==="
-    INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c)
+    # "|| ..." so set -e does not exit before the error message is shown
+    INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c -- "${CFLAGS_ARR[@]}") \
+        || { echo "$INST_OUT"; echo "❌ Instrumentation failed (CFLAGS: ${CFLAGS:-(none)})"; exit 1; }
     echo "$INST_OUT"
     BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
 
@@ -113,7 +123,7 @@ if [ -f "$1" ]; then
     gcc output/"$BASENAME"_inst.c src/cov_runtime.c src/verifier_stubs.c \
         -o build/"$BASENAME"_test -I src/ \
         -DMAX_BRANCHES=${BRANCH_COUNTERS:-131072} \
-        -w
+        "${CFLAGS_ARR[@]}" -w
     [ -f "build/${BASENAME}_test" ] || { echo "❌ Compilation failed"; exit 1; }
     echo "✓ Binary built → build/${BASENAME}_test"
 
@@ -161,7 +171,8 @@ if [ -d "$1" ]; then
 
     # Step 1: Instrument all .c files with globally unique branch IDs
     echo "=== Step 1: Instrument ==="
-    INST_OUTPUT=$(python3 src/instrument.py "$SRC" "$OUT_DIR")
+    INST_OUTPUT=$(python3 src/instrument.py "$SRC" "$OUT_DIR" -- "${CFLAGS_ARR[@]}") \
+        || { echo "$INST_OUTPUT"; echo "❌ Instrumentation failed (CFLAGS: ${CFLAGS:-(none)})"; exit 1; }
     echo "$INST_OUTPUT"
     GLOBAL_MAX=$(echo "$INST_OUTPUT" | grep '^BRANCH_COUNTERS=' | tail -1 | cut -d= -f2)
     echo "Global MAX_BRANCHES: ${GLOBAL_MAX}"
@@ -203,7 +214,7 @@ if [ -d "$1" ]; then
         gcc "$inst" src/cov_runtime.c src/verifier_stubs.c \
             -o "build/${base}_test" -I src/ \
             -DMAX_BRANCHES=${GLOBAL_MAX} \
-            -w 2>/dev/null || true
+            "${CFLAGS_ARR[@]}" -w 2>/dev/null || true
 
         [ -f "build/${base}_test" ] || { echo "❌ Compilation failed for $base — skipping"; continue; }
         echo "✓ Built build/${base}_test"
