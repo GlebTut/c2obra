@@ -8,6 +8,14 @@ TOOL_DIR="$(cd "$(dirname "$0")" && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# Compiler flags shared by the Clang scan (instrument.py) and gcc, so branches are counted in
+# the code that is actually compiled. Override from the environment, e.g.
+#   CFLAGS="-DLARGE_INT=1000000 -I include" bash smoke_test.sh     (CFLAGS="" = no flags)
+# Default: SV-COMP files use LARGE_INT without defining it (same value as cov_runtime.h).
+CFLAGS="${CFLAGS--DLARGE_INT=1000000}"
+read -ra CFLAGS_ARR <<< "$CFLAGS"
+echo "Compiler flags (CFLAGS): ${CFLAGS:-(none)}"
+
 cat > "$TMP/smoke.c" << 'EOF'
 #include <stdio.h>
 extern int __VERIFIER_nondet_int(void);
@@ -40,13 +48,13 @@ cat > "$TMP/suite/test_input-2.xml" << 'EOF'
 EOF
 
 echo "=== Smoke Test: instrumenting smoke.c ==="
-python3 "$TOOL_DIR/src/instrument.py" "$TMP/smoke.c" "$TMP/smoke_inst.c"
+python3 "$TOOL_DIR/src/instrument.py" "$TMP/smoke.c" "$TMP/smoke_inst.c" -- "${CFLAGS_ARR[@]}"
 
 echo ""
 echo "=== Compiling ==="
 COUNTERS=$(grep 'BRANCH_COUNTERS=' "$TMP/smoke_inst.c" 2>/dev/null | tail -1 | cut -d= -f2 || echo 4)
 gcc -o "$TMP/smoke_bin" "$TMP/smoke_inst.c" "$TOOL_DIR/src/cov_runtime.c" "$TOOL_DIR/src/verifier_stubs.c" \
-    -I"$TOOL_DIR/src" -DMAX_BRANCHES="${COUNTERS}" -lm
+    -I"$TOOL_DIR/src" -DMAX_BRANCHES="${COUNTERS}" "${CFLAGS_ARR[@]}" -lm
 
 echo ""
 echo "=== Running tests ==="

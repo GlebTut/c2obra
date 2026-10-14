@@ -4,16 +4,32 @@ C²oBra - Source Instrumenter
 Iteration 1: Basic branch instrumentation ->
 Iteration 2: Switch instrumentation + error handling + multi-file directory support ->
 Iteration 3: Explicit else branch metadata tracking
+Phase 2: Clang decides which decisions exist (clang_scan.py); Tree-sitter finds the text to wrap
 """
 
 
 import sys, json, os, re
+from collections import Counter
 from tree_sitter import Language, Parser
 import tree_sitter_c
+import clang_scan
 
 
 # Verifier boilerplate that conflicts with verifier_stubs.c at link time
 # These are stripped from instrumented output
+# Flags used when the caller gives none (no "--" on the command line). SV-COMP files use
+# LARGE_INT without defining it; the pipeline's gcc gets it from cov_runtime.h (same value).
+DEFAULT_SVCOMP_FLAGS = ['-DLARGE_INT=1000000']
+
+# Tree-sitter node type -> Clang decision kind (clang_scan.KINDS)
+TS_KIND = {'if_statement': 'if', 'for_statement': 'for', 'while_statement': 'while',
+           'do_statement': 'do', 'switch_statement': 'switch', 'conditional_expression': '?:'}
+
+
+class PairingError(Exception):
+    """A Clang decision has no Tree-sitter node to wrap, or the node cannot be wrapped."""
+
+
 VERIFIER_STUB_PATTERNS = [
     r'void\s+reach_error\s*\([^)]*\)\s*\{[^}]*\}',
     r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[^}]*\}',
@@ -142,7 +158,8 @@ def build_cover_chain(switch_meta, base_id):
     for i, case in enumerate(cases):
         prefix = "if " if i == 0 else "else if "
         if case['kind'] == 'case':
-            condition = f"{expr} == {case['value']}"
+            # parenthesised: switch (x & 3) case 1 must not become x & 3 == 1
+            condition = f"({expr}) == ({case['value']})"
             line = f"{prefix}(cover({condition}, {current_id})) ;"
         else:
             line = f"else cover(1, {current_id});"
@@ -160,24 +177,55 @@ def build_cover_chain(switch_meta, base_id):
 
 
 class SourceRewriter:
-    """Collects source edits and applies them safely end-to-start"""
+    """Collects edits as wraps (text before + text after a byte range) and applies them inside-out.
+
+    Decisions can nest: a ?: inside an if condition gives a wrap inside a wrap. The inner wrap
+    is applied first and the outer one wraps the result, so no decision is lost and no text is
+    duplicated (the old replace-by-range version copied overlapping ranges twice).
+    Edits must nest or be disjoint; a partial overlap raises ValueError.
+    """
 
     def __init__(self, source: bytes):
         self.source = source
         self.edits  = []
 
-    def replace(self, start, end, text):
-        self.edits.append((start, end, text))
+    def wrap(self, start, end, before, after):
+        self.edits.append((start, end, before, after))
+
+    def insert(self, pos, text):
+        self.wrap(pos, pos, text, '')
 
     def apply(self):
-        result = []
-        prev = 0
-        for start, end, text in sorted(self.edits, key=lambda e: e[0]):
-            result.append(self.source[prev:start])
-            result.append(text.encode())
-            prev = end
-        result.append(self.source[prev:])
-        return b''.join(result).decode('utf-8')
+        src    = self.source
+        parts  = [[]]       # parts[-1]: output of the innermost open wrap (parts[0]: whole file)
+        opened = []         # (end, before, after) of open wraps, innermost last
+        pos    = 0
+
+        def close():
+            nonlocal pos
+            end, before, after = opened.pop()
+            parts[-1].append(src[pos:end])
+            pos = end
+            inner = b''.join(parts.pop())
+            parts[-1].append(before.encode() + inner + after.encode())
+
+        # outer before inner when two edits start at the same byte
+        for start, end, before, after in sorted(self.edits, key=lambda e: (e[0], -e[1])):
+            while opened and opened[-1][0] <= start:
+                close()
+            if opened and end > opened[-1][0]:
+                raise ValueError(f"overlapping edits at bytes {start}-{end}")
+            parts[-1].append(src[pos:start])
+            pos = start
+            if start == end:
+                parts[-1].append(before.encode() + after.encode())
+                continue
+            opened.append((end, before, after))
+            parts.append([])
+        while opened:
+            close()
+        parts[0].append(src[pos:])
+        return b''.join(parts[0]).decode('utf-8')
 
 
 def strip_verifier_boilerplate(code: str) -> str:
@@ -244,6 +292,44 @@ def instrumentable_branches(branches, source_code):
     return [b for b in sorted(branches, key=lambda b: b['start_byte']) if is_instrumentable(b, source_code)]
 
 
+def pair_decisions(decisions, branches, source_code, path):
+    """Pair each counted Clang decision with the Tree-sitter node to rewrite.
+
+    Key: (kind, line, column) — Clang's expansion location and the start of the Tree-sitter
+    node (both point at the keyword, or at the start of the condition for ?:).
+    Returns (paired Tree-sitter branches, Tree-sitter constructs with no Clang decision).
+    Raises PairingError if any decision has no node, or its node cannot be wrapped as Clang
+    sees it (no condition, or a different number of case labels): instrumenting it anyway
+    would silently count something else.
+    """
+    by_key = {}
+    for b in sorted(branches, key=lambda b: b['start_byte']):
+        key = (TS_KIND[b['type']], b['start_point'][0] + 1, b['start_point'][1] + 1)
+        by_key.setdefault(key, []).append(b)
+
+    paired, problems = [], []
+    for d in decisions:
+        key = (d['kind'], d['line'], d['col'])
+        nodes = by_key.get(key)
+        if not nodes:
+            problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: Clang sees a decision here, "
+                            f"Tree-sitter has no {d['kind']} node starting at this position")
+            continue
+        b = nodes.pop(0)
+        if not is_instrumentable(b, source_code):
+            problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: Tree-sitter node has no "
+                            f"condition / case labels to wrap")
+        elif d['kind'] == 'switch' and len(get_switch_cases(b['node'], source_code)['cases']) != d['n_cases']:
+            n_ts = len(get_switch_cases(b['node'], source_code)['cases'])
+            problems.append(f"{path}:{d['line']}:{d['col']}: switch: Clang counts {d['n_cases']} case "
+                            f"labels, Tree-sitter finds {n_ts} (labels from macros or nested blocks?)")
+        paired.append(b)
+    if problems:
+        raise PairingError(f"{len(problems)} decision(s) could not be paired:\n  " + '\n  '.join(problems))
+    unpaired = [b for nodes in by_key.values() for b in nodes]
+    return paired, unpaired
+
+
 def instrument_code(source_code, branches, start_id=1):
     """Wrap branch conditions with cover() macro. start_id enables global IDs across files."""
     rewriter   = SourceRewriter(source_code)
@@ -258,9 +344,9 @@ def instrument_code(source_code, branches, start_id=1):
             if condition_node:
                 cond_start     = condition_node.start_byte
                 cond_end       = condition_node.end_byte
-                condition_text = source_code[cond_start:cond_end].decode('utf-8')
-                inner = condition_text[1:-1] if condition_text.startswith('(') and condition_text.endswith(')') else condition_text
-                rewriter.replace(cond_start, cond_end, f"(cover({inner}, {current_id}))")
+                # (cond) -> (cover((cond), id)): the condition keeps its own parentheses inside
+                # cover(), so a top-level comma (while (f(), x)) cannot split the macro arguments.
+                rewriter.wrap(cond_start, cond_end, "(cover(", f", {current_id}))")
                 current_id += 1
 
         elif branch_type == 'for_statement':
@@ -270,7 +356,7 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {current_id}) ")
+                    rewriter.wrap(cond_start, cond_end, " cover((", f"), {current_id}) ")
                     current_id += 1
 
         elif branch_type == 'switch_statement':
@@ -278,7 +364,7 @@ def instrument_code(source_code, branches, start_id=1):
             if not switch_meta['cases']:
                 continue
             cover_chain = build_cover_chain(switch_meta, current_id)
-            rewriter.replace(node.start_byte, node.start_byte, cover_chain)
+            rewriter.insert(node.start_byte, cover_chain)
             has_default = any(c['kind'] == 'default' for c in switch_meta['cases'])
             current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
@@ -291,7 +377,7 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f"cover({condition_text}, {current_id})")
+                    rewriter.wrap(cond_start, cond_end, "cover((", f"), {current_id})")
                     current_id += 1
 
     code = rewriter.apply()
@@ -388,11 +474,13 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
     return current_id
 
 
-def instrument_file(input_file, output_file, start_id=1):
+def instrument_file(input_file, output_file, start_id=1, flags=None):
     """
     Instrument a single .c file. Returns next available branch ID.
     start_id allows global branch IDs across multiple files.
+    flags: compiler flags shared with gcc (-D, -I, -std ...); None = DEFAULT_SVCOMP_FLAGS.
     """
+    flags = DEFAULT_SVCOMP_FLAGS if flags is None else flags
     print(f"Instrumenting {input_file}...")
 
     if not os.path.exists(input_file):
@@ -410,12 +498,22 @@ def instrument_file(input_file, output_file, start_id=1):
     if tree.root_node.has_error:
         print("⚠️ Warning: Source file contains syntax errors — instrumentation may be incomplete")
 
-    branches = find_branches(tree)
+    try:
+        decisions, skipped = clang_scan.decisions(input_file, flags)
+        branches, unpaired = pair_decisions(decisions, find_branches(tree), source_code, input_file)
+    except (clang_scan.ClangScanError, PairingError) as e:
+        print(f"❌ Error: {e}")
+        sys.exit(1)
+    for reason, n in sorted(skipped.items()):
+        print(f"ℹ️ Skipped {n} Clang decision(s): {reason}")
+    if unpaired:
+        print(f"ℹ️ {len(unpaired)} Tree-sitter construct(s) have no Clang decision "
+              f"(for(;;), inactive #if arm, or not compiled) — not instrumented")
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:
         print(f"✓ Found {len(branches) * 2} branch edges ({len(branches)} constructs: each has true + false path)")
-        
+
     instrumented_code = instrument_code(source_code, branches, start_id=start_id)
 
     try:
@@ -434,7 +532,7 @@ def instrument_file(input_file, output_file, start_id=1):
     return next_id
 
 
-def instrument_directory(input_dir, output_dir):
+def instrument_directory(input_dir, output_dir, flags=None):
     """
     Recursively instrument all .c files in input_dir, writing results to output_dir.
     Branch IDs are globally unique across all files.
@@ -457,7 +555,7 @@ def instrument_directory(input_dir, output_dir):
         base_name   = os.path.splitext(rel_path)[0] + '_inst.c'
         output_file = os.path.join(output_dir, base_name)
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        next_id = instrument_file(input_file, output_file, start_id=next_id)
+        next_id = instrument_file(input_file, output_file, start_id=next_id, flags=flags)
 
     total_branches = next_id - 1
     print(f"✅ Directory instrumentation complete.")
@@ -468,21 +566,34 @@ def instrument_directory(input_dir, output_dir):
     print(f"BRANCH_COUNTERS={total_branch_edges}")
 
 
+def print_flags(flags, given):
+    """Every run says which flags the Clang scan used; the leniency flags are scan-only."""
+    print(f"Compiler flags ({'from command line' if given else 'default for SV-COMP; pass -- <flags> to override'}): "
+          f"{' '.join(flags) or '(none)'}")
+    print(f"Scan-only flags: {' '.join(clang_scan.LENIENCY_FLAGS + clang_scan.CLANG_ONLY_FLAGS)} "
+          f"-isystem <clang resource dir>/include")
+
+
 def main():
-    if len(sys.argv) == 3:
-        input_path  = sys.argv[1]
-        output_path = sys.argv[2]
+    args, flags = sys.argv[1:], None
+    if '--' in args:
+        i = args.index('--')
+        args, flags = args[:i], args[i + 1:]
+    if len(args) == 2:
+        input_path, output_path = args
+        print_flags(DEFAULT_SVCOMP_FLAGS if flags is None else flags, flags is not None)
 
         if os.path.isdir(input_path):
             if not os.path.exists(output_path):
                 os.makedirs(output_path, exist_ok=True)
-            instrument_directory(input_path, output_path)
+            instrument_directory(input_path, output_path, flags=flags)
         else:
-            instrument_file(input_path, output_path, start_id=1)
+            instrument_file(input_path, output_path, start_id=1, flags=flags)
     else:
         print("Usage:")
-        print("  Single file : python3 instrument.py <source.c> <output.c>")
-        print("  Directory   : python3 instrument.py <source_dir/> <output_dir/>")
+        print("  Single file : python3 instrument.py <source.c> <output.c> [-- <compiler flags>]")
+        print("  Directory   : python3 instrument.py <source_dir/> <output_dir/> [-- <compiler flags>]")
+        print(f"  Without '--', the flags are {' '.join(DEFAULT_SVCOMP_FLAGS)} (SV-COMP default).")
         sys.exit(1)
 
 
