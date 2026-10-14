@@ -216,12 +216,40 @@ def strip_verifier_boilerplate(code: str) -> str:
     return code  # ← always returns
 
 
+def is_instrumentable(branch, source_code):
+    """Single source of truth for which constructs get a cover() ID.
+
+    Both instrument_code() and write_branch_map() iterate over the constructs this accepts,
+    so the IDs in the instrumented source and the entries in branch_map.json cannot drift
+    apart. A construct is skipped (consumes no ID, appears in no map) when there is nothing
+    to wrap: no condition expression (for(;;)), or a switch with no case/default labels.
+    """
+    node = branch['node']
+    kind = branch['type']
+    if kind in ('if_statement', 'while_statement', 'do_statement'):
+        return get_condition_node(node) is not None
+    if kind == 'for_statement':
+        cond = get_for_condition_node(node)
+        return cond is not None and source_code[cond.start_byte:cond.end_byte].decode('utf-8').strip() != ''
+    if kind == 'switch_statement':
+        return bool(get_switch_cases(node, source_code)['cases'])
+    if kind == 'conditional_expression':
+        cond = node.children[0] if node.children else None
+        return cond is not None and source_code[cond.start_byte:cond.end_byte].decode('utf-8').strip() != ''
+    return False
+
+
+def instrumentable_branches(branches, source_code):
+    """Branches that receive IDs, in source order."""
+    return [b for b in sorted(branches, key=lambda b: b['start_byte']) if is_instrumentable(b, source_code)]
+
+
 def instrument_code(source_code, branches, start_id=1):
     """Wrap branch conditions with cover() macro. start_id enables global IDs across files."""
     rewriter   = SourceRewriter(source_code)
     current_id = start_id
 
-    for branch in sorted(branches, key=lambda b: b['start_byte']):
+    for branch in instrumentable_branches(branches, source_code):
         branch_type = branch['type']
         node        = branch['node']
 
@@ -281,7 +309,7 @@ extern void __VERIFIER_assume(int);
 
 def write_branch_map(branches, source_code, output_file, input_file, start_id=1):
     """Write branch metadata to branch_map.json. Returns next available branch ID."""
-    sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
+    sorted_branches = instrumentable_branches(branches, source_code)
     branch_map  = []
     current_id  = start_id
 
