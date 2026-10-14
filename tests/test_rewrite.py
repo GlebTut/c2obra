@@ -108,6 +108,25 @@ class RewriteKeepsBehaviour(unittest.TestCase):
         self.check('int f(int n) { int i, s = 0; for (i = 0; i < (n > 0 ? n : 0); i++) s += i; return s; }\n', 2)
 
 
+class SwitchEvaluatedOnce(unittest.TestCase):
+    """The cover chain inserted before switch (e) must not evaluate e again: with a side effect
+    (switch (next()), switch ((*i)++)) the instrumented program would behave differently."""
+
+    def test_switch_expression_with_side_effect(self):
+        path = os.path.join(HERE, 'corpusC', 'c15_switch_side_effect.c')
+        with tempfile.TemporaryDirectory() as d:
+            inst = os.path.join(d, 'c15_inst.c')
+            with contextlib.redirect_stdout(io.StringIO()):
+                I.instrument_file(path, inst, flags=[])
+            orig = os.path.join(d, 'c15.c')
+            with open(path) as src, open(orig, 'w') as dst:
+                dst.write(src.read())
+            expected = build_and_run(d, orig)
+            self.assertEqual(expected, 'calls=1 r=10 picks=100,101,199 i=3\n')   # the file itself
+            got = build_and_run(d, inst, [os.path.join(SRC, 'cov_runtime.c')])
+            self.assertEqual(got, expected)
+
+
 class SourceRewriterUnit(unittest.TestCase):
     def test_nested_wraps_apply_inside_out(self):
         src = b'if (g(a ? 1 : 2)) x;'

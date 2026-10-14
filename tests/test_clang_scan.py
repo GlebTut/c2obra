@@ -58,7 +58,7 @@ def write_tmp(d, text):
 class CorpusCExpectations(unittest.TestCase):
     def test_every_file_matches_expectations(self):
         files = sorted(f for f in os.listdir(CORPUS) if f.endswith('.c'))
-        self.assertEqual(len(files), 14)
+        self.assertEqual(len(files), 15)
         for f in files:
             path = os.path.join(CORPUS, f)
             exp = expectations(path)
