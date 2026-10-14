@@ -13,6 +13,8 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Clang binary whose resource dir (builtin headers) the libclang 18 scan uses; see src/clang_scan.py
+  C2OBRA_CLANG: clang-18
 
 jobs:
 
@@ -32,6 +34,21 @@ jobs:
           python -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
+
+      - name: Install clang-18 (builtin headers for the libclang 18 scan)
+        run: |
+          if command -v clang-18 >/dev/null; then
+            echo "clang-18 already on the runner image"
+          else
+            sudo apt-get update
+            sudo apt-get install -y clang-18
+          fi
+          clang-18 --version
+          test -f "$(clang-18 -print-resource-dir)/include/stddef.h"
+          echo "resource dir: $(clang-18 -print-resource-dir)"
+
+      - name: Run unit tests
+        run: venv/bin/python3 -m unittest discover -s tests -p "test_*.py" -v
 
       - name: Cache venv
         uses: actions/cache@v5
@@ -81,6 +98,18 @@ jobs:
         run: |
           chmod +x install.sh
           bash install.sh
+
+      - name: Install clang-18 (builtin headers for the libclang 18 scan)
+        run: |
+          if command -v clang-18 >/dev/null; then
+            echo "clang-18 already on the runner image"
+          else
+            sudo apt-get update
+            sudo apt-get install -y clang-18
+          fi
+          clang-18 --version
+          test -f "$(clang-18 -print-resource-dir)/include/stddef.h"
+          echo "resource dir: $(clang-18 -print-resource-dir)"
 
       - name: Run C²oBra pipeline
         env:

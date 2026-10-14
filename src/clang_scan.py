@@ -35,15 +35,17 @@ class ClangScanError(Exception):
 
 
 @functools.lru_cache(maxsize=None)
-def resource_dir(clang='clang'):
+def resource_dir(clang=None):
     """Clang resource directory (holds the builtin headers). Stops with a clear error if missing.
-    Cached: running clang costs ~11 ms, once per process is enough."""
+    The clang binary is `clang` unless the C2OBRA_CLANG environment variable names another one
+    (CI sets clang-18 to match libclang 18). Cached: running clang costs ~11 ms."""
+    clang = clang or os.environ.get('C2OBRA_CLANG', 'clang')
     try:
         out = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True, check=True)
     except (OSError, subprocess.CalledProcessError) as e:
         raise ClangScanError(
             f"cannot run '{clang} -print-resource-dir' ({e}). Install clang (same major version as "
-            f"libclang, 18) so its builtin headers can be passed to the scan.")
+            f"libclang, 18) so its builtin headers can be passed to the scan, or set C2OBRA_CLANG.")
     d = out.stdout.strip()
     if not os.path.isfile(os.path.join(d, 'include', 'stddef.h')):
         raise ClangScanError(f"Clang resource directory '{d}' has no include/stddef.h; "

@@ -136,6 +136,13 @@ class FailLoudly(unittest.TestCase):
         with self.assertRaisesRegex(C.ClangScanError, 'print-resource-dir'):
             C.resource_dir(clang='no-such-clang-binary')
 
+    def test_clang_binary_from_environment(self):
+        C.resource_dir.cache_clear()
+        self.addCleanup(C.resource_dir.cache_clear)
+        with mock.patch.dict(os.environ, {'C2OBRA_CLANG': 'no-such-clang-18'}):
+            with self.assertRaisesRegex(C.ClangScanError, "no-such-clang-18 -print-resource-dir"):
+                C.resource_dir()
+
     def test_resource_dir_without_builtin_headers(self):
         C.resource_dir.cache_clear()             # resource_dir() is cached; force a real call
         self.addCleanup(C.resource_dir.cache_clear)
