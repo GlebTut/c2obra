@@ -148,32 +148,27 @@ def get_else_info(if_node):
     return False, None, False
 
 
-def build_cover_chain(switch_meta, base_id):
-    """Build the if/else if cover() chain to inject before switch"""
-    expr   = switch_meta['expression']
-    cases  = switch_meta['cases']
-    lines  = []
-    current_id = base_id
+def build_cover_chain(switch_meta, base_id, var):
+    """The if/else if cover() chain for a switch, comparing `var` (the switch value, evaluated once).
 
-    for i, case in enumerate(cases):
-        prefix = "if " if i == 0 else "else if "
+    IDs follow label order (same as write_branch_map); a missing default gets the next ID.
+    The default is checked last wherever its label is, because it is taken only when no case
+    matches; a switch with only a default records cover(1, id)."""
+    cases, default_id, parts = [], None, []
+    for i, case in enumerate(switch_meta['cases']):
         if case['kind'] == 'case':
-            # parenthesised: switch (x & 3) case 1 must not become x & 3 == 1
-            condition = f"({expr}) == ({case['value']})"
-            line = f"{prefix}(cover({condition}, {current_id})) ;"
+            cases.append((base_id + i, case['value']))
         else:
-            line = f"else cover(1, {current_id});"
-        lines.append(line)
-        current_id += 1
-
-    has_default = any(c['kind'] == 'default' for c in cases)
-    if not has_default:
-        lines.append(f"else cover(0, {current_id});")
-
-    result = lines[0]
-    for l in lines[1:]:
-        result += "\n" + l
-    return result + "\n"
+            default_id = base_id + i
+    for k, (cid, value) in enumerate(cases):
+        # parenthesised: switch (x & 3) case 1 must not become x & 3 == 1
+        parts.append(f"{'if' if k == 0 else 'else if'} (cover(({var}) == ({value}), {cid})) ;")
+    if default_id is not None:
+        last = f"cover(1, {default_id});"
+    else:
+        last = f"cover(0, {base_id + len(switch_meta['cases'])});"
+    parts.append(f"else {last}" if cases else last)
+    return ' '.join(parts)
 
 
 class SourceRewriter:
@@ -361,10 +356,18 @@ def instrument_code(source_code, branches, start_id=1):
 
         elif branch_type == 'switch_statement':
             switch_meta = get_switch_cases(node, source_code)
-            if not switch_meta['cases']:
+            condition_node = get_condition_node(node)
+            if not switch_meta['cases'] or condition_node is None:
                 continue
-            cover_chain = build_cover_chain(switch_meta, current_id)
-            rewriter.insert(node.start_byte, cover_chain)
+            # switch (E) -> switch (({ __typeof__((E) + 0) v = (E); <chain on v>; v; })):
+            # E is evaluated once (a GNU statement expression; __typeof__ does not evaluate its
+            # operand, and its copy of E is the original text, so it holds no cover() call).
+            # (E) + 0 is the promoted type the switch itself uses, and works for bit-fields.
+            var = f"__c2obra_sw_{current_id}"
+            chain = build_cover_chain(switch_meta, current_id, var)
+            rewriter.wrap(condition_node.start_byte, condition_node.end_byte,
+                          f"(({{ __typeof__(({switch_meta['expression']}) + 0) {var} = ",
+                          f"; {chain} {var}; }}))")
             has_default = any(c['kind'] == 'default' for c in switch_meta['cases'])
             current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
