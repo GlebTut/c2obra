@@ -16,11 +16,14 @@ env:
   # Clang binary whose resource dir (builtin headers) the libclang 18 scan uses; see src/clang_scan.py
   C2OBRA_CLANG: clang-18
 
+# All jobs are pinned to ubuntu-24.04, not ubuntu-latest: -latest will move to Ubuntu 26.04
+# (GCC 15 defaults to C23, Clang 21, no tree-sitter 0.21.3 wheel for Python 3.14), and that
+# move (Phase 1b) is parked until it has been tested. 24.04 ships clang-18, matching libclang 18.
 jobs:
 
   # ── Job 1: Install Python deps and cache venv ────────────────────────────────────
   install:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -59,7 +62,7 @@ jobs:
 
   # ── Job 2: Run pipeline on each test file in parallel ────────────────────────
   pipeline:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: install
 
     strategy:
@@ -129,7 +132,7 @@ jobs:
 
   # ── Job 3: Merge artifacts + build GitHub Pages index ────────────────────────
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: pipeline
 
     steps:
@@ -310,7 +313,7 @@ jobs:
 
   # ── Job 4: Deploy to GitHub Pages (push to main only) ────────────────────────
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: verify
     if: github.event_name == 'push'
 
