@@ -177,24 +177,55 @@ def build_cover_chain(switch_meta, base_id):
 
 
 class SourceRewriter:
-    """Collects source edits and applies them safely end-to-start"""
+    """Collects edits as wraps (text before + text after a byte range) and applies them inside-out.
+
+    Decisions can nest: a ?: inside an if condition gives a wrap inside a wrap. The inner wrap
+    is applied first and the outer one wraps the result, so no decision is lost and no text is
+    duplicated (the old replace-by-range version copied overlapping ranges twice).
+    Edits must nest or be disjoint; a partial overlap raises ValueError.
+    """
 
     def __init__(self, source: bytes):
         self.source = source
         self.edits  = []
 
-    def replace(self, start, end, text):
-        self.edits.append((start, end, text))
+    def wrap(self, start, end, before, after):
+        self.edits.append((start, end, before, after))
+
+    def insert(self, pos, text):
+        self.wrap(pos, pos, text, '')
 
     def apply(self):
-        result = []
-        prev = 0
-        for start, end, text in sorted(self.edits, key=lambda e: e[0]):
-            result.append(self.source[prev:start])
-            result.append(text.encode())
-            prev = end
-        result.append(self.source[prev:])
-        return b''.join(result).decode('utf-8')
+        src    = self.source
+        parts  = [[]]       # parts[-1]: output of the innermost open wrap (parts[0]: whole file)
+        opened = []         # (end, before, after) of open wraps, innermost last
+        pos    = 0
+
+        def close():
+            nonlocal pos
+            end, before, after = opened.pop()
+            parts[-1].append(src[pos:end])
+            pos = end
+            inner = b''.join(parts.pop())
+            parts[-1].append(before.encode() + inner + after.encode())
+
+        # outer before inner when two edits start at the same byte
+        for start, end, before, after in sorted(self.edits, key=lambda e: (e[0], -e[1])):
+            while opened and opened[-1][0] <= start:
+                close()
+            if opened and end > opened[-1][0]:
+                raise ValueError(f"overlapping edits at bytes {start}-{end}")
+            parts[-1].append(src[pos:start])
+            pos = start
+            if start == end:
+                parts[-1].append(before.encode() + after.encode())
+                continue
+            opened.append((end, before, after))
+            parts.append([])
+        while opened:
+            close()
+        parts[0].append(src[pos:])
+        return b''.join(parts[0]).decode('utf-8')
 
 
 def strip_verifier_boilerplate(code: str) -> str:
@@ -313,10 +344,9 @@ def instrument_code(source_code, branches, start_id=1):
             if condition_node:
                 cond_start     = condition_node.start_byte
                 cond_end       = condition_node.end_byte
-                condition_text = source_code[cond_start:cond_end].decode('utf-8')
-                # Keep the condition's own parentheses inside cover(): a top-level comma
-                # (while (f(), x)) would otherwise split the macro arguments.
-                rewriter.replace(cond_start, cond_end, f"(cover({condition_text}, {current_id}))")
+                # (cond) -> (cover((cond), id)): the condition keeps its own parentheses inside
+                # cover(), so a top-level comma (while (f(), x)) cannot split the macro arguments.
+                rewriter.wrap(cond_start, cond_end, "(cover(", f", {current_id}))")
                 current_id += 1
 
         elif branch_type == 'for_statement':
@@ -326,7 +356,7 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f" cover(({condition_text}), {current_id}) ")
+                    rewriter.wrap(cond_start, cond_end, " cover((", f"), {current_id}) ")
                     current_id += 1
 
         elif branch_type == 'switch_statement':
@@ -334,7 +364,7 @@ def instrument_code(source_code, branches, start_id=1):
             if not switch_meta['cases']:
                 continue
             cover_chain = build_cover_chain(switch_meta, current_id)
-            rewriter.replace(node.start_byte, node.start_byte, cover_chain)
+            rewriter.insert(node.start_byte, cover_chain)
             has_default = any(c['kind'] == 'default' for c in switch_meta['cases'])
             current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
@@ -347,7 +377,7 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f"cover(({condition_text}), {current_id})")
+                    rewriter.wrap(cond_start, cond_end, "cover((", f"), {current_id})")
                     current_id += 1
 
     code = rewriter.apply()

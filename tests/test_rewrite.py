@@ -83,6 +83,48 @@ class RewriteKeepsBehaviour(unittest.TestCase):
         # f runs for n = -3..9: n & 3 == 1 for 4 of them, == 2 for 3, default for the other 6.
         self.assertEqual([cov[1][0], cov[2][0], cov[3][0]], [4, 3, 6])
 
+    # R1: a decision inside another decision's condition gave overlapping edits, and the old
+    # SourceRewriter copied the overlapped text twice. Each test also checks that the inner
+    # decision is counted (inside-out: no decision lost).
+    def test_ternary_inside_if_condition(self):      # lua.c:480
+        cov = self.check('static int g(int x) { return x; }\n'
+                         'int f(int n) { if (g(n > 0 ? 1 : 2) == 1) return 7; return 8; }\n', 2)
+        self.assertEqual(cov[2], (9, 4))             # n > 0 for 9 of the 13 inputs -3..9
+
+    def test_ternary_in_call_inside_negated_if(self):   # lvm.c:184
+        self.check('static int h(int a, int b) { return a + b > 4; }\n'
+                   'int f(int n) { if (!h(n, (n < 0 ? 3 : 4))) return 1; return 2; }\n', 2)
+
+    def test_ternary_inside_while_condition(self):   # liolib.c:472
+        self.check('int f(int n) { int k = 0; while ((n & 1 ? k < 3 : k < 5) && k < 10) k++; return k; }\n', 2)
+
+    def test_ternary_in_subtraction_inside_if(self):  # infback.c:565
+        self.check('int f(int n) { int w = 4; if (n > w - (n < w ? 1 : 0)) return 1; return 0; }\n', 2)
+
+    def test_ternary_in_ternary_condition(self):
+        self.check('int f(int n) { return (n > 0 ? n : -n) > 3 ? 1 : 0; }\n', 2)
+
+    def test_ternary_inside_for_condition(self):
+        self.check('int f(int n) { int i, s = 0; for (i = 0; i < (n > 0 ? n : 0); i++) s += i; return s; }\n', 2)
+
+
+class SourceRewriterUnit(unittest.TestCase):
+    def test_nested_wraps_apply_inside_out(self):
+        src = b'if (g(a ? 1 : 2)) x;'
+        rw = I.SourceRewriter(src)
+        outer = src.index(b'(g(');                  # (g(a ? 1 : 2))
+        rw.wrap(outer, src.index(b' x;'), '(cover(', ', 1))')
+        rw.wrap(src.index(b'a'), src.index(b'a') + 1, 'cover((', '), 2)')
+        rw.insert(0, '/*chain*/')
+        self.assertEqual(rw.apply(), '/*chain*/if (cover((g(cover((a), 2) ? 1 : 2)), 1)) x;')
+
+    def test_partial_overlap_is_an_error(self):
+        rw = I.SourceRewriter(b'0123456789')
+        rw.wrap(1, 5, '[', ']')
+        rw.wrap(3, 8, '<', '>')
+        with self.assertRaises(ValueError):
+            rw.apply()
+
 
 if __name__ == '__main__':
     unittest.main()
