@@ -137,6 +137,8 @@ class FailLoudly(unittest.TestCase):
             C.resource_dir(clang='no-such-clang-binary')
 
     def test_resource_dir_without_builtin_headers(self):
+        C.resource_dir.cache_clear()             # resource_dir() is cached; force a real call
+        self.addCleanup(C.resource_dir.cache_clear)
         with tempfile.TemporaryDirectory() as d:
             fake = mock.Mock(stdout=d + '\n')
             with mock.patch.object(C.subprocess, 'run', return_value=fake):

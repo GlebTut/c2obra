@@ -10,7 +10,7 @@ Uses the libclang Python bindings (pip: libclang==18.1.1). The pip wheel ships n
 builtin headers (stddef.h, stdarg.h ...), so the resource directory of an installed clang is
 passed with -isystem; without it libclang silently returns a partial AST.
 """
-import ctypes, os, subprocess
+import bisect, ctypes, functools, os, subprocess
 from collections import Counter
 import clang.cindex as ci
 
@@ -34,8 +34,10 @@ class ClangScanError(Exception):
     """The scan cannot be trusted: no resource dir, or the compiler reported an error."""
 
 
+@functools.lru_cache(maxsize=None)
 def resource_dir(clang='clang'):
-    """Clang resource directory (holds the builtin headers). Stops with a clear error if missing."""
+    """Clang resource directory (holds the builtin headers). Stops with a clear error if missing.
+    Cached: running clang costs ~11 ms, once per process is enough."""
     try:
         out = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True, check=True)
     except (OSError, subprocess.CalledProcessError) as e:
@@ -80,29 +82,52 @@ def _depth0(tokens):
             yield i, t
 
 
-def _is_gnu_conditional(cursor, tokens):
+def _is_gnu_conditional(cursor):
     """GNU 'a ?: b' (BinaryConditionalOperator) has no cursor kind in libclang 18: it is an
-    UNEXPOSED_EXPR with 4 children whose own tokens have '?' directly followed by ':'."""
+    UNEXPOSED_EXPR with 4 children whose own tokens have '?' directly followed by ':'.
+    The cheap checks come first: most UNEXPOSED_EXPRs are implicit casts with one child."""
     if cursor.kind != K.UNEXPOSED_EXPR or len(list(cursor.get_children())) != 4:
         return False
-    top = [t for _, t in _depth0(tokens)]
+    top = [t for _, t in _depth0([t.spelling for t in cursor.get_tokens()])]
     return any(a == '?' and b == ':' for a, b in zip(top, top[1:]))
 
 
-def _file_tokens(tu, cursor):
-    """Tokens of the FILE text covered by the cursor's extent, without comments.
-    cursor.get_tokens() is not enough: for a macro-produced statement it returns the tokens
-    of the macro definition (e.g. 'if' for WHEN_POS(a)), not what is written in the file."""
+class _FileTokens:
+    """The main file's tokens (comments dropped), lexed ONCE per translation unit.
+
+    Why not cursor.get_tokens(): for a macro-produced statement it returns the tokens of the
+    macro definition (e.g. 'if' for WHEN_POS(a)), not what is written in the file.
+    Why not lex each decision's extent: a statement's extent includes its body, so nested
+    decisions re-lex the same text again and again (4.4M tokens for 145 SV-COMP files)."""
+
+    def __init__(self, tu, path):
+        f = tu.get_file(path)
+        size = os.path.getsize(path)
+        r = ci.SourceRange.from_locations(ci.SourceLocation.from_offset(tu, f, 0),
+                                          ci.SourceLocation.from_offset(tu, f, size))
+        toks = [t for t in tu.get_tokens(extent=r) if t.kind != ci.TokenKind.COMMENT]
+        self.offsets = [t.location.offset for t in toks]
+        self.spellings = [t.spelling for t in toks]
+
+    def between(self, start, end, limit=None):
+        """Spellings of tokens starting in [start, end); at most `limit` of them."""
+        i = bisect.bisect_left(self.offsets, start)
+        j = bisect.bisect_left(self.offsets, end)
+        if limit is not None:
+            j = min(j, i + limit)
+        return self.spellings[i:j]
+
+
+def _decision_tokens(ftoks, cursor, kind):
+    """File tokens needed to classify a decision: the keyword for if/while/do/switch, the
+    whole statement for 'for' (header scan stops at its ')'), the expression for '?:'."""
     e = cursor.extent
-    f = cursor.location.file
-    r = ci.SourceRange.from_locations(ci.SourceLocation.from_offset(tu, f, e.start.offset),
-                                      ci.SourceLocation.from_offset(tu, f, e.end.offset))
-    return [t.spelling for t in tu.get_tokens(extent=r) if t.kind != ci.TokenKind.COMMENT]
+    return ftoks.between(e.start.offset, e.end.offset, limit=1 if kind in KEYWORD and kind != 'for' else None)
 
 
 def _from_macro(cursor, kind, tokens):
     """True if the decision's keyword / '?' is not written in the file text at its location.
-    `tokens` are the file tokens (_file_tokens). Two checks, because libclang exposes no
+    `tokens` are the file tokens (_decision_tokens). Two checks, because libclang exposes no
     isMacroID():
       - spelling != expansion offset: the decision sits in a macro argument;
       - the file tokens do not start with the keyword (or have no top-level '?'): the
@@ -173,26 +198,45 @@ def scan(path, user_flags=(), res_dir=None):
             + "\n  A missing -D or -I in CFLAGS is the usual cause.")
 
     main = os.path.realpath(path)
+    is_main = {}                                          # file name -> bool (realpath is slow)
+
+    def in_main(loc):
+        if loc.file is None:
+            return False
+        name = loc.file.name
+        if name not in is_main:
+            is_main[name] = os.path.realpath(name) == main
+        return is_main[name]
+
+    ftoks = _FileTokens(tu, path)
     out = []
-    for c in tu.cursor.walk_preorder():
-        loc = c.location                                  # expansion location
-        if loc.file is None or os.path.realpath(loc.file.name) != main:
+    # Top-level declarations from headers (most of the cursors when stdio.h etc. are included)
+    # are skipped as whole subtrees; inside a main-file declaration every cursor is checked.
+    for top in tu.cursor.get_children():
+        if not in_main(top.location):
             continue
-        kind = KINDS.get(c.kind)
-        if kind is None:
-            if c.kind != K.UNEXPOSED_EXPR or not _is_gnu_conditional(c, [t.spelling for t in c.get_tokens()]):
+        stack = [top]
+        while stack:              # explicit stack: Cursor.walk_preorder() is a recursive generator,
+            c = stack.pop()       # O(cursors x depth), slow on deeply nested CIL-reduced files
+            stack.extend(reversed(list(c.get_children())))   # reversed: pop in preorder
+            loc = c.location                              # expansion location
+            if not in_main(loc):
                 continue
-            kind = '?:'
-        tokens = _file_tokens(tu, c)
-        out.append({
-            'kind':          kind,
-            'line':          loc.line,
-            'col':           loc.column,
-            'offset':        loc.offset,
-            'from_macro':    _from_macro(c, kind, tokens),
-            'has_condition': _for_has_condition(tokens) if kind == 'for' else None,
-            'n_cases':       _count_cases(c) if kind == 'switch' else None,
-        })
+            kind = KINDS.get(c.kind)
+            if kind is None:
+                if not _is_gnu_conditional(c):
+                    continue
+                kind = '?:'
+            tokens = _decision_tokens(ftoks, c, kind)
+            out.append({
+                'kind':          kind,
+                'line':          loc.line,
+                'col':           loc.column,
+                'offset':        loc.offset,
+                'from_macro':    _from_macro(c, kind, tokens),
+                'has_condition': _for_has_condition(tokens) if kind == 'for' else None,
+                'n_cases':       _count_cases(c) if kind == 'switch' else None,
+            })
     out.sort(key=lambda d: d['offset'])
     return out
 
