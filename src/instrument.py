@@ -265,7 +265,8 @@ def is_instrumentable(branch, source_code):
     Both instrument_code() and write_branch_map() iterate over the constructs this accepts,
     so the IDs in the instrumented source and the entries in branch_map.json cannot drift
     apart. A construct is skipped (consumes no ID, appears in no map) when there is nothing
-    to wrap: no condition expression (for(;;)), or a switch with no case/default labels.
+    to wrap: no condition expression (for(;;)), or a switch with no condition node or no
+    case/default labels.
     """
     node = branch['node']
     kind = branch['type']
@@ -275,7 +276,7 @@ def is_instrumentable(branch, source_code):
         cond = get_for_condition_node(node)
         return cond is not None and source_code[cond.start_byte:cond.end_byte].decode('utf-8').strip() != ''
     if kind == 'switch_statement':
-        return bool(get_switch_cases(node, source_code)['cases'])
+        return get_condition_node(node) is not None and bool(get_switch_cases(node, source_code)['cases'])
     if kind == 'conditional_expression':
         cond = node.children[0] if node.children else None
         return cond is not None and source_code[cond.start_byte:cond.end_byte].decode('utf-8').strip() != ''
@@ -355,10 +356,9 @@ def instrument_code(source_code, branches, start_id=1):
                     current_id += 1
 
         elif branch_type == 'switch_statement':
+            # is_instrumentable() guarantees a condition node and at least one label
             switch_meta = get_switch_cases(node, source_code)
             condition_node = get_condition_node(node)
-            if not switch_meta['cases'] or condition_node is None:
-                continue
             # switch (E) -> switch (({ __typeof__((E) + 0) v = (E); <chain on v>; v; })):
             # E is evaluated once (a GNU statement expression; __typeof__ does not evaluate its
             # operand, and its copy of E is the original text, so it holds no cover() call).

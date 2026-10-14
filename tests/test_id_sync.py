@@ -65,6 +65,37 @@ class IdSync(unittest.TestCase):
     def test_no_branches(self):
         self.assertEqual(self.check("i=1;"), [])
 
+    def test_switch_without_condition_node(self):
+        # instrument_code() cannot wrap a switch whose condition node is missing; is_instrumentable()
+        # must reject it too, or write_branch_map() gives it IDs and every later ID shifts.
+        # Tree-sitter always gives switch (x) a parenthesized_expression, so the node is hand-built.
+        class NoCondition:
+            def __init__(self, node):
+                self._node = node
+                self.children = [c for c in node.children if c.type != 'parenthesized_expression']
+
+            def __getattr__(self, name):
+                return getattr(self._node, name)
+
+        src_text = ("int main(void){int i=0;\nif(i>0){i=1;}\nswitch(i){case 1: break; default: break;}\n"
+                    "while(i<3){i++;}\nreturn i;}\n")
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, 't.c')
+            with open(path, 'w') as f:
+                f.write(src_text)
+            tree, src = I.parse_c_file(path)
+            branches = I.find_branches(tree)
+            for b in branches:
+                if b['type'] == 'switch_statement':
+                    b['node'] = NoCondition(b['node'])
+            self.assertTrue(any(isinstance(b['node'], NoCondition) for b in branches))
+            code = I.instrument_code(src, branches)
+            I.write_branch_map(branches, src, os.path.join(d, 'm.json'), path)
+            with open(os.path.join(d, 'm.json')) as f:
+                mapped = [b['id'] for b in json.load(f)['branches']]
+        self.assertEqual(cover_ids(code), mapped)
+        self.assertEqual(mapped, [1, 2])        # the if and the while; the switch gets no ID
+
 
 if __name__ == '__main__':
     unittest.main()
