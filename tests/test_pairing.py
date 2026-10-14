@@ -66,10 +66,10 @@ class InstrumentFile(unittest.TestCase):
     def test_flags_choose_the_ifdef_arm(self):
         path = os.path.join(CORPUS, 'c03_ifdef_split_braces.c')
         _, _, inst, _ = run(path, flags=[])
-        self.assertIn('if (cover(a >= 0, 1))', inst)
+        self.assertIn('if (cover((a >= 0), 1))', inst)
         self.assertNotIn('cover(a > 0', inst)
         _, _, inst, _ = run(path, flags=['-DFAST'])
-        self.assertIn('if (cover(a > 0, 1))', inst)
+        self.assertIn('if (cover((a > 0), 1))', inst)
         self.assertNotIn('cover(a >= 0', inst)
 
     def test_define_adds_a_branch(self):
@@ -82,7 +82,7 @@ class InstrumentFile(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('Skipped 1 Clang decision(s): macro', out)
         self.assertEqual(ids, [1])
-        self.assertIn('if (cover(IS_NEG(a), 1))', inst)
+        self.assertIn('if (cover((IS_NEG(a)), 1))', inst)
 
     def test_for_without_condition_is_not_wrapped(self):
         # Known issue (CLAUDE.md): the old get_for_condition_node fallback wrapped the initializer.

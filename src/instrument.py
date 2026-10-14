@@ -158,7 +158,8 @@ def build_cover_chain(switch_meta, base_id):
     for i, case in enumerate(cases):
         prefix = "if " if i == 0 else "else if "
         if case['kind'] == 'case':
-            condition = f"{expr} == {case['value']}"
+            # parenthesised: switch (x & 3) case 1 must not become x & 3 == 1
+            condition = f"({expr}) == ({case['value']})"
             line = f"{prefix}(cover({condition}, {current_id})) ;"
         else:
             line = f"else cover(1, {current_id});"
@@ -313,8 +314,9 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_start     = condition_node.start_byte
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8')
-                inner = condition_text[1:-1] if condition_text.startswith('(') and condition_text.endswith(')') else condition_text
-                rewriter.replace(cond_start, cond_end, f"(cover({inner}, {current_id}))")
+                # Keep the condition's own parentheses inside cover(): a top-level comma
+                # (while (f(), x)) would otherwise split the macro arguments.
+                rewriter.replace(cond_start, cond_end, f"(cover({condition_text}, {current_id}))")
                 current_id += 1
 
         elif branch_type == 'for_statement':
@@ -324,7 +326,7 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f" cover({condition_text}, {current_id}) ")
+                    rewriter.replace(cond_start, cond_end, f" cover(({condition_text}), {current_id}) ")
                     current_id += 1
 
         elif branch_type == 'switch_statement':
@@ -345,7 +347,7 @@ def instrument_code(source_code, branches, start_id=1):
                 cond_end       = condition_node.end_byte
                 condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
                 if condition_text:
-                    rewriter.replace(cond_start, cond_end, f"cover({condition_text}, {current_id})")
+                    rewriter.replace(cond_start, cond_end, f"cover(({condition_text}), {current_id})")
                     current_id += 1
 
     code = rewriter.apply()
