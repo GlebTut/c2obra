@@ -1,0 +1,16 @@
+file,total_edges,covered_edges,note
+d01_if.c,4,3,only_true: false edge not covered
+d02_else_if.c,4,3,decision 2 false edge (x>0) not covered
+d03_while.c,4,3,only_exit: true edge not covered
+d04_for.c,2,2,
+d05_do_while.c,4,3,only_exit: repeat edge not covered
+d06_while1.c,4,3,while(1) false edge infeasible by construction
+d07_for_infinite.c,4,3,CONFIRMED 2026-10-16: for(;;) counted like while(1)
+d08_ternary.c,4,3,only_true: false edge not covered
+d09_switch_default.c,3,3,
+d10_switch_no_default.c,3,2,CONFIRMED 2026-10-16: implicit default not covered
+d11_switch_fallthrough.c,3,1,only the selected label counts; case 2 and default not covered
+d12_switch_stacked.c,4,2,CONFIRMED 2026-10-16: labels 1 and 3 covered; label 2 and implicit default not
+d13_switch_side_effect.c,3,1,also: exit code of instrumented program must equal original (1)
+d14_logical_ops.c,2,2,one decision
+d15_macros.c,2,1,3 macro decisions skipped (libc dependent)
