@@ -197,11 +197,15 @@ and a per-file table with coverage %, branch counts, and colour-coded status row
 
 ## Coverage Model
 
-C²oBra uses an **edge-based branch coverage model** consistent with gcov:
+C²oBra uses an **edge-based branch coverage model**:
 
 ```
 coverage % = edges hit / edges that exist × 100
 ```
+
+This is not gcov's model. gcov counts each operand of `&&` and `||` as its own branch
+(`if (a > 0 && b > 0)` gives 4 branches with GCC 13.3 at `-O0`), while C²oBra counts the whole
+decision as 2 edges, so the two differ on compound conditions.
 
 The edges that exist are listed in the branch map (`"edges"` in `<file>_branch_map.json`);
 `src/edges.py` turns the map and the hit counts into covered/total for every report.
