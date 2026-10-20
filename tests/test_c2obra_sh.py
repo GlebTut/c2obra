@@ -150,6 +150,16 @@ int main(void) {
 '''
 
 
+def can_build_m32():
+    """gcc -m32 needs gcc-multilib (32-bit libc); CI runners may not have it."""
+    with tempfile.TemporaryDirectory() as d:
+        c = os.path.join(d, 'm.c')
+        with open(c, 'w') as f:
+            f.write('#include <stdio.h>\nint main(void) { puts("x"); return 0; }\n')
+        return subprocess.run(['gcc', '-m32', c, '-o', os.path.join(d, 'm')],
+                              capture_output=True).returncode == 0
+
+
 def elf_class(path):
     """1 = 32-bit ELF, 2 = 64-bit ELF."""
     with open(path, 'rb') as f:
@@ -211,8 +221,11 @@ class NewEnvVars(unittest.TestCase):
         self.assertIn('No test-suite provided', log)
 
     def test_data_model(self):
+        m32 = can_build_m32()
         for dm, flag, cls in (('ILP32', '-m32', 1), ('LP64', '-m64', 2), ('-m32', '-m32', 1)):
             with self.subTest(dm=dm):
+                if flag == '-m32' and not m32:
+                    self.skipTest('gcc -m32 cannot link here (install gcc-multilib)')
                 out = 'res_' + dm.strip('-')
                 code, log = run_c2obra(self.d, 'in/nondet.c', DATA_MODEL=dm, OUT_DIR=out)
                 self.assertEqual(code, 0, log)
