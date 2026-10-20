@@ -84,14 +84,15 @@ class InstrumentFile(unittest.TestCase):
         self.assertEqual(ids, [1])
         self.assertIn('if (cover((IS_NEG(a)), 1))', inst)
 
-    def test_for_without_condition_is_not_wrapped(self):
-        # Known issue (CLAUDE.md): the old get_for_condition_node fallback wrapped the initializer.
+    def test_for_without_condition_gets_cover_in_its_empty_slot(self):
+        # for(;;) counts like while(1). Regression guard: the old get_for_condition_node fallback
+        # took the initializer (i = 0) as the condition; it must stay unwrapped.
         with tempfile.TemporaryDirectory() as d:
             p = write_tmp(d, 'int f(int n) { int i; for (i = 0; ; i++) if (i > n) break; return i; }\n')
             code, _, inst, ids = run(p, flags=[])
         self.assertEqual(code, 0)
-        self.assertIn('for (i = 0; ; i++)', inst)
-        self.assertEqual(ids, [1])
+        self.assertIn('for (i = 0; cover((1), 1); i++)', inst)
+        self.assertEqual(ids, [1, 2])
 
     def test_switch_labels_from_macro_stop_instrumentation(self):
         code, out, _, _ = run(os.path.join(CORPUS, 'c07_xmacro_switch.c'), flags=[])

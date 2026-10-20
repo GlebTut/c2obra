@@ -43,8 +43,8 @@ def expectations(path):
 
 
 def got(path, flags=()):
-    """Decisions in the compiled program. for(;;) is reported by the scan but is not a decision
-    (the filter skips it), and the E: comments do not list it."""
+    """Decisions in the compiled program, as listed by the E: comments. Those comments do not
+    list for(;;) (has_condition False), so it is left out here; the filter does count it."""
     return Counter((d['kind'], d['line']) for d in C.scan(path, list(flags)) if d['has_condition'] is not False)
 
 
@@ -99,10 +99,12 @@ class CorpusCExpectations(unittest.TestCase):
 
 
 class Filter(unittest.TestCase):
-    def test_for_without_condition_is_skipped(self):
+    def test_for_without_condition_is_kept(self):
+        # for(;;) counts like while(1) (tests/definition/d07)
         kept, skipped = C.decisions(os.path.join(CORPUS, 'c11_kr_and_oddities.c'))
-        self.assertEqual(skipped, Counter({'for_no_cond': 1}))
-        self.assertEqual([(d['kind'], d['line']) for d in kept], [('for', 7), ('if', 8), ('if', 8)])
+        self.assertEqual(skipped, Counter())
+        self.assertEqual([(d['kind'], d['line']) for d in kept],
+                         [('for', 6), ('for', 7), ('if', 8), ('if', 8)])
 
     def test_macro_decisions_are_skipped_and_counted(self):
         kept, skipped = C.decisions(os.path.join(CORPUS, 'c01_macro_with_if.c'))
@@ -120,8 +122,9 @@ class Filter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = write_tmp(d, 'int f(int n) { int i; for (i = 0; ; i++) if (i > n) break; return i; }\n')
             kept, skipped = C.decisions(p)
-        self.assertEqual([d['kind'] for d in kept], ['if'])
-        self.assertEqual(skipped, Counter({'for_no_cond': 1}))
+        self.assertEqual([d['kind'] for d in kept], ['for', 'if'])
+        self.assertEqual([d['has_condition'] for d in kept], [False, None])
+        self.assertEqual(skipped, Counter())
 
     def test_switch_cases_of_nested_switch_are_not_counted(self):
         with tempfile.TemporaryDirectory() as d:
