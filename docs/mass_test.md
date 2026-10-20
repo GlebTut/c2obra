@@ -61,7 +61,7 @@ The first failing stage decides the status (`stage` column: where it stopped).
 
 The stage inside c2obra.sh is the last `=== Step N` marker in its log: under `set -e` a gcc
 failure exits before `❌ Compilation failed` is printed, so that line cannot be relied on.
-Every Floats task gets `detail.notes = ["floats_stub_unfixed"]` (see Known limitations).
+`detail.notes` lists known defects that make a task's numbers unreliable (none at present).
 
 ## Timeouts
 
@@ -149,7 +149,8 @@ threads), and the `seconds` columns would no longer be usable for timing claims.
 - **Line markers inside expressions** (gcc puts them inside `assert()` expansions) stop
   pairing; the driver cleans them when line 1 is a marker. A `.i` whose line 1 is not a marker
   is not cleaned.
-- **`verifier_stubs.c`** (not changed): `__VERIFIER_nondet_float/double` return 0 without
-  reading an input, so Floats coverage is not reliable (`floats_stub_unfixed`); many nondet
-  types have no stub (e.g. `ulong`, `size_t`, Intel-TDX struct types) → `compile_error` with
-  `missing_symbols`.
+- **`verifier_stubs.c`**: each nondet stub reads one token (strtoll / strtoull / strtod, Prolog
+  `<num>Inf`/`<num>NaN` accepted); `__VERIFIER_nondet_memory` zero-fills and reads nothing,
+  because Sikraken writes no input for it. Types Sikraken rejects (`pointer`, `pchar`, `int128`,
+  `uint128`, `loff_t`, `sector_t`, `pthread_t`) have no stub → `compile_error` with
+  `missing_symbols`. Prolog prints doubles with about 15 significant digits.

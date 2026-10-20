@@ -82,11 +82,10 @@ def uses_nondet(text):
 
 
 def notes_for(row):
-    """Known defects that make a task's numbers unreliable, recorded with its result."""
-    notes = []
-    if row.get('category') == 'Floats':
-        notes.append('floats_stub_unfixed')   # verifier_stubs.c float/double read no input
-    return notes
+    """Known defects that make a task's numbers unreliable, recorded with its result.
+    None at present ('floats_stub_unfixed' ended when the float/double stubs started
+    reading their input)."""
+    return []
 
 
 # ─── Classification ──────────────────────────────────────────────────────────

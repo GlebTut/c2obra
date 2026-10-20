@@ -282,10 +282,10 @@ class Results(unittest.TestCase):
         return base
 
     def test_csv_row(self):
-        row = S.csv_row(self.result(sikraken_tests=None, detail={'notes': ['floats_stub_unfixed']}))
+        row = S.csv_row(self.result(sikraken_tests=None, detail={'notes': ['example_note']}))
         self.assertEqual(list(row), S.FIELDS)
         self.assertEqual(row['sikraken_tests'], '')
-        self.assertEqual(json.loads(row['detail']), {'notes': ['floats_stub_unfixed']})
+        self.assertEqual(json.loads(row['detail']), {'notes': ['example_note']})
 
     def test_atomic_write_replaces(self):
         with tempfile.TemporaryDirectory() as d:
@@ -301,14 +301,14 @@ class Results(unittest.TestCase):
                self.result(id='b', status='compile_error', stage='compile', seconds=9.0, edges_total=None,
                            detail={'missing_symbols': ['__VERIFIER_nondet_ulong', 'x']}),
                self.result(id='c', status='compile_error', stage='compile', category='Floats',
-                           detail={'missing_symbols': ['__VERIFIER_nondet_ulong'], 'notes': ['floats_stub_unfixed']}),
+                           detail={'missing_symbols': ['__VERIFIER_nondet_ulong'], 'notes': ['example_note']}),
                self.result(id='d', status='partial', edges_covered=1, edges_total=6, cleaned_markers=1)]
         text = S.summary(res, planned=6, wall_seconds=60)
         self.assertIn('4 finished of 6 planned (2 not done)', text)
         self.assertIn('    2  __VERIFIER_nondet_ulong', text)
         self.assertIn('    1  x', text)
         self.assertIn('ok+partial tasks (sum of per-task edges.edge_coverage()): 4/10 = 40.0%', text)
-        self.assertIn('Tasks with note floats_stub_unfixed: 1', text)
+        self.assertIn('Tasks with note example_note: 1', text)
         self.assertIn('Inputs with gcc line markers cleaned: 1', text)
         slow = text.split('10 slowest tasks:')[1].split('\n')[1]
         self.assertIn(' b', slow)

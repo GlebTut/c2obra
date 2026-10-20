@@ -45,8 +45,9 @@ echo '<testcase><input>4</input><input>2</input></testcase>'  > "$out/test-suite
 echo '<testcase><input>-1</input><input>3</input></testcase>' > "$out/test-suite/test_input-2.xml"
 '''
 
-ULONG_C = r'''extern unsigned long __VERIFIER_nondet_ulong(void);
-int main(void) { unsigned long x = __VERIFIER_nondet_ulong(); if (x > 3) return 1; return 0; }
+# __VERIFIER_nondet_pointer has no stub (Sikraken rejects it too): a link error
+NOSTUB_C = r'''extern void *__VERIFIER_nondet_pointer(void);
+int main(void) { void *x = __VERIFIER_nondet_pointer(); if (x) return 1; return 0; }
 '''
 INC_C = '#include "inc.h"\n' + TC.NONDET_C.replace('#include <stdio.h>', '#include <stdio.h>\n#define UNUSED INC_ONE')
 INC_H = '#define INC_ONE 1\n'
@@ -77,7 +78,7 @@ def build_tree(root):
         'marked':   ('Arrays', 'arr/marked', '.i', marked, 'LP64'),
         'xmacro':   ('ECA', 'eca/xmacro', '.c', read(os.path.join(HERE, 'corpusC', 'c07_xmacro_switch.c')), 'LP64'),
         'floats':   ('Floats', 'floats/m', '.c', TC.LIBM_C, 'LP64'),
-        'ulong':    ('Combinations', 'comb/ulong', '.c', ULONG_C, 'LP64'),
+        'nostub':   ('Combinations', 'comb/nostub', '.c', NOSTUB_C, 'LP64'),
         'parse':    ('Hardness', 'hard/parse', '.c', '/* FAKE_PARSE_FAIL */\n' + TC.NONDET_C, 'LP64'),
         'missing':  ('XCSP', 'x/missing', '.c', None, 'LP64'),
         'sleep':    ('Sequentialized', 'seq/sleep', '.c', '/* FAKE_SLEEP */\n' + TC.NONDET_C, 'LP64'),
@@ -161,7 +162,7 @@ class FullBatch(unittest.TestCase):
 
     def test_statuses(self):
         want = {'plain': 'ok', 'tree_a': 'ok', 'tree_b': 'ok', 'marked': 'ok', 'xmacro': 'pairing_error',
-                'floats': 'ok', 'ulong': 'compile_error', 'parse': 'sikraken_parse',
+                'floats': 'ok', 'nostub': 'compile_error', 'parse': 'sikraken_parse',
                 'missing': 'input_missing', 'sleep': 'sikraken_timeout', 'inc': 'ok', 'm32': 'ok'}
         got = {n: self.r(n)['status'] for n in self.rows}
         self.assertEqual(got, {n: want[n] for n in self.rows})
@@ -183,8 +184,8 @@ class FullBatch(unittest.TestCase):
         self.assertTrue(glob.glob(os.path.join(self.rd, 'tasks', self.rows['marked']['id'], 'src', '*.i')))
 
     def test_compile_error_detail(self):
-        r, d = self.r('ulong'), self.detail('ulong')
-        self.assertEqual((r['stage'], d['missing_symbols']), ('compile', ['__VERIFIER_nondet_ulong']))
+        r, d = self.r('nostub'), self.detail('nostub')
+        self.assertEqual((r['stage'], d['missing_symbols']), ('compile', ['__VERIFIER_nondet_pointer']))
         self.assertEqual(r['edges_total'], '2')          # map exists, nothing ran
         self.assertEqual(r['edges_covered'], '')
 
@@ -199,7 +200,7 @@ class FullBatch(unittest.TestCase):
             self.assertFalse(alive(int(f.read())))
 
     def test_floats_note_and_headers(self):
-        self.assertEqual(self.detail('floats')['notes'], ['floats_stub_unfixed'])
+        self.assertNotIn('notes', self.detail('floats'))     # float stubs read inputs now
         self.assertEqual(self.detail('inc')['headers_copied'], 1)
 
     def test_data_model_reaches_sikraken(self):
@@ -215,14 +216,14 @@ class FullBatch(unittest.TestCase):
         ok_out = os.path.join(self.rd, 'tasks', self.rows['tree_a']['id'], 'out')
         self.assertEqual(glob.glob(os.path.join(ok_out, '*_inst.c')), [])
         self.assertTrue(glob.glob(os.path.join(ok_out, '*_branch_map.json')))
-        failed = os.path.join(self.rd, 'tasks', self.rows['ulong']['id'], 'out')
+        failed = os.path.join(self.rd, 'tasks', self.rows['nostub']['id'], 'out')
         self.assertTrue(glob.glob(os.path.join(failed, '*_inst.c')))
 
     def test_summary_and_run_json(self):
         with open(os.path.join(self.rd, 'summary.txt')) as f:
             text = f.read()
-        self.assertIn('    1  __VERIFIER_nondet_ulong', text)
-        self.assertIn('Tasks with note floats_stub_unfixed: 1', text)
+        self.assertIn('    1  __VERIFIER_nondet_pointer', text)
+        self.assertNotIn('floats_stub_unfixed', text)
         with open(os.path.join(self.rd, 'run.json')) as f:
             inv = json.load(f)['invocations'][0]
         self.assertEqual(len(inv['c2obra_commit']), 40)
