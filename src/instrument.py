@@ -507,8 +507,8 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
     if not os.path.exists(input_file):
         print(f"❌ Error: File '{input_file}' not found")
         sys.exit(1)
-    if not input_file.endswith('.c'):
-        print(f"❌ Error: Expected a .c file, got '{input_file}'")
+    if not input_file.endswith(('.c', '.i')):
+        print(f"❌ Error: Expected a .c or .i file, got '{input_file}'")
         sys.exit(1)
     output_dir = os.path.dirname(output_file)
     if output_dir and not os.path.exists(output_dir):
