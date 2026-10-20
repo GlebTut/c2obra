@@ -84,6 +84,29 @@ class RuntimeHeader(unittest.TestCase):
                 self.assertEqual(r.returncode, 2)
                 self.assertEqual(E.edge_coverage(branch_map, cov), (1, 2))
 
+    def test_program_with_own_size_t(self):
+        """Pilot2 2026-10-20: 5 tasks failed with "unknown type name 'size_t'". The program's own
+        typedef unsigned int size_t; was deleted by strip_verifier_boilerplate(), a pattern added
+        (310d799) when cov_runtime.h still included <stdio.h>, whose LP64 size_t conflicted."""
+        own_size_t = ('typedef unsigned int size_t;\n'
+                      'extern void *malloc(size_t);\n'
+                      'extern int __VERIFIER_nondet_int(void);\n'
+                      'int main(void) {\n'
+                      '    void *p = malloc((size_t)__VERIFIER_nondet_int());\n'
+                      '    if (p) return 0;\n'
+                      '    return 1;\n'
+                      '}\n')
+        models = [('-m64', 'LP64')] + ([('-m32', 'ILP32')] if can_build_m32() else [])
+        for flag, name in models:
+            with self.subTest(model=name), tempfile.TemporaryDirectory() as d:
+                inst, branch_map = instrument(d, 'own_size_t.c', own_size_t)
+                with open(inst) as f:
+                    self.assertIn('typedef unsigned int size_t;', f.read())
+                r, exe = build(d, inst, [flag])
+                self.assertEqual(r.returncode, 0, r.stderr)
+                r, cov = run(d, exe, ['16'])
+                self.assertEqual((r.returncode, E.edge_coverage(branch_map, cov)), (0, (1, 2)))
+
     def test_preprocessed_glibc_types(self):
         """gcc -E of a program using <sys/types.h>: the .i holds glibc's __fsid_t and uint64_t."""
         with tempfile.TemporaryDirectory() as d:

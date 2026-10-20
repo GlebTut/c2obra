@@ -34,7 +34,6 @@ VERIFIER_STUB_PATTERNS = [
     r'void\s+reach_error\s*\([^)]*\)\s*\{[^}]*\}',
     r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[^}]*\}',
     r'extern\s+[^;]*__assert_fail[^;]*;',
-    r'typedef\s+unsigned\s+int\s+size_t\s*;',
 ]
 
 
@@ -232,7 +231,9 @@ def strip_verifier_boilerplate(code: str) -> str:
         r'extern\s+[^;]*__assert_fail[^;]*;',
         r'extern\s+[^;]*__assert_perror_fail[^;]*;',
         r'extern\s+[^;]*__assert\s*\([^;]*;',
-        r'typedef\s+unsigned\s+int\s+size_t\s*;',
+        # No longer stripped: 'typedef unsigned int size_t;' (added in 310d799 because
+        # cov_runtime.h then included <stdio.h>, whose LP64 size_t conflicted with it). Since
+        # 24672ad the header includes nothing, and the program needs its own typedef.
     ]
     for pattern in simple_patterns:
         code = re.sub(pattern, '', code, flags=re.DOTALL)
