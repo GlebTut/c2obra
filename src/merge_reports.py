@@ -7,15 +7,17 @@ Reads all *_branch_map.json + *_coverage.json in a directory and outputs:
 
 import sys, json, os
 from datetime import datetime
+import edges as E
 
 
 def load_branch_map(path):
+    """The whole map ({"branches": [...], "edges": [...]}); {} if it cannot be read."""
     try:
         with open(path) as f:
-            return json.load(f)["branches"]
-    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"\u26a0\ufe0f  Skipping {path}: {e}")
-        return []
+        return {}
 
 
 def load_coverage(path):
@@ -30,14 +32,8 @@ def load_coverage(path):
 
 
 def compute_stats(branch_map, coverage):
-    total_edges   = len(branch_map) * 2
-    covered_edges = 0
-    for b in branch_map:
-        hits = coverage.get(int(b["id"]), {})
-        if hits.get("true",  0) > 0:
-            covered_edges += 1
-        if hits.get("false", 0) > 0:
-            covered_edges += 1
+    """(total edges, covered edges, pct) for one file, via edges.edge_coverage()."""
+    covered_edges, total_edges = E.edge_coverage(branch_map, coverage) if branch_map else (0, 0)
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0.0
     return total_edges, covered_edges, pct
 
@@ -58,7 +54,11 @@ def collect_file_stats(directory):
 
         branch_map = load_branch_map(map_path)
         coverage   = load_coverage(cov_path)
-        total_edges, covered_edges, pct = compute_stats(branch_map, coverage)
+        try:
+            total_edges, covered_edges, pct = compute_stats(branch_map, coverage)
+        except E.MissingEdgesError as e:
+            print(f"\u274c Error: {map_path}: {e}")
+            sys.exit(1)
 
         files.append({
             "name":          base.replace("_inst", ".c"),

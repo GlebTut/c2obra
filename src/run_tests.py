@@ -2,6 +2,7 @@
 import os, sys, glob, subprocess, json, resource, signal, argparse, tempfile, shutil, time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import edges as E
 
 
 
@@ -148,10 +149,10 @@ def merge_coverage(all_coverages):
 
 
 def load_branch_map(map_file):
+    """The whole map ({"branches": [...], "edges": [...]}); {} if missing or malformed."""
     try:
         with open(map_file) as f:
-            data = json.load(f)
-        return {b['id']: b for b in data['branches']}
+            return json.load(f)
     except FileNotFoundError:
         print(f"⚠️  Branch map '{map_file}' not found — running without metadata")
         return {}
@@ -166,9 +167,10 @@ def load_branch_map(map_file):
 
 
 
-def print_summary(merged, branch_map=None, test_inputs_log=None):
-    if branch_map is None:
-        branch_map = {}
+def print_summary(merged, map_data=None, test_inputs_log=None):
+    """map_data: the loaded branch map (with "edges"); None/{} = no map, edge totals unknown."""
+    map_data   = map_data or {}
+    branch_map = {b['id']: b for b in map_data.get('branches', [])}
     if test_inputs_log is None:
         test_inputs_log = []
 
@@ -180,9 +182,14 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
 
     all_ids       = sorted(set(list(branch_map.keys()) + list(merged.keys())))
     total         = len(branch_map) if branch_map else len(merged)
-    total_edges   = total * 2
-    covered_true  = 0
-    covered_false = 0
+    # Edges: the shared definition in edges.py (a switch label has 1 edge, a decision 2)
+    if map_data:
+        covered_edges, total_edges = E.edge_coverage(map_data, merged)
+        rows = E.row_status(map_data, merged)
+    else:
+        print("⚠️  No branch map — edge totals unavailable")
+        covered_edges, total_edges, rows = 0, 0, {}
+    sides = E.sides_by_id(map_data) if map_data else {}
     report_branches = []
 
     for bid in all_ids:
@@ -192,17 +199,12 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
         btype = meta.get('type', '?').replace('_statement', '').replace('_', '-')
         t_hit = b["true"]  > 0
         f_hit = b["false"] > 0
-        if t_hit: covered_true  += 1
-        if f_hit: covered_false += 1
-        t = "✅" if t_hit else "❌"
-        f = "✅" if f_hit else "❌"
-        covered = t_hit and f_hit
-        if covered:
-            branch_status = "FULL"
-        elif t_hit or f_hit:
-            branch_status = "PARTIAL"
-        else:
-            branch_status = "NONE"
+        # "—": this counter side is not an edge (a switch label's false side)
+        t = "—" if bid in sides and "true"  not in sides[bid] else ("✅" if t_hit else "❌")
+        f = "—" if bid in sides and "false" not in sides[bid] else ("✅" if f_hit else "❌")
+        hit, n = rows.get(bid, (0, 0))
+        branch_status = E.status_label(hit, n)
+        covered = branch_status == "FULL"
         print(f"{bid:<6} {str(line):<8} {btype:<18} {t:>6} {f:>7} {branch_status:>10}")
         report_branches.append({
             "id":      bid,
@@ -214,9 +216,8 @@ def print_summary(merged, branch_map=None, test_inputs_log=None):
         })
 
     print("-"*65)
-    covered_edges = covered_true + covered_false
     pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
-    print(f"Covered branches: {covered_edges}/{total_edges}  ({covered_true} true, {covered_false} false)")
+    print(f"Covered branches: {covered_edges}/{total_edges} edges")
     print(f"Branch coverage:  {pct:.1f}%")
     print(f"\nResource limits applied: CPU={CPU_TIME_LIMIT}s  MEM={MEMORY_LIMIT_MB}MB  WALL={WALL_TIMEOUT}s")
 

@@ -397,9 +397,17 @@ extern void __VERIFIER_assume(int);
 
 
 def write_branch_map(branches, source_code, output_file, input_file, start_id=1):
-    """Write branch metadata to branch_map.json. Returns next available branch ID."""
+    """Write branch metadata to branch_map.json. Returns (next available branch ID, number of edges).
+
+    "edges" lists every real edge, one entry per edge: {"id": cover() id, "side": "true"|"false"}.
+    A decision (if, loop, ?:) has two edges. A switch label has one: its cover() is true when
+    that label is taken; its false counter only means "not this label" and is not an edge.
+    The implicit default is recorded with cover(0, id) (build_cover_chain), so its edge is the
+    false side. edges.edge_coverage() turns this list into covered/total.
+    """
     sorted_branches = instrumentable_branches(branches, source_code)
     branch_map  = []
+    edges       = []
     current_id  = start_id
 
     for branch in sorted_branches:
@@ -416,6 +424,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                     "type":  "switch_case",
                     "label": label,
                 })
+                edges.append({"id": current_id, "side": "true"})
                 current_id += 1
             if not any(c['kind'] == 'default' for c in meta['cases']):
                 branch_map.append({
@@ -424,6 +433,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                     "type":  "switch_implicit_default",
                     "label": "implicit default",
                 })
+                edges.append({"id": current_id, "side": "false"})
                 current_id += 1
 
         elif branch_type == 'if_statement':
@@ -447,6 +457,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "true_label": true_label,
                 "false_label": false_label,
             })
+            edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
 
         elif branch_type == 'conditional_expression':
@@ -457,6 +468,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "true_label":  "ternary (true)",
                 "false_label": "ternary (false)",
             })
+            edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
 
         else:
@@ -466,20 +478,22 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "line": branch['start_point'][0] + 1,
                 "type": branch_type,
             })
+            edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
 
     with open(output_file, 'w') as f:
         json.dump({
             "source_file": os.path.relpath(input_file),
             "branches":    branch_map,
+            "edges":       edges,
         }, f, indent=2)
     print(f"✓ Wrote branch map to {output_file}")
-    return current_id
+    return current_id, len(edges)
 
 
 def instrument_file(input_file, output_file, start_id=1, flags=None):
     """
-    Instrument a single .c file. Returns next available branch ID.
+    Instrument a single .c file. Returns (next available branch ID, number of edges).
     start_id allows global branch IDs across multiple files.
     flags: compiler flags shared with gcc (-D, -I, -std ...); None = DEFAULT_SVCOMP_FLAGS.
     """
@@ -515,7 +529,7 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:
-        print(f"✓ Found {len(branches) * 2} branch edges ({len(branches)} constructs: each has true + false path)")
+        print(f"✓ Found {len(branches)} decisions")
 
     instrumented_code = instrument_code(source_code, branches, start_id=start_id)
 
@@ -528,11 +542,12 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         sys.exit(1)
 
     map_file   = output_file.replace('.c', '_branch_map.json')
-    next_id    = write_branch_map(branches, source_code, map_file, input_file, start_id=start_id)
+    next_id, n_edges = write_branch_map(branches, source_code, map_file, input_file, start_id=start_id)
+    # Counters, not edges: cover() id N uses slots 2N-2 (true) and 2N-1 (false) in the runtime
     total_counters = (next_id - start_id) * 2
     print(f"BRANCH_COUNTERS={total_counters}")
-    print(f"Done! Successfully instrumented {len(branches) * 2} branches.\n")
-    return next_id
+    print(f"Done! Instrumented {len(branches)} decisions, {n_edges} branch edges.\n")
+    return next_id, n_edges
 
 
 def instrument_directory(input_dir, output_dir, flags=None):
@@ -552,21 +567,21 @@ def instrument_directory(input_dir, output_dir, flags=None):
 
     print(f"Found {len(c_files)} .c file(s) in '{input_dir}'")
 
-    next_id = 1
+    next_id, total_edges = 1, 0
     for input_file in c_files:
         rel_path    = os.path.relpath(input_file, input_dir)
         base_name   = os.path.splitext(rel_path)[0] + '_inst.c'
         output_file = os.path.join(output_dir, base_name)
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        next_id = instrument_file(input_file, output_file, start_id=next_id, flags=flags)
+        next_id, n_edges = instrument_file(input_file, output_file, start_id=next_id, flags=flags)
+        total_edges += n_edges
 
-    total_branches = next_id - 1
+    total_ids = next_id - 1
     print(f"✅ Directory instrumentation complete.")
     print(f"   Files instrumented      : {len(c_files)}")
-    total_branch_edges = total_branches * 2
-    print(f"   Total branch constructs : {total_branches}")
-    print(f"   Total branches          : {total_branch_edges}")
-    print(f"BRANCH_COUNTERS={total_branch_edges}")
+    print(f"   Total cover() IDs       : {total_ids}")
+    print(f"   Total branch edges      : {total_edges}")
+    print(f"BRANCH_COUNTERS={total_ids * 2}")
 
 
 def print_flags(flags, given):
