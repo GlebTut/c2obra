@@ -288,13 +288,13 @@ c2obra/
 
 ## Benchmark Results
 
-### Iteration 3 — Full Scale Validation (538 programs)
+### Iteration 3 — Full Scale Validation (602 rows in `benchmark_results.csv`)
 
-| Tool        | Avg Coverage | Programs | Notes |
-|-------------|--------------|----------|-------|
-| **C²oBra**  | **62.7%**    | 538      | Syntactic AST, no reachability filter |
-| TestCov     | 69.9%        | 538      | Post-compilation filtering (smaller denominator) |
-| TestCoCa    | 48.0%        | 538      | Syntactic AST, no filter |
+| Tool        | Avg Coverage | Programs with a result | Notes |
+|-------------|--------------|------------------------|-------|
+| **C²oBra**  | **62.7%**    | 539 of 602             | —     |
+| TestCov     | 69.9%        | 263 of 602             | cause of difference not investigated |
+| TestCoCa    | 48.0%        | 464 of 602             | cause of difference not investigated |
 
 > Observed in `benchmark_results.csv`: the averages above are means over the programs where each
 > tool produced a number, which is a different set per tool (C²oBra 539, TestCoCa 464, TestCov 263
@@ -316,14 +316,14 @@ c2obra/
 
 ### Iteration 3 — Tool Comparison (functions_test.c)
 
-| Tool        | Branches   | Coverage % | Filtering Strategy          |
-|-------------|------------|------------|-----------------------------|
-| TestCov     | 7 / 18     | 38.89%     | Post-compilation filtering  |
-| Sikraken    | 7 / 20     | 35.00%     | CFG-reachable from main     |
-| TestCoCa    | 7 / 24     | 29.17%     | Syntactic AST, no filter    |
-| **C²oBra**  | **7 / 24** | **29.17%** | Syntactic AST, no filter    |
+| Tool        | Branches   | Coverage % |
+|-------------|------------|------------|
+| TestCov     | 7 / 18     | 38.89%     |
+| Sikraken    | 7 / 20     | 35.00%     |
+| TestCoCa    | 7 / 24     | 29.17%     |
+| **C²oBra**  | **7 / 24** | **29.17%** |
 
-C²oBra correctly covered all 4 truly reachable branches — **100% of coverable branches**.
+Which of these branches are reachable has not been verified here.
 
 ### Iteration 2 — Scale Results (for reference)
 
