@@ -86,18 +86,21 @@ def get_condition_node(branch_node):
 
 
 def get_for_condition_node(for_node):
-    """Extract the condition from a for loop"""
-    cond = for_node.child_by_field_name("condition")
-    if cond is not None:
-        return cond
-    for child in for_node.children:
-        if child.type in (
-            "binary_expression", "identifier", "call_expression",
-            "parenthesized_expression", "relational_expression",
-            "logical_expression", "update_expression", "assignment_expression",
-        ):
-            return child
-    return None
+    """The condition of a for loop, or None if it has none (for(;;), for(i=0;;i++)).
+
+    Only the Tree-sitter "condition" field. The old fallback took the first expression child
+    when the field was missing, which is the initializer (i=0) or the update (i++) of a for
+    without a condition: wrapping it would count the wrong expression."""
+    return for_node.child_by_field_name("condition")
+
+
+def get_for_condition_slot(for_node):
+    """Byte offset of the ';' that ends the (empty) condition slot of a for loop.
+
+    It is the last ';' child of the for node: for(;;) and for(i=0;;i++) have two ';' children,
+    for(int i=0;;i++) has one (the declaration owns its own ';')."""
+    semis = [c for c in for_node.children if c.type == ';']
+    return semis[-1].start_byte if semis else None
 
 
 def get_switch_cases(switch_node, source_code):
@@ -153,7 +156,8 @@ def build_cover_chain(switch_meta, base_id, var):
 
     IDs follow label order (same as write_branch_map); a missing default gets the next ID.
     The default is checked last wherever its label is, because it is taken only when no case
-    matches; a switch with only a default records cover(1, id)."""
+    matches; a switch with only a default records cover(1, id). The implicit default (no
+    default label) also records cover(1, id): every switch label edge is a true counter."""
     cases, default_id, parts = [], None, []
     for i, case in enumerate(switch_meta['cases']):
         if case['kind'] == 'case':
@@ -166,7 +170,7 @@ def build_cover_chain(switch_meta, base_id, var):
     if default_id is not None:
         last = f"cover(1, {default_id});"
     else:
-        last = f"cover(0, {base_id + len(switch_meta['cases'])});"
+        last = f"cover(1, {base_id + len(switch_meta['cases'])});"
     parts.append(f"else {last}" if cases else last)
     return ' '.join(parts)
 
@@ -265,16 +269,15 @@ def is_instrumentable(branch, source_code):
     Both instrument_code() and write_branch_map() iterate over the constructs this accepts,
     so the IDs in the instrumented source and the entries in branch_map.json cannot drift
     apart. A construct is skipped (consumes no ID, appears in no map) when there is nothing
-    to wrap: no condition expression (for(;;)), or a switch with no condition node or no
-    case/default labels.
+    to wrap: a switch with no condition node or no case/default labels. A for without a
+    condition (for(;;)) is instrumentable: cover((1), id) is inserted in its empty slot.
     """
     node = branch['node']
     kind = branch['type']
     if kind in ('if_statement', 'while_statement', 'do_statement'):
         return get_condition_node(node) is not None
     if kind == 'for_statement':
-        cond = get_for_condition_node(node)
-        return cond is not None and source_code[cond.start_byte:cond.end_byte].decode('utf-8').strip() != ''
+        return get_for_condition_node(node) is not None or get_for_condition_slot(node) is not None
     if kind == 'switch_statement':
         return get_condition_node(node) is not None and bool(get_switch_cases(node, source_code)['cases'])
     if kind == 'conditional_expression':
@@ -348,12 +351,13 @@ def instrument_code(source_code, branches, start_id=1):
         elif branch_type == 'for_statement':
             condition_node = get_for_condition_node(node)
             if condition_node:
-                cond_start     = condition_node.start_byte
-                cond_end       = condition_node.end_byte
-                condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
-                if condition_text:
-                    rewriter.wrap(cond_start, cond_end, " cover((", f"), {current_id}) ")
-                    current_id += 1
+                rewriter.wrap(condition_node.start_byte, condition_node.end_byte,
+                              " cover((", f"), {current_id}) ")
+            else:
+                # for(;;) is counted like while(1): a decision whose condition is always true
+                # (its false edge exists in the map but cannot be hit)
+                rewriter.insert(get_for_condition_slot(node), f"cover((1), {current_id})")
+            current_id += 1
 
         elif branch_type == 'switch_statement':
             # is_instrumentable() guarantees a condition node and at least one label
@@ -397,9 +401,17 @@ extern void __VERIFIER_assume(int);
 
 
 def write_branch_map(branches, source_code, output_file, input_file, start_id=1):
-    """Write branch metadata to branch_map.json. Returns next available branch ID."""
+    """Write branch metadata to branch_map.json. Returns (next available branch ID, number of edges).
+
+    "edges" lists every real edge, one entry per edge: {"id": cover() id, "side": "true"|"false"}.
+    A decision (if, loop, ?:) has two edges. A switch label has one: its cover() is true when
+    that label is taken; its false counter only means "not this label" and is not an edge.
+    The implicit default is also recorded as cover(1, id) (build_cover_chain), so every switch
+    label edge is a true side. edges.edge_coverage() turns this list into covered/total.
+    """
     sorted_branches = instrumentable_branches(branches, source_code)
     branch_map  = []
+    edges       = []
     current_id  = start_id
 
     for branch in sorted_branches:
@@ -416,6 +428,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                     "type":  "switch_case",
                     "label": label,
                 })
+                edges.append({"id": current_id, "side": "true"})
                 current_id += 1
             if not any(c['kind'] == 'default' for c in meta['cases']):
                 branch_map.append({
@@ -424,6 +437,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                     "type":  "switch_implicit_default",
                     "label": "implicit default",
                 })
+                edges.append({"id": current_id, "side": "true"})
                 current_id += 1
 
         elif branch_type == 'if_statement':
@@ -447,6 +461,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "true_label": true_label,
                 "false_label": false_label,
             })
+            edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
 
         elif branch_type == 'conditional_expression':
@@ -457,6 +472,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "true_label":  "ternary (true)",
                 "false_label": "ternary (false)",
             })
+            edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
 
         else:
@@ -466,20 +482,22 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 "line": branch['start_point'][0] + 1,
                 "type": branch_type,
             })
+            edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
 
     with open(output_file, 'w') as f:
         json.dump({
             "source_file": os.path.relpath(input_file),
             "branches":    branch_map,
+            "edges":       edges,
         }, f, indent=2)
     print(f"✓ Wrote branch map to {output_file}")
-    return current_id
+    return current_id, len(edges)
 
 
 def instrument_file(input_file, output_file, start_id=1, flags=None):
     """
-    Instrument a single .c file. Returns next available branch ID.
+    Instrument a single .c file. Returns (next available branch ID, number of edges).
     start_id allows global branch IDs across multiple files.
     flags: compiler flags shared with gcc (-D, -I, -std ...); None = DEFAULT_SVCOMP_FLAGS.
     """
@@ -511,11 +529,11 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         print(f"ℹ️ Skipped {n} Clang decision(s): {reason}")
     if unpaired:
         print(f"ℹ️ {len(unpaired)} Tree-sitter construct(s) have no Clang decision "
-              f"(for(;;), inactive #if arm, or not compiled) — not instrumented")
+              f"(inactive #if arm, or not compiled) — not instrumented")
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:
-        print(f"✓ Found {len(branches) * 2} branch edges ({len(branches)} constructs: each has true + false path)")
+        print(f"✓ Found {len(branches)} decisions")
 
     instrumented_code = instrument_code(source_code, branches, start_id=start_id)
 
@@ -528,11 +546,12 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         sys.exit(1)
 
     map_file   = output_file.replace('.c', '_branch_map.json')
-    next_id    = write_branch_map(branches, source_code, map_file, input_file, start_id=start_id)
+    next_id, n_edges = write_branch_map(branches, source_code, map_file, input_file, start_id=start_id)
+    # Counters, not edges: cover() id N uses slots 2N-2 (true) and 2N-1 (false) in the runtime
     total_counters = (next_id - start_id) * 2
     print(f"BRANCH_COUNTERS={total_counters}")
-    print(f"Done! Successfully instrumented {len(branches) * 2} branches.\n")
-    return next_id
+    print(f"Done! Instrumented {len(branches)} decisions, {n_edges} branch edges.\n")
+    return next_id, n_edges
 
 
 def instrument_directory(input_dir, output_dir, flags=None):
@@ -552,21 +571,21 @@ def instrument_directory(input_dir, output_dir, flags=None):
 
     print(f"Found {len(c_files)} .c file(s) in '{input_dir}'")
 
-    next_id = 1
+    next_id, total_edges = 1, 0
     for input_file in c_files:
         rel_path    = os.path.relpath(input_file, input_dir)
         base_name   = os.path.splitext(rel_path)[0] + '_inst.c'
         output_file = os.path.join(output_dir, base_name)
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        next_id = instrument_file(input_file, output_file, start_id=next_id, flags=flags)
+        next_id, n_edges = instrument_file(input_file, output_file, start_id=next_id, flags=flags)
+        total_edges += n_edges
 
-    total_branches = next_id - 1
+    total_ids = next_id - 1
     print(f"✅ Directory instrumentation complete.")
     print(f"   Files instrumented      : {len(c_files)}")
-    total_branch_edges = total_branches * 2
-    print(f"   Total branch constructs : {total_branches}")
-    print(f"   Total branches          : {total_branch_edges}")
-    print(f"BRANCH_COUNTERS={total_branch_edges}")
+    print(f"   Total cover() IDs       : {total_ids}")
+    print(f"   Total branch edges      : {total_edges}")
+    print(f"BRANCH_COUNTERS={total_ids * 2}")
 
 
 def print_flags(flags, given):

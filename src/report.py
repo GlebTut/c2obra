@@ -6,6 +6,7 @@ Reads branch_map.json + coverage.json and outputs HTML + CSV + source HTML repor
 
 import sys, json, os, csv, re
 from datetime import datetime
+import edges as E
 
 
 def load_branch_map(path):
@@ -40,13 +41,18 @@ def load_test_inputs(path):
 
 
 def merge(branch_map_data, coverage):
+    """One row per branch-map entry. Status comes from the map's edges (edges.py), not from
+    true && false: a switch label has only its true edge."""
+    status = E.row_status(branch_map_data, coverage)
+    sides  = E.sides_by_id(branch_map_data)
     rows = []
     for b in branch_map_data.get("branches", []):
         bid         = b["id"]
         hits        = coverage.get(int(bid), {})
         true_count  = hits.get("true",  0)
         false_count = hits.get("false", 0)
-        covered     = hits["covered"] if "covered" in hits else (true_count > 0 and false_count > 0)
+        edges_hit, edges_total = status.get(int(bid), (0, 0))
+        row_state   = E.status_label(edges_hit, edges_total)
         rows.append({
             "branch_id":   bid,
             "line":        b.get("line",  "?"),
@@ -56,12 +62,18 @@ def merge(branch_map_data, coverage):
             "false_label": b.get("false_label", ""),
             "true_count":  true_count,
             "false_count": false_count,
-            "covered":     covered,
+            "true_edge":   "true"  in sides.get(int(bid), ()),
+            "false_edge":  "false" in sides.get(int(bid), ()),
+            "edges_hit":   edges_hit,
+            "edges_total": edges_total,
+            "status":      row_state,
+            "covered":     row_state == "FULL",
         })
     return rows
 
 
-def write_csv(rows, output_path, source_file):
+def write_csv(rows, totals, output_path, source_file):
+    """totals: (covered edges, total edges) from edges.edge_coverage()."""
     try:
         with open(output_path, "w", newline="") as f:
             has_labels = any(r.get("label") for r in rows)
@@ -86,9 +98,7 @@ def write_csv(rows, output_path, source_file):
                 if has_labels:
                     row["label"] = r.get("label", "")
                 writer.writerow(row)
-            total_edges   = len(rows) * 2
-            covered_edges = sum(1 for r in rows if r["true_count"]  > 0) + \
-                            sum(1 for r in rows if r["false_count"] > 0)
+            covered_edges, total_edges = totals
             pct = (covered_edges / total_edges * 100) if total_edges > 0 else 0
             summary = {
                 "file": "SUMMARY", "branch_id": "", "line": "", "type": "",
@@ -158,9 +168,9 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
         if r["line"] == "?":
             continue
         ln = int(r["line"])
-        if r["covered"]:
+        if r["status"] == "FULL":
             line_status[ln] = ("full", r["branch_id"])
-        elif r["true_count"] > 0 or r["false_count"] > 0:
+        elif r["status"] == "PARTIAL":
             line_status[ln] = ("partial", r["branch_id"])
         else:
             line_status[ln] = ("none", r["branch_id"])
@@ -284,11 +294,9 @@ def write_source_html(rows, branch_map_data, source_html_path, report_html_name)
     return True
 
 
-def write_html(rows, output_path, source_file, source_html_name=None, test_inputs=None, no_summary=False):
-    total_edges   = len(rows) * 2
-    covered_true  = sum(1 for r in rows if r["true_count"]  > 0)
-    covered_false = sum(1 for r in rows if r["false_count"] > 0)
-    covered_edges = covered_true + covered_false
+def write_html(rows, totals, output_path, source_file, source_html_name=None, test_inputs=None, no_summary=False):
+    """totals: (covered edges, total edges) from edges.edge_coverage()."""
+    covered_edges, total_edges = totals
     pct      = (covered_edges / total_edges * 100) if total_edges > 0 else 0
     date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -340,7 +348,8 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
   </div>
 </div>"""
 
-    _branch_rows = [{"type": r["type"], "true_count": r["true_count"], "false_count": r["false_count"]} for r in rows]
+    _branch_rows = [{"type": r["type"], "status": r["status"],
+                     "edges_hit": r["edges_hit"], "edges_total": r["edges_total"]} for r in rows]
     branch_rows_json = json.dumps(_branch_rows)
     test_inputs_json = json.dumps(test_inputs) if isinstance(test_inputs, list) else "[]"
 
@@ -353,20 +362,20 @@ def write_html(rows, output_path, source_file, source_html_name=None, test_input
 
     table_rows = ""
     for r in rows:
-        if r["covered"]:
-            row_class = "full"
-        elif r["true_count"] > 0 or r["false_count"] > 0:
-            row_class = "partial"
-        else:
-            row_class = "none"
+        row_class = {"FULL": "full", "PARTIAL": "partial"}.get(r["status"], "none")
 
         btype  = r["type"].replace("_statement", "").replace("_", "-")
-        status = "FULL" if r["covered"] else ("PARTIAL" if r["true_count"] > 0 or r["false_count"] > 0 else "NONE")
+        status = r["status"]
         t_label = r.get("true_label",  "")
         f_label = r.get("false_label", "")
 
         t_badge = f'<span class="badge hit"  title="{t_label}">{r["true_count"]}</span>'  if r["true_count"]  > 0 else f'<span class="badge miss" title="{t_label}">0</span>'
         f_badge = f'<span class="badge hit"  title="{f_label}">{r["false_count"]}</span>' if r["false_count"] > 0 else f'<span class="badge miss" title="{f_label}">0</span>'
+        # A counter side that is not an edge (a switch label's false side): show its count, greyed out
+        if not r["true_edge"]:
+            t_badge = f'<span class="badge" style="opacity:0.45" title="not an edge">{r["true_count"]}</span>'
+        if not r["false_edge"]:
+            f_badge = f'<span class="badge" style="opacity:0.45" title="not an edge (switch label: only its true edge counts)">{r["false_count"]}</span>'
 
         edge_label_html = ""
         if t_label and f_label:
@@ -899,9 +908,9 @@ function exportCSV(){{
 
   /* 1. Donut — full/partial/none */
   (function(){{
-    const full=rows.filter(r=>r.true_count>0&&r.false_count>0).length;
-    const part=rows.filter(r=>(r.true_count>0)!==(r.false_count>0)).length;
-    const none=rows.filter(r=>r.true_count===0&&r.false_count===0).length;
+    const full=rows.filter(r=>r.status==="FULL").length;
+    const part=rows.filter(r=>r.status==="PARTIAL").length;
+    const none=rows.filter(r=>r.status==="NONE").length;
     const tot=rows.length;
     new Chart(document.getElementById("donutChart"),{{
       type:"doughnut",
@@ -929,9 +938,9 @@ function exportCSV(){{
   /* 2. Horizontal bar — coverage by type */
   (function(){{
     const m={{}};
-    rows.forEach(r=>{{const t=r.type||"other";if(!m[t])m[t]={{tot:0,th:0,fh:0}};m[t].tot+=2;m[t].th+=r.true_count>0?1:0;m[t].fh+=r.false_count>0?1:0;}});
+    rows.forEach(r=>{{const t=r.type||"other";if(!m[t])m[t]={{tot:0,hit:0}};m[t].tot+=r.edges_total;m[t].hit+=r.edges_hit;}});
     const labels=Object.keys(m).sort();
-    const pcts=labels.map(t=>m[t].tot?+((m[t].th+m[t].fh)/m[t].tot*100).toFixed(1):0);
+    const pcts=labels.map(t=>m[t].tot?+(m[t].hit/m[t].tot*100).toFixed(1):0);
     new Chart(document.getElementById("typeChart"),{{
       type:"bar",
       data:{{labels,datasets:[{{
@@ -1001,7 +1010,12 @@ def main():
     branch_map_data = load_branch_map(args.branch_map)
     coverage        = load_coverage(args.coverage)
     test_inputs     = load_test_inputs(args.test_inputs)
-    rows            = merge(branch_map_data, coverage)
+    try:
+        rows   = merge(branch_map_data, coverage)
+        totals = E.edge_coverage(branch_map_data, coverage)
+    except E.MissingEdgesError as e:
+        print(f"❌ Error: {args.branch_map}: {e}")
+        sys.exit(1)
 
     source_file      = branch_map_data.get("source_file", "unknown")
     base             = os.path.splitext(args.output)[0]
@@ -1010,11 +1024,11 @@ def main():
 
     wrote_source = write_source_html(rows, branch_map_data, source_html_path, os.path.basename(args.output))
 
-    write_html(rows, args.output, source_file,
+    write_html(rows, totals, args.output, source_file,
                source_html_name=source_html_name if wrote_source else None,
                test_inputs=test_inputs,
                no_summary=args.no_summary)
-    write_csv(rows, args.csv, source_file)
+    write_csv(rows, totals, args.csv, source_file)
 
 
 if __name__ == "__main__":

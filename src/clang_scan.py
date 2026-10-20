@@ -249,13 +249,12 @@ def counts_as_decision(d):
     Kept in one place because the definition of a branch is still open (supervisor questions:
     macros, constant conditions, how switch is counted). Reasons for skipping:
       macro          - produced by a macro expansion: no text in the file to wrap (Phase 5)
-      for_no_cond    - for(;;) has no decision
       switch_no_case - switch without case/default labels has nothing to count
+    A for without a condition (for(;;)) IS counted, like while(1) (tests/definition/d07,
+    confirmed 2026-10-16); instrument.py inserts cover((1), id) in its empty slot.
     """
     if d['from_macro']:
         return False, 'macro'
-    if d['kind'] == 'for' and d['has_condition'] is False:
-        return False, 'for_no_cond'
     if d['kind'] == 'switch' and d['n_cases'] == 0:
         return False, 'switch_no_case'
     return True, 'counted'

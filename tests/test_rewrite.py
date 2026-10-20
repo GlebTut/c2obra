@@ -169,6 +169,7 @@ class SwitchShapes(InstrumentAndRun):
         cov = self.check('int f(int n) { unsigned u = (unsigned)n; switch (u) { case 4294967293u: return 1; '
                          'case 3u: return 2; } return 0; }\n', 3)
         self.assertEqual([cov[1][0], cov[2][0]], [1, 1])        # n = -3 and n = 3
+        self.assertEqual(cov[3], (11, 0))    # implicit default: cover(1, 3) for the other 11 inputs
 
     def test_bit_field_expression(self):
         cov = self.check('struct s { unsigned b : 3; };\n'

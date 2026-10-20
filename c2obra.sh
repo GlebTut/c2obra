@@ -38,7 +38,9 @@ Output files (written to output/<base>/ or output/):
 
 
 Coverage formula:
-  coverage % = (true_branches_hit + false_branches_hit) / total_branches x 100
+  coverage % = edges hit / edges that exist x 100
+                A decision (if, loop, ?:) has 2 edges (true, false);
+                a switch case/default label has 1 edge (the label is taken).
 EOF
   exit 0
 }

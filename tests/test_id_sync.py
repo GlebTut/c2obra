@@ -50,7 +50,8 @@ class IdSync(unittest.TestCase):
         return mapped
 
     def test_infinite_for_before_other_branches(self):
-        self.assertEqual(len(self.check("for(;;){break;}\nif(i>0){i=1;}\nwhile(i<n){i++;}")), 2)
+        # for(;;) gets an ID (cover((1), 1) in its empty slot), like while(1)
+        self.assertEqual(len(self.check("for(;;){break;}\nif(i>0){i=1;}\nwhile(i<n){i++;}")), 3)
 
     def test_empty_switch_before_other_branches(self):
         self.assertEqual(len(self.check("switch(i){}\nif(i>0){i=1;}")), 1)
