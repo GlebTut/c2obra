@@ -76,13 +76,14 @@ pip install -r requirements.txt
 After installation, verify everything works end-to-end:
 
 ```bash
-bash smoke_test.sh
+./smoke_test.sh
 ```
 
-Expected output:
+Expected output (excerpt):
 ```
-✓ Found 4 branches (2 branch constructs)
-Branch coverage: 100.0%
+✓ Found 2 decisions
+Covered branches: 4/4 edges
+Branch coverage:  100.0%
 ✅ Smoke test passed. Open smoke_report.html to view coverage.
 ```
 
@@ -199,15 +200,29 @@ and a per-file table with coverage %, branch counts, and colour-coded status row
 C²oBra uses an **edge-based branch coverage model** consistent with gcov:
 
 ```
-coverage % = (true_branches_hit + false_branches_hit) / total_branches × 100
+coverage % = edges hit / edges that exist × 100
 ```
 
-Each branch construct (`if`, `while`, `for`, `do-while`, `switch` case) produces
-**2 branches**: one for the **true** path and one for the **false** path.
+The edges that exist are listed in the branch map (`"edges"` in `<file>_branch_map.json`);
+`src/edges.py` turns the map and the hit counts into covered/total for every report.
 
-For example, a single `if` statement at line 10 = 2 branches:
-- `if` at line 10 — true branch (condition holds)
-- `if` at line 10 — false branch (condition does not hold)
+| Construct | Edges |
+|-----------|-------|
+| `if`, `while`, `do-while`, `for`, ternary `?:` | **2**: true and false |
+| `for(;;)` (no condition) | **2**, like `while(1)`; the false edge can never be taken |
+| `switch` `case` / `default` label | **1** per label: the label is taken |
+| `switch` without `default` | **1** extra edge: the implicit default (no label matched) |
+
+For example, a single `if` statement at line 10 = 2 edges:
+- `if` at line 10 — true edge (condition holds)
+- `if` at line 10 — false edge (condition does not hold)
+
+`tests/definition/` holds one small program per construct with hand-derived expected edges
+(`expected.csv`); `tests/test_definition.py` checks them.
+
+> Before 2026-10-20 every entry, including each `switch` label, counted 2 edges and `for(;;)`
+> counted none. The numbers under [Benchmark Results](#benchmark-results) were measured with that
+> earlier model and have not been re-measured.
 
 ### Run Status Classification
 
