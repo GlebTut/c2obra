@@ -238,11 +238,28 @@ def strip_verifier_boilerplate(code: str) -> str:
         code = re.sub(pattern, '', code, flags=re.DOTALL)
 
     def remove_function_def(src, fname):
+        """Drop the definition of void fname(...) { ... }. The '{' may be on the header line
+        or on one of the next MAX_HELD lines (e.g. 'void reach_error()' then '{' below, as in
+        recursified_nested_1b.c); a ';' first means a declaration, which is kept."""
+        MAX_HELD = 5
         lines = src.split('\n')
         out = []
         skip = False
         depth = 0
+        held = None          # header line(s) of a definition whose '{' has not been seen yet
         for line in lines:
+            if held is not None:
+                if '{' in line:
+                    held, skip = None, True
+                    depth = line.count('{') - line.count('}')
+                    if depth <= 0:
+                        skip = False
+                elif ';' in line or len(held) >= MAX_HELD:
+                    out.extend(held + [line])
+                    held = None
+                else:
+                    held.append(line)
+                continue
             if not skip:
                 if re.search(rf'\bvoid\s+{fname}\s*\(', line) and '{' in line:
                     skip = True
@@ -250,11 +267,16 @@ def strip_verifier_boilerplate(code: str) -> str:
                     if depth <= 0:
                         skip = False
                     continue
+                if re.search(rf'\bvoid\s+{fname}\s*\(', line) and ';' not in line:
+                    held = [line]
+                    continue
                 out.append(line)
             else:
                 depth += line.count('{') - line.count('}')
                 if depth <= 0:
                     skip = False
+        if held is not None:
+            out.extend(held)
         return '\n'.join(out)  # ← always returns
 
     for fname in ['reach_error', '__VERIFIER_error']:
