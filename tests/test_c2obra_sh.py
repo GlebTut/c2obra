@@ -32,8 +32,10 @@ int main(void) {
 '''
 
 FAKE_SIKRAKEN = r'''#!/usr/bin/env bash
-# Fake Sikraken: record the arguments, write the suite where the real one does.
+# Fake Sikraken: record the arguments, write the suite where the real one does
+# (FAKE_SIK_NOWRITE=1: write nothing, like a run that produced no suite).
 echo "$*" >> "$(dirname "$0")/../calls.txt"
+[ -n "${FAKE_SIK_NOWRITE:-}" ] && exit 0
 f="${@: -1}"; name="$(basename "${f%.*}")"
 suite="$(dirname "$0")/../sikraken_output/$name/test-suite"
 mkdir -p "$suite"
@@ -135,6 +137,114 @@ class UnsetEnvGolden(unittest.TestCase):
         for name, setup in cases():
             with self.subTest(case=name):
                 self.assertEqual(record(name, setup), golden[name])
+
+
+LIBM_C = r'''#include <math.h>
+#include <stdio.h>
+int main(void) {
+    volatile double x = 1000.0;
+    double y = log10(x) + cbrt(x);
+    if (y > 5.0) printf("big\n"); else printf("small\n");
+    return 0;
+}
+'''
+
+
+def elf_class(path):
+    """1 = 32-bit ELF, 2 = 64-bit ELF."""
+    with open(path, 'rb') as f:
+        return f.read(5)[4]
+
+
+class NewEnvVars(unittest.TestCase):
+    """OUT_DIR, DATA_MODEL, SIKRAKEN_SUITE, LDLIBS (single-file mode)."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        make_sandbox(self.d)
+        with open(os.path.join(self.d, 'in', 'nondet.c'), 'w') as f:
+            f.write(NONDET_C)
+        with open(GOLDEN) as f:
+            self.golden = json.load(f)['nondet_fake_sikraken']['files']
+
+    def tearDown(self):
+        shutil.rmtree(self.d)
+
+    def calls(self):
+        p = os.path.join(self.d, 'sik', 'calls.txt')
+        if not os.path.exists(p):
+            return []
+        with open(p) as f:
+            return f.read().split('\n')[:-1]
+
+    def coverage(self, out):
+        with open(os.path.join(self.d, out, 'nondet_inst_coverage.json')) as f:
+            return json.load(f)['summary']
+
+    def test_out_dir_gets_everything(self):
+        code, log = run_c2obra(self.d, 'in/nondet.c', OUT_DIR='res')
+        self.assertEqual(code, 0, log)
+        self.assertFalse(os.path.exists(os.path.join(self.d, 'output')))
+        self.assertFalse(os.path.exists(os.path.join(self.d, 'build')))
+        snap = snapshot(self.d, roots=('res',))
+        # same content as the default run, under res/ (plus the binary, which was in build/)
+        for rel, content in self.golden.items():
+            if rel.startswith('output/') and rel.count('/') == 1 and rel != 'output/coverage_report.json':
+                self.assertEqual(snap['res/' + rel[len('output/'):]], content, rel)
+        self.assertIn('res/output/coverage_report.json', snap)   # run_tests.py's own file
+        self.assertIn('res/nondet_test', snap)
+
+    def test_sikraken_suite_given_skips_sikraken(self):
+        suite = os.path.join(self.d, 'mysuite')
+        os.makedirs(suite)
+        with open(os.path.join(suite, 'test_input-1.xml'), 'w') as f:
+            f.write('<testcase><input>5</input><input>4</input></testcase>')
+        code, log = run_c2obra(self.d, 'in/nondet.c', SIKRAKEN_SUITE=suite, OUT_DIR='res')
+        self.assertEqual(code, 0, log)
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(self.coverage('res')['covered_branches'], 2)    # 5 > 0, 4 even
+
+    def test_sikraken_suite_dash_means_no_inputs(self):
+        code, log = run_c2obra(self.d, 'in/nondet.c', SIKRAKEN_SUITE='-', OUT_DIR='res')
+        self.assertEqual(code, 0, log)
+        self.assertEqual(self.calls(), [])
+        self.assertIn('No test-suite provided', log)
+
+    def test_data_model(self):
+        for dm, flag, cls in (('ILP32', '-m32', 1), ('LP64', '-m64', 2), ('-m32', '-m32', 1)):
+            with self.subTest(dm=dm):
+                out = 'res_' + dm.strip('-')
+                code, log = run_c2obra(self.d, 'in/nondet.c', DATA_MODEL=dm, OUT_DIR=out)
+                self.assertEqual(code, 0, log)
+                self.assertEqual(self.calls()[-1], f'release budget[10] {flag} ../in/nondet.c')
+                self.assertEqual(elf_class(os.path.join(self.d, out, 'nondet_test')), cls)
+                self.assertEqual(self.coverage(out)['covered_branches'], 4)
+
+    def test_data_model_rejects_unknown(self):
+        code, log = run_c2obra(self.d, 'in/nondet.c', DATA_MODEL='LP32')
+        self.assertEqual(code, 1)
+        self.assertIn('DATA_MODEL must be', log)
+
+    def test_ldlibs(self):
+        with open(os.path.join(self.d, 'in', 'm.c'), 'w') as f:
+            f.write(LIBM_C)
+        code, log = run_c2obra(self.d, 'in/m.c', OUT_DIR='without')
+        self.assertNotEqual(code, 0)
+        self.assertIn('undefined reference', log)
+        code, log = run_c2obra(self.d, 'in/m.c', OUT_DIR='with', LDLIBS='-lm')
+        self.assertEqual(code, 0, log)
+
+    def test_suite_lookup_is_exact(self):
+        # A stale suite of a longer name must not be used when Sikraken writes none for this file
+        stale = os.path.join(self.d, 'sik', 'sikraken_output', 'nondet-1', 'test-suite')
+        os.makedirs(stale)
+        with open(os.path.join(stale, 'test_input-1.xml'), 'w') as f:
+            f.write('<testcase><input>4</input><input>2</input></testcase>')
+        code, log = run_c2obra(self.d, 'in/nondet.c', OUT_DIR='res', FAKE_SIK_NOWRITE='1')
+        self.assertEqual(code, 0, log)
+        self.assertEqual(len(self.calls()), 1)
+        self.assertIn('No Sikraken test suite found', log)
+        self.assertNotIn('nondet-1', log)
 
 
 if __name__ == '__main__':

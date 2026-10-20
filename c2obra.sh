@@ -27,6 +27,16 @@ Options:
   -h, --help        Show this help message and exit.
 
 
+Environment (single-file mode; unset = the behaviour described above):
+  CFLAGS            Flags for the Clang scan and gcc. Default: -DLARGE_INT=1000000
+  DATA_MODEL        ILP32 (or -m32) / LP64 (or -m64): passed to the Clang scan, gcc and
+                    Sikraken. Unset: no flag (gcc builds 64-bit, Sikraken defaults to -m32).
+  OUT_DIR           Write every output (and the binary) here instead of output/ and build/.
+  SIKRAKEN_SUITE    Test-suite directory to use, or "-" for none; Sikraken is not run.
+  LDLIBS            Extra libraries for the gcc link step, e.g. "-lm".
+  SIKRAKEN_DIR      Sikraken install. Default: ../sikraken next to this script.
+
+
 Output files (written to output/<base>/ or output/):
   <base>_inst.c                     Instrumented source
   <base>_inst_branch_map.json       Branch metadata
@@ -72,7 +82,18 @@ SIKRAKEN_OUT="$SIKRAKEN_DIR/sikraken_output"
 # Default: SV-COMP files use LARGE_INT without defining it (same value as cov_runtime.h).
 CFLAGS="${CFLAGS--DLARGE_INT=1000000}"
 read -ra CFLAGS_ARR <<< "$CFLAGS"
-echo "Compiler flags (CFLAGS): ${CFLAGS:-(none)}"
+
+# Data model of the task (Test-Comp .yml: ILP32 or LP64). Added to CFLAGS_ARR so the Clang scan
+# and gcc agree, and passed to Sikraken (which defaults to -m32). Unset: no flag, as before.
+case "${DATA_MODEL:-}" in
+  "")         SIK_DM="" ;;
+  ILP32|-m32) SIK_DM="-m32" ;;
+  LP64|-m64)  SIK_DM="-m64" ;;
+  *) echo "❌ DATA_MODEL must be ILP32, LP64, -m32 or -m64 (got '$DATA_MODEL')"; exit 1 ;;
+esac
+[ -n "$SIK_DM" ] && CFLAGS_ARR+=("$SIK_DM")
+read -ra LDLIBS_ARR <<< "${LDLIBS:-}"
+echo "Compiler flags (CFLAGS): ${CFLAGS_ARR[*]:-(none)}"
 
 
 # Returns 0 if Sikraken is installed and usable
@@ -84,11 +105,16 @@ sikraken_available() {
 # ─── SINGLE FILE MODE ─────────────────────────────────────────────────────────
 if [ -f "$1" ]; then
     SRC="$1"
-    BASENAME=$(basename "$SRC" .c)
-    mkdir -p output/ build/
+    BASENAME=$(basename "$SRC"); BASENAME="${BASENAME%.[ci]}"
+    OUT="${OUT_DIR:-output}"; BUILD="${OUT_DIR:-build}"
+    RUN_CWD="${OUT_DIR:-.}"   # run_tests.py writes output/coverage_report.json relative to its cwd
+    mkdir -p "$OUT" "$BUILD"
 
     # Auto-detect: does the file use __VERIFIER_nondet inputs?
-    if grep -q "__VERIFIER_nondet" "$SRC"; then
+    if [ -n "${SIKRAKEN_SUITE:-}" ]; then
+        SUITE_DIR="$SIKRAKEN_SUITE"
+        echo "=== Test suite given (SIKRAKEN_SUITE): $SUITE_DIR — Sikraken not run ==="
+    elif grep -q "__VERIFIER_nondet" "$SRC"; then
         echo "=== Detected: input-driven file ==="
         if ! sikraken_available; then
             echo "⚠️  Sikraken not found at $SIKRAKEN_DIR — skipping, running with no inputs"
@@ -98,9 +124,11 @@ if [ -f "$1" ]; then
             ABS_SRC="$(realpath "$SRC")"
             REL_SRC="$(realpath --relative-to="$SIKRAKEN_DIR" "$ABS_SRC")"
             cd "$SIKRAKEN_DIR"
-            ./bin/sikraken.sh release budget[10] "$REL_SRC"
+            ./bin/sikraken.sh release budget[10] ${SIK_DM:+"$SIK_DM"} "$REL_SRC"
             cd "$SCRIPT_DIR"
-            SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$BASENAME" | head -1)
+            # Exact path: Sikraken writes to sikraken_output/<file name without extension>/
+            SUITE_DIR="$SIKRAKEN_OUT/$BASENAME/test-suite"
+            [ -d "$SUITE_DIR" ] || SUITE_DIR=""
             if [ -z "$SUITE_DIR" ]; then
                 echo "⚠️  Warning: No Sikraken test suite found for '$BASENAME' — running with no inputs"
                 SUITE_DIR="-"
@@ -115,49 +143,52 @@ if [ -f "$1" ]; then
     # Step 1: Instrument source
     echo "=== Step 1: Instrument ==="
     # "|| ..." so set -e does not exit before the error message is shown
-    INST_OUT=$(python3 src/instrument.py "$SRC" output/"$BASENAME"_inst.c -- "${CFLAGS_ARR[@]}") \
-        || { echo "$INST_OUT"; echo "❌ Instrumentation failed (CFLAGS: ${CFLAGS:-(none)})"; exit 1; }
+    INST_OUT=$(python3 src/instrument.py "$SRC" "$OUT/${BASENAME}_inst.c" -- "${CFLAGS_ARR[@]}") \
+        || { echo "$INST_OUT"; echo "❌ Instrumentation failed (CFLAGS: ${CFLAGS_ARR[*]:-(none)})"; exit 1; }
     echo "$INST_OUT"
     BRANCH_COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | cut -d= -f2)
 
     # Step 2: Compile instrumented source + runtime
     echo "=== Step 2: Compile ==="
-    gcc output/"$BASENAME"_inst.c src/cov_runtime.c src/verifier_stubs.c \
-        -o build/"$BASENAME"_test -I src/ \
+    gcc "$OUT/${BASENAME}_inst.c" src/cov_runtime.c src/verifier_stubs.c \
+        -o "$BUILD/${BASENAME}_test" -I src/ \
         -DMAX_BRANCHES=${BRANCH_COUNTERS:-131072} \
-        "${CFLAGS_ARR[@]}" -w
-    [ -f "build/${BASENAME}_test" ] || { echo "❌ Compilation failed"; exit 1; }
-    echo "✓ Binary built → build/${BASENAME}_test"
+        "${CFLAGS_ARR[@]}" -w "${LDLIBS_ARR[@]}"
+    [ -f "$BUILD/${BASENAME}_test" ] || { echo "❌ Compilation failed"; exit 1; }
+    echo "✓ Binary built → $BUILD/${BASENAME}_test"
 
     # Step 3: Run tests and collect coverage
     echo "=== Step 3: Run Tests ==="
-    python3 src/run_tests.py \
-        "build/${BASENAME}_test" \
-        "${SUITE_DIR:-"-"}" \
-        "output/${BASENAME}_inst_branch_map.json"
+    SUITE_ARG="${SUITE_DIR:-"-"}"
+    [ "$SUITE_ARG" = "-" ] || SUITE_ARG="$(realpath "$SUITE_ARG")"
+    BIN_ABS="$(realpath "$BUILD/${BASENAME}_test")"
+    MAP_ABS="$(realpath "$OUT/${BASENAME}_inst_branch_map.json")"
+    RUN_TESTS="$(realpath src/run_tests.py)"
+    (cd "$RUN_CWD" && python3 "$RUN_TESTS" "$BIN_ABS" "$SUITE_ARG" "$MAP_ABS")
 
-    if [ -f output/test_inputs_log.json ]; then
-        mv output/test_inputs_log.json "output/${BASENAME}_inst_test_inputs_log.json"
+    if [ -f "$RUN_CWD/output/test_inputs_log.json" ]; then
+        mv "$RUN_CWD/output/test_inputs_log.json" "$OUT/${BASENAME}_inst_test_inputs_log.json"
     fi
 
     # Keep coverage_report.json in place for CI index aggregation (copy, not move)
-    if [ -f output/coverage_report.json ]; then
-        cp output/coverage_report.json "output/${BASENAME}_inst_coverage.json"
-        echo "✓ Saved coverage → output/${BASENAME}_inst_coverage.json"
+    if [ -f "$RUN_CWD/output/coverage_report.json" ]; then
+        cp "$RUN_CWD/output/coverage_report.json" "$OUT/${BASENAME}_inst_coverage.json"
+        echo "✓ Saved coverage → $OUT/${BASENAME}_inst_coverage.json"
     else
         echo "⚠️ No coverage_report.json produced"
     fi
 
     # Step 4: Generate HTML report
+    echo "=== Step 4: Report ==="
     python3 src/report.py \
-        "output/${BASENAME}_inst_branch_map.json" \
-        "output/${BASENAME}_inst_coverage.json" \
-        --output      "output/${BASENAME}_inst_report.html" \
-        --csv         "output/${BASENAME}_inst_report.csv" \
-        --test-inputs "output/${BASENAME}_inst_test_inputs_log.json" \
+        "$OUT/${BASENAME}_inst_branch_map.json" \
+        "$OUT/${BASENAME}_inst_coverage.json" \
+        --output      "$OUT/${BASENAME}_inst_report.html" \
+        --csv         "$OUT/${BASENAME}_inst_report.csv" \
+        --test-inputs "$OUT/${BASENAME}_inst_test_inputs_log.json" \
         --no-summary || true
 
-    echo "✅ Done → open output/${BASENAME}_inst_report.html"
+    echo "✅ Done → open $OUT/${BASENAME}_inst_report.html"
     exit 0
 fi
 
@@ -200,7 +231,9 @@ if [ -d "$1" ]; then
                 cd "$SIKRAKEN_DIR"
                 ./bin/sikraken.sh release budget[10] "$REL_SRC" || true
                 cd "$SCRIPT_DIR"
-                SUITE_DIR=$(find "$SIKRAKEN_OUT" -type d -name "test-suite" | grep "$base" | head -1)
+                # Exact path: Sikraken writes to sikraken_output/<file name without extension>/
+                SUITE_DIR="$SIKRAKEN_OUT/$base/test-suite"
+                [ -d "$SUITE_DIR" ] || SUITE_DIR=""
                 if [ -z "$SUITE_DIR" ]; then
                     echo "⚠️ No Sikraken suite found for $base — running with no inputs"
                     SUITE_DIR="-"
