@@ -196,7 +196,8 @@ class ClassifyRun(unittest.TestCase):
     def test_statuses(self):
         self.assertEqual(S.classify_run(cov(**{'pass': 3}), True, 3)[0], 'ok')
         self.assertEqual(S.classify_run(cov(**{'pass': 3}), False, None)[0], 'ok')
-        self.assertEqual(S.classify_run(cov(**{'pass': 3}), True, 0)[0], 'partial')     # probes only
+        self.assertEqual(S.classify_run(cov(**{'pass': 3}), True, 0)[0], 'no_tests')    # no Sikraken test
+        self.assertEqual(S.classify_run(cov(**{'pass': 1}), True, None)[0], 'no_tests')
         self.assertEqual(S.classify_run(cov(**{'pass': 2, 'crash': 1}), True, 3)[0], 'partial')
         self.assertEqual(S.classify_run(cov(crash=3), True, 3)[0], 'run_crash')
         self.assertEqual(S.classify_run(cov(timeout=3), True, 3)[0], 'run_timeout')
@@ -307,11 +308,80 @@ class Results(unittest.TestCase):
         self.assertIn('4 finished of 6 planned (2 not done)', text)
         self.assertIn('    2  __VERIFIER_nondet_ulong', text)
         self.assertIn('    1  x', text)
-        self.assertIn('ok+partial tasks (sum of per-task edges.edge_coverage()): 4/10 = 40.0%', text)
+        self.assertIn('Edges over 2 ok+partial tasks with >= 1 Sikraken test or no nondet '
+                      '(sum of per-task edges.edge_coverage()): 4/10 = 40.0%', text)
         self.assertIn('Tasks with note example_note: 1', text)
         self.assertIn('Inputs with gcc line markers cleaned: 1', text)
         slow = text.split('10 slowest tasks:')[1].split('\n')[1]
         self.assertIn(' b', slow)
+
+
+ABORT_C = r'''#include <stdlib.h>
+extern int __VERIFIER_nondet_int(void);
+int main(void) { int x = __VERIFIER_nondet_int(); if (x > 0) abort(); return 0; }
+'''
+
+
+class RunSignals(unittest.TestCase):
+    def test_real_run_tests_log(self):
+        """run_tests.py on a binary that calls abort() for x > 0 (cov_runtime.c re-raises SIGABRT)."""
+        with tempfile.TemporaryDirectory() as d:
+            c = os.path.join(d, 'a.c')
+            with open(c, 'w') as f:
+                f.write(ABORT_C)
+            inst = os.path.join(d, 'a_inst.c')
+            with contextlib.redirect_stdout(io.StringIO()):
+                I.instrument_file(c, inst, flags=[])
+            src = os.path.join(HERE, '..', 'src')
+            exe = os.path.join(d, 'a')
+            subprocess.run(['gcc', '-w', inst, os.path.join(src, 'cov_runtime.c'),
+                            os.path.join(src, 'verifier_stubs.c'), '-I', src, '-o', exe], check=True)
+            suite = os.path.join(d, 'suite')
+            os.makedirs(suite)
+            for i, v in enumerate(['4', '-1'], 1):
+                with open(os.path.join(suite, f'test_input-{i}.xml'), 'w') as f:
+                    f.write(f'<testcase><input>{v}</input></testcase>')
+            r = subprocess.run([sys.executable, os.path.join(src, 'run_tests.py'), exe, suite,
+                                os.path.join(d, 'a_inst_branch_map.json')],
+                               cwd=d, capture_output=True, text=True, timeout=120)
+            signals, timeouts = S.run_signals(r.stdout)
+            self.assertEqual(signals, {'test_input-1.xml': 'SIGABRT'})
+            self.assertEqual(timeouts, [])
+            self.assertIn('[test_input-1.xml] ended by SIGABRT (exit code -6)', r.stdout)
+
+    def test_timeout_lines(self):
+        log = '  ⚠️  [test_input-3] TIMED OUT after 35s — killed\n  ⚠️  [t9] ended by signal 77 (exit code -77)\n'
+        self.assertEqual(S.run_signals(log), ({'t9': 'signal 77'}, ['test_input-3']))
+
+
+class StepSeconds(unittest.TestCase):
+    def test_split(self):
+        marks = [('instrument', 10.0), ('compile', 12.5), ('run', 13.0), ('report', 20.0), ('done', 20.5)]
+        self.assertEqual(S.step_seconds(marks, 21.0),
+                         {'instrument': 2.5, 'compile': 0.5, 'run': 7.0, 'report': 0.5, 'done': 0.5})
+
+
+class CoverageFilter(unittest.TestCase):
+    def test_counts_for_coverage(self):
+        base = {'edges_total': 4, 'edges_covered': 2}
+        yes = [dict(base, status='ok', nondet=True, sikraken_tests=3),
+               dict(base, status='partial', nondet=True, sikraken_tests=1),
+               dict(base, status='ok', nondet=False, sikraken_tests=None)]
+        no = [dict(base, status='no_tests', nondet=True, sikraken_tests=0),
+              dict(base, status='ok', nondet=True, sikraken_tests=0),
+              dict(base, status='compile_error', nondet=False, sikraken_tests=None),
+              dict(status='ok', nondet=False, sikraken_tests=None, edges_total=None)]
+        self.assertTrue(all(S.counts_for_coverage(r) for r in yes))
+        self.assertFalse(any(S.counts_for_coverage(r) for r in no))
+
+    def test_summary_signal_table(self):
+        res = [{'id': 'a', 'category': 'X', 'status': 'partial', 'stage': 'done', 'seconds': 1.0,
+                'detail': {'run_signals': {'t1': 'SIGABRT', 't2': 'SIGABRT', 't3': 'SIGSEGV'}}},
+               {'id': 'b', 'category': 'X', 'status': 'partial', 'stage': 'done', 'seconds': 1.0,
+                'detail': {'run_signals': {'t1': 'SIGABRT'}}}]
+        text = S.summary(res, planned=2, wall_seconds=1)
+        self.assertIn('  SIGABRT         3 / 2', text)
+        self.assertIn('  SIGSEGV         1 / 1', text)
 
 
 if __name__ == '__main__':

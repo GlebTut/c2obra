@@ -8,7 +8,7 @@ The real c2obra.sh, instrument.py, gcc and run_tests.py are used.
 
 Run from the repo root:  python3 -m unittest tests.test_mass_test -v
 """
-import csv, glob, json, os, shutil, signal, subprocess, sys, tempfile, time, unittest
+import csv, glob, json, os, re, shutil, signal, subprocess, sys, tempfile, time, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -35,6 +35,10 @@ if grep -q FAKE_PARSE_FAIL "$f"; then
     echo "Sikraken ERROR from ./bin/sikraken.sh: error code 1, parser failed on: y"
     exit 1
 fi
+if grep -q FAKE_NO_TESTS "$f"; then
+    mkdir -p "$out/test-suite"
+    exit 0
+fi
 if grep -q FAKE_SLEEP "$f"; then
     sleep 300 &
     echo $! > "$(dirname "$0")/../sleep.pid"
@@ -48,6 +52,10 @@ echo '<testcase><input>-1</input><input>3</input></testcase>' > "$out/test-suite
 # __VERIFIER_nondet_pointer has no stub (Sikraken rejects it too): a link error
 NOSTUB_C = r'''extern void *__VERIFIER_nondet_pointer(void);
 int main(void) { void *x = __VERIFIER_nondet_pointer(); if (x) return 1; return 0; }
+'''
+ABORT_C = r'''#include <stdlib.h>
+extern int __VERIFIER_nondet_int(void);
+int main(void) { int x = __VERIFIER_nondet_int(); if (x > 0) abort(); return 0; }
 '''
 INC_C = '#include "inc.h"\n' + TC.NONDET_C.replace('#include <stdio.h>', '#include <stdio.h>\n#define UNUSED INC_ONE')
 INC_H = '#define INC_ONE 1\n'
@@ -83,6 +91,8 @@ def build_tree(root):
         'missing':  ('XCSP', 'x/missing', '.c', None, 'LP64'),
         'sleep':    ('Sequentialized', 'seq/sleep', '.c', '/* FAKE_SLEEP */\n' + TC.NONDET_C, 'LP64'),
         'inc':      ('SoftwareSystems-BusyBox', 'bb/inc', '.c', INC_C, 'LP64'),
+        'notests':  ('ProductLines', 'pl/notests', '.c', '/* FAKE_NO_TESTS */\n' + TC.NONDET_C, 'LP64'),
+        'abort':    ('Hardness', 'hard/abort', '.c', ABORT_C, 'LP64'),
     }
     if TC.can_build_m32():
         tasks['m32'] = ('Loops', 'loops/m32', '.c', TC.NONDET_C, 'ILP32')
@@ -163,7 +173,8 @@ class FullBatch(unittest.TestCase):
     def test_statuses(self):
         want = {'plain': 'ok', 'tree_a': 'ok', 'tree_b': 'ok', 'marked': 'ok', 'xmacro': 'pairing_error',
                 'floats': 'ok', 'nostub': 'compile_error', 'parse': 'sikraken_parse',
-                'missing': 'input_missing', 'sleep': 'sikraken_timeout', 'inc': 'ok', 'm32': 'ok'}
+                'missing': 'input_missing', 'sleep': 'sikraken_timeout', 'inc': 'ok', 'm32': 'ok',
+                'notests': 'no_tests', 'abort': 'partial'}
         got = {n: self.r(n)['status'] for n in self.rows}
         self.assertEqual(got, {n: want[n] for n in self.rows})
 
@@ -194,6 +205,39 @@ class FullBatch(unittest.TestCase):
         self.assertEqual(d['parser_error'], "Fake parser: syntax error near '#' at line 1")
         self.assertEqual(d['after_sikraken_failure']['c2obra_status'], 'ok')
         self.assertEqual((r['stage'], r['edges_total'], r['edges_covered']), ('sikraken', '4', ''))
+
+    def test_no_tests(self):
+        r, d = self.r('notests'), self.detail('notests')
+        self.assertEqual((r['stage'], r['sikraken_tests'], r['nondet']), ('done', '0', 'True'))
+        self.assertEqual(d['reason'], 'nondet file, Sikraken wrote no test')
+        self.assertEqual(r['edges_total'], '4')
+
+    def test_signal_recorded(self):
+        d = self.detail('abort')          # fake suite: 4 (abort) and -1
+        self.assertEqual(d['run_signals'], {'test_input-1.xml': 'SIGABRT'})
+        self.assertEqual(d['reason'], 'some test runs did not pass')
+        log = open(os.path.join(self.rd, 'tasks', self.rows['abort']['id'], 'log.txt')).read()
+        self.assertIn('[test_input-1.xml] ended by SIGABRT (exit code -6)', log)
+
+    def test_step_timestamps(self):
+        d = self.detail('tree_a')
+        self.assertEqual(set(d['step_seconds']), {'instrument', 'compile', 'run', 'report'})
+        self.assertTrue(all(v >= 0 for v in d['step_seconds'].values()))
+        with open(os.path.join(self.rd, 'tasks', self.rows['tree_a']['id'], 'log.txt')) as f:
+            log = f.read()
+        for marker in ('[driver] === prepare ===', '[driver] === sikraken ===', '=== Step 1: Instrument ===',
+                       '=== Step 2: Compile ===', '=== Step 3: Run Tests ===', '=== Step 4: Report ==='):
+            self.assertRegex(log, r'\[\d\d:\d\d:\d\d\.\d{3} \+\d+\.\d{3}s\] ' + re.escape(marker))
+
+    def test_summary_coverage_filter(self):
+        with open(os.path.join(self.rd, 'summary.txt')) as f:
+            text = f.read()
+        counted = [n for n in self.rows if S.counts_for_coverage(json.load(open(
+            os.path.join(self.rd, 'tasks', self.rows[n]['id'], 'result.json'))))]
+        self.assertNotIn('notests', counted)
+        self.assertIn('abort', counted)
+        self.assertIn(f'Edges over {len(counted)} ok+partial tasks with >= 1 Sikraken test or no nondet', text)
+        self.assertIn('  SIGABRT         1 / 1', text)
 
     def test_timeout_kills_process_group(self):
         with open(os.path.join(self.root, 'sik', 'sleep.pid')) as f:

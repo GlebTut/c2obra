@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -44,43 +45,69 @@ TAR_SUITE_OVER = 200        # test-suite/ with more files than this is kept as t
 
 # ─── Processes ───────────────────────────────────────────────────────────────
 
-def run_proc(cmd, cwd, env, timeout, log):
-    """Run cmd in its own process group. (exit code, timed out, output, seconds).
+MARK_LINE = re.compile(r'^(=== |✅ Done|❌ )')       # c2obra.sh step markers, get a timestamp
 
+
+def stamp(t0):
+    """'[HH:MM:SS.mmm +12.345s] ': wall clock and seconds since t0 (time.monotonic())."""
+    now = datetime.datetime.now()
+    return f"[{now:%H:%M:%S}.{now.microsecond // 1000:03d} +{time.monotonic() - t0:.3f}s] "
+
+
+def run_proc(cmd, cwd, env, timeout, log, t0):
+    """Run cmd in its own process group. (exit code, timed out, output, seconds, marks).
+
+    Output is read line by line as it arrives: lines that start a c2obra.sh step get a
+    timestamp in log.txt, and marks = [(stage, monotonic time)] for stages.step_seconds().
+    The returned output text is unchanged (it is what stages.classify_*() parse).
     On timeout (or Ctrl-C) the whole group gets SIGTERM, then SIGKILL after 5 s: this reaches
     ECLiPSe under prlimit/bash -lc and the test binaries run_tests.py starts."""
-    t0 = time.monotonic()
-    log.write(f"$ {' '.join(cmd)}   (cwd {cwd}, timeout {timeout:.0f} s)\n")
+    start = time.monotonic()
+    log.write(f"{stamp(t0)}$ {' '.join(cmd)}   (cwd {cwd}, timeout {timeout:.0f} s)\n")
     log.flush()
     p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          start_new_session=True)
+    chunks, marks = [], []
+    names = dict(S.STAGE_MARKERS)
+
+    def reader():
+        for raw in iter(p.stdout.readline, b''):
+            line = raw.decode('utf-8', errors='replace')
+            chunks.append(line)
+            for marker, name in names.items():
+                if line.startswith(marker):
+                    marks.append((name, time.monotonic()))
+            log.write((stamp(t0) if MARK_LINE.match(line) else '') + line)
+        p.stdout.close()
+
+    th = threading.Thread(target=reader, daemon=True)
+    th.start()
     timed_out = False
     try:
-        out, _ = p.communicate(timeout=max(1, timeout))
+        p.wait(timeout=max(1, timeout))
     except subprocess.TimeoutExpired:
         timed_out = True
-        out = kill_group(p, log)
+        kill_group(p, log)
     except BaseException:                       # Ctrl-C / SIGTERM: do not leave the group running
         kill_group(p, log)
         raise
-    text = out.decode('utf-8', errors='replace')
-    log.write(text)
+    th.join(timeout=10)
+    end = time.monotonic()
     if timed_out:
-        log.write(f"\n[driver] TIMEOUT after {timeout:.0f} s: process group killed\n")
-    log.write(f"[driver] exit {p.returncode} after {time.monotonic() - t0:.1f} s\n")
+        log.write(f"\n{stamp(t0)}[driver] TIMEOUT after {timeout:.0f} s: process group killed\n")
+    log.write(f"{stamp(t0)}[driver] exit {p.returncode} after {end - start:.1f} s\n")
     log.flush()
-    return p.returncode, timed_out, text, time.monotonic() - t0
+    return p.returncode, timed_out, ''.join(chunks), end - start, marks + [('_end', end)]
 
 
 def kill_group(p, log):
-    out = b''
     for sig, wait in ((signal.SIGTERM, 5), (signal.SIGKILL, 5)):
         try:
             os.killpg(p.pid, sig)
         except ProcessLookupError:
             break
         try:
-            out, _ = p.communicate(timeout=wait)
+            p.wait(timeout=wait)
             break
         except subprocess.TimeoutExpired:
             continue
@@ -89,7 +116,6 @@ def kill_group(p, log):
         log.write(f"[driver] WARNING: process group {p.pid} still has members after SIGKILL\n")
     except ProcessLookupError:
         pass
-    return out or b''
 
 
 # ─── One task ────────────────────────────────────────────────────────────────
@@ -122,7 +148,7 @@ class Task:
         self.sik_out = os.path.join(cfg.sikraken_dir, 'sikraken_output', self.sik_name)
         self.t0 = time.monotonic()
         self.r = {k: row.get(k, '') for k in ('id', 'category', 'yml_path', 'input_file', 'extension', 'data_model')}
-        self.r.update(cleaned_markers=0, status=None, stage='prepare', sikraken_tests=None, decisions=None,
+        self.r.update(cleaned_markers=0, nondet=None, status=None, stage='prepare', sikraken_tests=None, decisions=None,
                       skipped_macro=None, edges_covered=None, edges_total=None, pct=None, sikraken_exit=None,
                       c2obra_exit=None, seconds_sikraken=None, seconds_c2obra=None,
                       log=os.path.relpath(os.path.join(self.dir, 'log.txt'), cfg.run_dir),
@@ -140,7 +166,7 @@ class Task:
         os.makedirs(self.dir)
         with open(os.path.join(self.dir, 'log.txt'), 'w') as log:
             self.log = log
-            log.write(f"[driver] task {self.row['id']}  {self.row['yml_path']}\n")
+            log.write(f"{stamp(self.t0)}[driver] task {self.row['id']}  {self.row['yml_path']}\n")
             try:
                 self._run()
             finally:
@@ -155,7 +181,7 @@ class Task:
             return self.fail('input_missing', 'prepare', {'path': src_in})
 
         # prepare: copy (cleaning gcc line markers if line 1 is one) + same-directory headers
-        self.log.write('[driver] === prepare ===\n')
+        self.log.write(f"{stamp(self.t0)}[driver] === prepare ===\n")
         os.makedirs(self.src_dir)
         text = read_text(src_in)
         text, n = S.strip_line_markers(text)
@@ -171,6 +197,7 @@ class Task:
         if headers:
             self.r['detail']['headers_copied'] = len(headers)
         nondet = S.uses_nondet(text)
+        self.r['nondet'] = nondet
 
         # sikraken
         suite = '-'
@@ -182,13 +209,13 @@ class Task:
 
     def sikraken(self):
         cfg, row = self.cfg, self.row
-        self.log.write('[driver] === sikraken ===\n')
+        self.log.write(f"{stamp(self.t0)}[driver] === sikraken ===\n")
         self.r['stage'] = 'sikraken'
         shutil.rmtree(self.sik_out, ignore_errors=True)
         rel = os.path.relpath(self.src, cfg.sikraken_dir)
         cmd = ['./bin/sikraken.sh', 'release', f'budget[{cfg.budget}]', DM_FLAG[row['data_model']], rel]
-        code, timed_out, out, secs = run_proc(cmd, cfg.sikraken_dir, os.environ.copy(),
-                                              min(cfg.sikraken_timeout, self.left()), self.log)
+        code, timed_out, out, secs, _ = run_proc(cmd, cfg.sikraken_dir, os.environ.copy(),
+                                                 min(cfg.sikraken_timeout, self.left()), self.log, self.t0)
         self.r['sikraken_exit'], self.r['seconds_sikraken'] = code, round(secs, 2)
         suite_src = os.path.join(self.sik_out, 'test-suite')
         n_tests = len(glob.glob(os.path.join(suite_src, 'test_input-*.xml'))) if os.path.isdir(suite_src) else None
@@ -205,7 +232,7 @@ class Task:
 
     def c2obra(self, suite, nondet):
         cfg, row = self.cfg, self.row
-        self.log.write('[driver] === c2obra.sh ===\n')
+        self.log.write(f"{stamp(self.t0)}[driver] === c2obra.sh ===\n")
         if self.r['status'] is None:
             self.r['stage'] = 'instrument'
         if self.left() <= 1:
@@ -217,9 +244,17 @@ class Task:
         # of the input is not found next to it; the headers were copied to src/ in prepare.
         env.update(OUT_DIR=self.out_dir, DATA_MODEL=row['data_model'], SIKRAKEN_SUITE=suite, LDLIBS='-lm',
                    SIKRAKEN_DIR=cfg.sikraken_dir, CFLAGS=f'-DLARGE_INT=1000000 -I{self.src_dir}')
-        code, timed_out, out, secs = run_proc(['bash', os.path.join(REPO, 'c2obra.sh'), self.src], REPO, env,
-                                              min(cfg.c2obra_timeout, self.left()), self.log)
+        code, timed_out, out, secs, marks = run_proc(['bash', os.path.join(REPO, 'c2obra.sh'), self.src], REPO,
+                                                     env, min(cfg.c2obra_timeout, self.left()), self.log, self.t0)
         self.r['c2obra_exit'], self.r['seconds_c2obra'] = code, round(secs, 2)
+        steps = S.step_seconds(marks[:-1], marks[-1][1]) if len(marks) > 1 else {}
+        steps.pop('done', None)
+        self.r['detail']['step_seconds'] = steps
+        signals, timeouts = S.run_signals(out)
+        if signals:
+            self.r['detail']['run_signals'] = signals
+        if timeouts:
+            self.r['detail']['run_timeouts'] = timeouts
         m = re.search(r'Skipped (\d+) Clang decision\(s\): macro', out)
         self.r['skipped_macro'] = int(m.group(1)) if m else (0 if 'Done! Instrumented' in out else None)
 
@@ -246,18 +281,18 @@ class Task:
         if self.r['status'] is None:
             status, detail = S.classify_run(cov_json, nondet, self.r['sikraken_tests'])
             self.r['detail'].update(detail)
-            if status != 'ok' and status != 'partial':
-                self.fail(status, 'run')
-            else:
+            if status in ('ok', 'partial', 'no_tests'):
                 self.r['status'], self.r['stage'] = status, 'done'
+            else:
+                self.fail(status, 'run')
         try:
             if branch_map:
                 total, covered, pct = M.compute_stats(branch_map, M.load_coverage(cov_path))
                 self.r['edges_total'] = total
-                if self.r['status'] in ('ok', 'partial'):
+                if self.r['status'] in ('ok', 'partial', 'no_tests'):
                     self.r['edges_covered'], self.r['pct'] = covered, round(pct, 2)
         except Exception as e:                     # MissingEdgesError, bad JSON
-            if self.r['status'] in ('ok', 'partial'):
+            if self.r['status'] in ('ok', 'partial', 'no_tests'):
                 self.r['status'], self.r['stage'] = 'report_error', 'report'
             self.r['detail']['report_error'] = str(e)
         self.slim()

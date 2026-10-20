@@ -153,6 +153,25 @@ def missing_symbols(log, limit=5):
     return out
 
 
+RUN_SIGNAL = re.compile(r'\[([^\]]+)\] ended by (SIG\w+|signal \d+) \(exit code (-?\d+)\)')
+RUN_TIMEOUT = re.compile(r'\[([^\]]+)\] TIMED OUT after')
+
+
+def run_signals(log):
+    """From run_tests.py's log lines: ({test name: signal name}, [timed-out test names])."""
+    return ({m.group(1): m.group(2) for m in RUN_SIGNAL.finditer(log)},
+            [m.group(1) for m in RUN_TIMEOUT.finditer(log)])
+
+
+def step_seconds(marks, end):
+    """marks: [(stage, monotonic time)] in log order; end: time the process ended.
+    {stage: seconds} from one marker to the next (or to end)."""
+    out = {}
+    for (name, t), nxt in zip(marks, marks[1:] + [(None, end)]):
+        out[name] = round(out.get(name, 0) + nxt[1] - t, 3)
+    return out
+
+
 def _error_excerpt(log, n=4):
     lines = log.splitlines()
     for i, line in enumerate(lines):
@@ -188,7 +207,11 @@ def classify_c2obra(exit_code, timed_out, log):
 
 
 def classify_run(cov_json, nondet, sikraken_tests):
-    """(status, detail) once c2obra.sh finished. cov_json: run_tests.py's JSON, or None."""
+    """(status, detail) once c2obra.sh finished. cov_json: run_tests.py's JSON, or None.
+
+    no_tests: a nondet file for which Sikraken wrote no test (run once with no inputs);
+    partial:  some test runs ended on a signal or timed out (run_tests.py 'partial'/'crash'/
+              'timeout'), with at least one Sikraken test."""
     if not cov_json or ('branches' not in cov_json and 'summary' not in cov_json):
         return 'run_crash', {'error': 'no coverage JSON'}
     runs = cov_json.get('summary', {}).get('test_run_statuses', {})
@@ -197,7 +220,7 @@ def classify_run(cov_json, nondet, sikraken_tests):
         status = 'run_timeout' if runs.get('timeout') and not runs.get('crash') else 'run_crash'
         return status, {'test_run_statuses': runs}
     if nondet and not sikraken_tests:
-        return 'partial', {'reason': 'nondet file run without Sikraken tests', 'test_run_statuses': runs}
+        return 'no_tests', {'reason': 'nondet file, Sikraken wrote no test', 'test_run_statuses': runs}
     if bad:
         return 'partial', {'reason': 'some test runs did not pass', 'test_run_statuses': runs}
     return 'ok', {'test_run_statuses': runs}
@@ -329,7 +352,7 @@ def select_tasks(rows, tasks_dir, retry_statuses=()):
 FIELDS = ['id', 'category', 'yml_path', 'input_file', 'extension', 'data_model', 'cleaned_markers',
           'status', 'stage', 'sikraken_tests', 'decisions', 'skipped_macro', 'edges_covered',
           'edges_total', 'pct', 'seconds', 'log', 'detail', 'sikraken_exit', 'c2obra_exit',
-          'seconds_sikraken', 'seconds_c2obra']
+          'seconds_sikraken', 'seconds_c2obra', 'nondet']
 
 
 def csv_row(result):
@@ -350,6 +373,16 @@ def atomic_write(path, text):
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
+
+
+def counts_for_coverage(r):
+    """ok/partial, and the inputs came from Sikraken (>= 1 test) or there are none (no nondet)."""
+    if r['status'] not in ('ok', 'partial') or r.get('edges_total') in (None, ''):
+        return False
+    nondet = r.get('nondet')
+    if nondet is None:                       # results written before the nondet column
+        nondet = r.get('sikraken_tests') is not None
+    return not nondet or bool(r.get('sikraken_tests'))
 
 
 def summary(results, planned, wall_seconds):
@@ -377,12 +410,19 @@ def summary(results, planned, wall_seconds):
         for c in cats:
             w(f"  {c:{cw}s} " + ' '.join(f"{by[(c, s)] or '':>14}" for s in statuses))
         w('')
-    cov = [r for r in results if r['status'] in ('ok', 'partial') and r.get('edges_total') not in (None, '')]
+    cov = [r for r in results if counts_for_coverage(r)]
     if cov:
         c = sum(r['edges_covered'] for r in cov)
         t = sum(r['edges_total'] for r in cov)
-        w(f"Edges over ok+partial tasks (sum of per-task edges.edge_coverage()): {c}/{t}"
-          + (f" = {c / t * 100:.1f}%" if t else ''))
+        w(f"Edges over {len(cov)} ok+partial tasks with >= 1 Sikraken test or no nondet "
+          f"(sum of per-task edges.edge_coverage()): {c}/{t}" + (f" = {c / t * 100:.1f}%" if t else ''))
+        w('')
+    sigs = Counter(v for r in results for v in r.get('detail', {}).get('run_signals', {}).values())
+    if sigs:
+        tasks = Counter(v for r in results for v in set(r.get('detail', {}).get('run_signals', {}).values()))
+        w('Test runs ended by a signal (runs / tasks):')
+        for s_, n in sigs.most_common():
+            w(f"  {s_:10s} {n:6d} / {tasks[s_]}")
         w('')
     w(f"Inputs with gcc line markers cleaned: {sum(1 for r in results if r.get('cleaned_markers'))}")
     notes = Counter(n for r in results for n in r.get('detail', {}).get('notes', []))

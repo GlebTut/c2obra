@@ -44,7 +44,8 @@ The first failing stage decides the status (`stage` column: where it stopped).
 | status | stage | detected by |
 |---|---|---|
 | `ok` | done | c2obra.sh exit 0, every test run `pass` |
-| `partial` | done | finished, but some test runs timed out / crashed, or a nondet file had no Sikraken tests (run with `run_tests.py`'s probe inputs); `detail.reason` |
+| `partial` | done | finished, but some test runs ended on a signal or timed out (with at least one Sikraken test); `detail.run_signals` = {test: signal}, `detail.run_timeouts` |
+| `no_tests` | done | nondet file, Sikraken exited normally but wrote no test (it was run once with no inputs) |
 | `input_missing` | prepare | input file not on disk |
 | `sikraken_parse` | sikraken | exit ≠ 0 and the log has `Sikraken ERROR from …call_parser.sh` (gcc -E, copy or parser failed); `detail.parser_error` = last non-Sikraken line before it |
 | `sikraken_error` | sikraken | other exit ≠ 0 (ECLiPSe), or exit 0 without `test-suite/` (`sikraken.sh` turns exit 137 into 0) |
@@ -58,6 +59,10 @@ The first failing stage decides the status (`stage` column: where it stopped).
 | `tool_timeout` | instrument/compile/report | driver timeout outside Step 3 |
 | `report_error` | report | branch map without `edges`, unreadable JSON |
 | `driver_error` | – | c2obra.sh reported Done but exited ≠ 0 (should not happen) |
+
+`run_tests.py` prints `[<test>] ended by SIGABRT (exit code -6)` for every run that ended on a
+signal; the driver collects these. `cov_runtime.c` re-raises SIGSEGV/SIGABRT/SIGFPE, so those
+are seen; SIGXCPU and SIGTERM end with `_exit(1)` and look like exit code 1.
 
 The stage inside c2obra.sh is the last `=== Step N` marker in its log: under `set -e` a gcc
 failure exits before `❌ Compilation failed` is printed, so that line cannot be relied on.
@@ -96,9 +101,15 @@ the instrumented `.c`, the HTML reports and the input copy unless it was cleaned
 
 `results.csv` columns: `id,category,yml_path,input_file,extension,data_model,cleaned_markers,
 status,stage,sikraken_tests,decisions,skipped_macro,edges_covered,edges_total,pct,seconds,log,
-detail,sikraken_exit,c2obra_exit,seconds_sikraken,seconds_c2obra` (`detail` is JSON).
-`edges_total` is filled whenever a branch map exists; `edges_covered`/`pct` only for `ok` and
-`partial`. The summary's edge total is the sum of the per-task `edge_coverage()` results.
+detail,sikraken_exit,c2obra_exit,seconds_sikraken,seconds_c2obra,nondet` (`detail` is JSON).
+`edges_total` is filled whenever a branch map exists; `edges_covered`/`pct` for `ok`, `partial`
+and `no_tests`. The summary's edge total is the sum of the per-task `edge_coverage()` results
+over `ok` and `partial` tasks that had at least one Sikraken test or no nondet call; it also
+prints how many test runs ended on each signal.
+
+`log.txt` has a `[HH:MM:SS.mmm +s]` timestamp (seconds since the task started) on each driver
+stage and each c2obra.sh step line; `detail.step_seconds` = time per c2obra.sh step
+(instrument, compile, run, report).
 
 ## Resume
 
