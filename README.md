@@ -296,7 +296,11 @@ c2obra/
 | TestCov     | 69.9%        | 538      | Post-compilation filtering (smaller denominator) |
 | TestCoCa    | 48.0%        | 538      | Syntactic AST, no filter |
 
-> TestCov's higher average is due to reachability filtering — it excludes unreachable branches from the denominator. C²oBra's denominator is more conservative (all syntactic branches).
+> Observed in `benchmark_results.csv`: the averages above are means over the programs where each
+> tool produced a number, which is a different set per tool (C²oBra 539, TestCoCa 464, TestCov 263
+> of 602 rows). On the 259 programs where all three produced a number, the means are C²oBra 76.9%,
+> TestCoCa 67.2%, TestCov 70.9%. The cause of the differences between the tools has not been
+> investigated. These numbers predate the current edge model (see [Coverage Model](#coverage-model)).
 
 ### Iteration 3 — Problem_16 Benchmark
 
