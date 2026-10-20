@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # smoke_test.sh — Quick sanity check after install.
-# Usage: bash smoke_test.sh
+# Usage: ./smoke_test.sh   (or: bash smoke_test.sh)
 # Expected: 4 branches, 100% coverage (2 branch constructs × 2 edges each)
 
 set -euo pipefail
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Same as c2obra.sh: use the project venv (the system python3 has no tree_sitter)
+if [ -f "$TOOL_DIR/venv/bin/activate" ]; then
+    source "$TOOL_DIR/venv/bin/activate"
+fi
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
