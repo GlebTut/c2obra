@@ -153,7 +153,8 @@ def build_cover_chain(switch_meta, base_id, var):
 
     IDs follow label order (same as write_branch_map); a missing default gets the next ID.
     The default is checked last wherever its label is, because it is taken only when no case
-    matches; a switch with only a default records cover(1, id)."""
+    matches; a switch with only a default records cover(1, id). The implicit default (no
+    default label) also records cover(1, id): every switch label edge is a true counter."""
     cases, default_id, parts = [], None, []
     for i, case in enumerate(switch_meta['cases']):
         if case['kind'] == 'case':
@@ -166,7 +167,7 @@ def build_cover_chain(switch_meta, base_id, var):
     if default_id is not None:
         last = f"cover(1, {default_id});"
     else:
-        last = f"cover(0, {base_id + len(switch_meta['cases'])});"
+        last = f"cover(1, {base_id + len(switch_meta['cases'])});"
     parts.append(f"else {last}" if cases else last)
     return ' '.join(parts)
 
@@ -402,8 +403,8 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
     "edges" lists every real edge, one entry per edge: {"id": cover() id, "side": "true"|"false"}.
     A decision (if, loop, ?:) has two edges. A switch label has one: its cover() is true when
     that label is taken; its false counter only means "not this label" and is not an edge.
-    The implicit default is recorded with cover(0, id) (build_cover_chain), so its edge is the
-    false side. edges.edge_coverage() turns this list into covered/total.
+    The implicit default is also recorded as cover(1, id) (build_cover_chain), so every switch
+    label edge is a true side. edges.edge_coverage() turns this list into covered/total.
     """
     sorted_branches = instrumentable_branches(branches, source_code)
     branch_map  = []
@@ -433,7 +434,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                     "type":  "switch_implicit_default",
                     "label": "implicit default",
                 })
-                edges.append({"id": current_id, "side": "false"})
+                edges.append({"id": current_id, "side": "true"})
                 current_id += 1
 
         elif branch_type == 'if_statement':
