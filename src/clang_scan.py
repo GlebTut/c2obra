@@ -24,7 +24,8 @@ KEYWORD = {'if': 'if', 'for': 'for', 'while': 'while', 'do': 'do', 'switch': 'sw
 # every run; later flags win in Clang, so the user can override them (e.g. -Werror=implicit-int).
 LENIENCY_FLAGS = ['-Wno-error=implicit-function-declaration',
                   '-Wno-error=implicit-int',
-                  '-Wno-error=int-conversion']
+                  '-Wno-error=int-conversion',
+                  '-Wno-error=incompatible-function-pointer-types']   # ntdrivers *_i_cil callbacks
 # Clang's default bracket-nesting limit (256) is lower than GCC's; CIL-reduced SV-COMP files
 # need more. Affects only whether Clang accepts the file, not its meaning.
 CLANG_ONLY_FLAGS = ['-fbracket-depth=4096']

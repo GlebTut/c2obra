@@ -181,6 +181,14 @@ class FailLoudly(unittest.TestCase):
             p = write_tmp(d, 'f(x) { if (g(x)) return 1; return 0; }\n')   # implicit int + implicit decl
             self.assertEqual([d['kind'] for d in C.scan(p)], ['if'])
 
+    def test_incompatible_function_pointer_is_accepted(self):
+        # ntdrivers cdaudio/parport: a callback assigned from a function with another parameter type
+        src = ('typedef int (*cb_t)(void *);\nstatic int h(int *p) { return *p; }\n'
+               'int f(void) { cb_t c; c = h; if (c) return 1; return 0; }\n')
+        with tempfile.TemporaryDirectory() as d:
+            p = write_tmp(d, src)
+            self.assertEqual([d['kind'] for d in C.scan(p)], ['if'])
+
     def test_user_can_override_leniency(self):
         with tempfile.TemporaryDirectory() as d:
             p = write_tmp(d, 'int f(int x) { if (g(x)) return 1; return 0; }\n')
