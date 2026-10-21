@@ -34,7 +34,6 @@ VERIFIER_STUB_PATTERNS = [
     r'void\s+reach_error\s*\([^)]*\)\s*\{[^}]*\}',
     r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[^}]*\}',
     r'extern\s+[^;]*__assert_fail[^;]*;',
-    r'typedef\s+unsigned\s+int\s+size_t\s*;',
 ]
 
 
@@ -232,17 +231,36 @@ def strip_verifier_boilerplate(code: str) -> str:
         r'extern\s+[^;]*__assert_fail[^;]*;',
         r'extern\s+[^;]*__assert_perror_fail[^;]*;',
         r'extern\s+[^;]*__assert\s*\([^;]*;',
-        r'typedef\s+unsigned\s+int\s+size_t\s*;',
+        # No longer stripped: 'typedef unsigned int size_t;' (added in 310d799 because
+        # cov_runtime.h then included <stdio.h>, whose LP64 size_t conflicted with it). Since
+        # 24672ad the header includes nothing, and the program needs its own typedef.
     ]
     for pattern in simple_patterns:
         code = re.sub(pattern, '', code, flags=re.DOTALL)
 
     def remove_function_def(src, fname):
+        """Drop the definition of void fname(...) { ... }. The '{' may be on the header line
+        or on one of the next MAX_HELD lines (e.g. 'void reach_error()' then '{' below, as in
+        recursified_nested_1b.c); a ';' first means a declaration, which is kept."""
+        MAX_HELD = 5
         lines = src.split('\n')
         out = []
         skip = False
         depth = 0
+        held = None          # header line(s) of a definition whose '{' has not been seen yet
         for line in lines:
+            if held is not None:
+                if '{' in line:
+                    held, skip = None, True
+                    depth = line.count('{') - line.count('}')
+                    if depth <= 0:
+                        skip = False
+                elif ';' in line or len(held) >= MAX_HELD:
+                    out.extend(held + [line])
+                    held = None
+                else:
+                    held.append(line)
+                continue
             if not skip:
                 if re.search(rf'\bvoid\s+{fname}\s*\(', line) and '{' in line:
                     skip = True
@@ -250,11 +268,16 @@ def strip_verifier_boilerplate(code: str) -> str:
                     if depth <= 0:
                         skip = False
                     continue
+                if re.search(rf'\bvoid\s+{fname}\s*\(', line) and ';' not in line:
+                    held = [line]
+                    continue
                 out.append(line)
             else:
                 depth += line.count('{') - line.count('}')
                 if depth <= 0:
                     skip = False
+        if held is not None:
+            out.extend(held)
         return '\n'.join(out)  # ← always returns
 
     for fname in ['reach_error', '__VERIFIER_error']:
@@ -507,8 +530,8 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
     if not os.path.exists(input_file):
         print(f"❌ Error: File '{input_file}' not found")
         sys.exit(1)
-    if not input_file.endswith('.c'):
-        print(f"❌ Error: Expected a .c file, got '{input_file}'")
+    if not input_file.endswith(('.c', '.i')):
+        print(f"❌ Error: Expected a .c or .i file, got '{input_file}'")
         sys.exit(1)
     output_dir = os.path.dirname(output_file)
     if output_dir and not os.path.exists(output_dir):
@@ -529,7 +552,7 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         print(f"ℹ️ Skipped {n} Clang decision(s): {reason}")
     if unpaired:
         print(f"ℹ️ {len(unpaired)} Tree-sitter construct(s) have no Clang decision "
-              f"(inactive #if arm, or not compiled) — not instrumented")
+              f"(inactive #if arm, not compiled, or outside a function) — not instrumented")
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:

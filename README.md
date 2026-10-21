@@ -120,6 +120,20 @@ The pipeline runs these steps automatically:
 
 > **Note:** Sikraken must be installed at `~/sikraken/` — see the Sikraken section below.
 
+Environment variables (single-file mode; unset = the behaviour above): `DATA_MODEL`
+(`ILP32`/`LP64`, passed to the Clang scan, gcc and Sikraken), `OUT_DIR` (all outputs and the
+binary go there), `SIKRAKEN_SUITE` (use this test suite, or `-` for none, and do not run
+Sikraken), `LDLIBS` (e.g. `-lm`), `CFLAGS`, `SIKRAKEN_DIR`. See `bash c2obra.sh --help`.
+
+### Batch run on Test-Comp tasks
+
+```bash
+batch/mass_test.sh --name pilot --pilot 20      # tasks from ~/benchmarks/sample.csv
+```
+
+Resumable, one row per task in `results.csv`, with a status per failing stage. See
+[docs/mass_test.md](docs/mass_test.md).
+
 ### Run the full pipeline on a directory
 
 ```bash
@@ -266,6 +280,10 @@ c2obra/
 ├── docs/
 │   ├── logo.png            # Project logo
 │   └── screenshots/        # UI screenshots for README and user resources page
+├── batch/
+│   ├── mass_test.sh        # Batch driver on Test-Comp tasks (docs/mass_test.md)
+│   ├── mass_test.py
+│   └── stages.py           # Task ids, marker cleaning, status classification
 ├── c2obra.sh               # End-to-end pipeline script
 ├── benchmark_cobra.sh      # Timed benchmarking script
 ├── smoke_test.sh           # Post-install sanity check

@@ -3,13 +3,18 @@
 
 #include "cov_runtime.h"
 #include <stdio.h>
-#include <inttypes.h>
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
 
 // Global array that stores hit counts
-uint64_t branch_counters[MAX_BRANCHES] = {0};
+unsigned long long branch_counters[MAX_BRANCHES] = {0};
+
+// Called by cover() for an id beyond MAX_BRANCHES (the header has no stdio)
+int __c2obra_cover_out_of_bounds(int branch_id) {
+    fprintf(stderr, "cover(): branch_id %d out of bounds\n", branch_id);
+    return 0;
+}
 
 // Guard against double-write (e.g. SIGXCPU fires then destructor also runs)
 static volatile int coverage_written = 0;
@@ -33,7 +38,7 @@ void dump_coverage(void) {
     for (int i = 0; i < MAX_BRANCHES; i += 2) {
         if (branch_counters[i] > 0 || branch_counters[i+1] > 0) {
             if (!first) fprintf(f, ",\n");
-            fprintf(f, "    {\"id\": %d, \"true\": %" PRIu64 ", \"false\": %" PRIu64 "}",
+            fprintf(f, "    {\"id\": %d, \"true\": %llu, \"false\": %llu}",
                 i / 2 + 1,
                 branch_counters[i],
                 branch_counters[i + 1]

@@ -77,6 +77,13 @@ def run_test(binary, inputs, test_name, work_dir):
         exit_code = result.returncode
         if exit_code < 0:
             crashed = True
+            # cov_runtime.c re-raises SIGSEGV/SIGABRT/SIGFPE after dumping, so the signal is
+            # visible here; SIGXCPU/SIGTERM end with _exit(1) and are not seen as signals.
+            try:
+                sig = signal.Signals(-exit_code).name
+            except ValueError:
+                sig = f"signal {-exit_code}"
+            print(f"  ⚠️  [{test_name}] ended by {sig} (exit code {exit_code})")
 
     except subprocess.TimeoutExpired as e:
         # Stage 1: SIGTERM → triggers dump_coverage() in cov_runtime.c

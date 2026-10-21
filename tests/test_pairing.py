@@ -5,15 +5,17 @@ Clang decides which decisions exist; each must pair with a Tree-sitter node at t
 
 Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
 """
-import contextlib, io, json, os, re, sys, tempfile, unittest
+import contextlib, io, json, os, re, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 sys.path.insert(0, HERE)
 import instrument as I
 from test_id_sync import cover_ids
+from test_c2obra_sh import can_build_m32
 
 CORPUS = os.path.join(HERE, 'corpusC')
+SRC = os.path.join(HERE, '..', 'src')
 
 
 def run(path, flags=None):
@@ -116,6 +118,33 @@ class InstrumentFile(unittest.TestCase):
                 code, _, inst, ids = run(os.path.join(CORPUS, f), flags=[])
                 self.assertEqual(code, 0)
                 self.assertEqual(cover_ids(inst), ids)
+
+
+class OutsideFunctions(unittest.TestCase):
+    """Run 2026-10-20: 19 busybox tasks failed to compile with "enumerator value for '_ISupper'
+    is not an integer constant": glibc <ctype.h>'s enum values were wrapped in cover()."""
+    SRC_TEXT = ('enum { A = ((0) < 8 ? 1 : 2) };\n'
+                'int main(void) { int x = A; return x > 0 ? 0 : 1; }\n')
+
+    def test_enum_ternary_is_left_alone_and_compiles(self):
+        models = ['-m64'] + (['-m32'] if can_build_m32() else [])
+        for flag in models:
+            with self.subTest(model=flag), tempfile.TemporaryDirectory() as d:
+                p = write_tmp(d, self.SRC_TEXT)
+                inst = os.path.join(d, 't_inst.c')
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    I.instrument_file(p, inst, flags=[flag])
+                self.assertIn('Skipped 1 Clang decision(s): outside_function', buf.getvalue())
+                with open(inst) as f:
+                    code = f.read()
+                self.assertIn('enum { A = ((0) < 8 ? 1 : 2) };', code)
+                self.assertIn('cover((x > 0), 1)', code)                # the ?: in main is still wrapped
+                self.assertEqual(cover_ids(code), [1])
+                r = subprocess.run(['gcc', '-w', flag, inst, os.path.join(SRC, 'cov_runtime.c'),
+                                    os.path.join(SRC, 'verifier_stubs.c'), '-I', SRC, '-o', os.path.join(d, 't')],
+                                   capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
 
 
 if __name__ == '__main__':

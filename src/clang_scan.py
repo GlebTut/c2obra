@@ -24,7 +24,8 @@ KEYWORD = {'if': 'if', 'for': 'for', 'while': 'while', 'do': 'do', 'switch': 'sw
 # every run; later flags win in Clang, so the user can override them (e.g. -Werror=implicit-int).
 LENIENCY_FLAGS = ['-Wno-error=implicit-function-declaration',
                   '-Wno-error=implicit-int',
-                  '-Wno-error=int-conversion']
+                  '-Wno-error=int-conversion',
+                  '-Wno-error=incompatible-function-pointer-types']   # ntdrivers *_i_cil callbacks
 # Clang's default bracket-nesting limit (256) is lower than GCC's; CIL-reduced SV-COMP files
 # need more. Affects only whether Clang accepts the file, not its meaning.
 CLANG_ONLY_FLAGS = ['-fbracket-depth=4096']
@@ -184,7 +185,8 @@ def scan(path, user_flags=(), res_dir=None):
     """Every decision Clang sees whose expansion location is in `path`, in source order.
 
     Each entry: kind, line, col (1-based expansion location; col counts bytes),
-    from_macro, has_condition (for loops; None otherwise or unknown), n_cases (switch).
+    from_macro, has_condition (for loops; None otherwise or unknown), n_cases (switch),
+    in_function (inside the body of a function definition).
     Raises ClangScanError if Clang reports any error-level diagnostic: a fatal error still
     yields a partial AST, so a scan with errors is never used.
     """
@@ -217,10 +219,14 @@ def scan(path, user_flags=(), res_dir=None):
     for top in tu.cursor.get_children():
         if not in_main(top.location):
             continue
-        stack = [top]
+        stack = [(top, False)]    # (cursor, inside a function body)
         while stack:              # explicit stack: Cursor.walk_preorder() is a recursive generator,
-            c = stack.pop()       # O(cursors x depth), slow on deeply nested CIL-reduced files
-            stack.extend(reversed(list(c.get_children())))   # reversed: pop in preorder
+            c, in_body = stack.pop()   # O(cursors x depth), slow on deeply nested CIL-reduced files
+            # The body of a function definition is its COMPOUND_STMT child (not its parameters:
+            # a ?: in a parameter's array size is outside the body).
+            fdef = c.kind == K.FUNCTION_DECL and c.is_definition()
+            stack.extend(reversed([(ch, in_body or (fdef and ch.kind == K.COMPOUND_STMT))
+                                   for ch in c.get_children()]))   # reversed: pop in preorder
             loc = c.location                              # expansion location
             if not in_main(loc):
                 continue
@@ -238,6 +244,7 @@ def scan(path, user_flags=(), res_dir=None):
                 'from_macro':    _from_macro(c, kind, tokens),
                 'has_condition': _for_has_condition(tokens) if kind == 'for' else None,
                 'n_cases':       _count_cases(c) if kind == 'switch' else None,
+                'in_function':   in_body,
             })
     out.sort(key=lambda d: d['offset'])
     return out
@@ -248,11 +255,16 @@ def counts_as_decision(d):
 
     Kept in one place because the definition of a branch is still open (supervisor questions:
     macros, constant conditions, how switch is counted). Reasons for skipping:
+      outside_function - not inside a function body (enum value, global initialiser, array
+                         size at file scope): never executed at run time, and a constant
+                         expression there cannot contain the cover() call (busybox _ISupper)
       macro          - produced by a macro expansion: no text in the file to wrap (Phase 5)
       switch_no_case - switch without case/default labels has nothing to count
     A for without a condition (for(;;)) IS counted, like while(1) (tests/definition/d07,
     confirmed 2026-10-16); instrument.py inserts cover((1), id) in its empty slot.
     """
+    if not d['in_function']:
+        return False, 'outside_function'
     if d['from_macro']:
         return False, 'macro'
     if d['kind'] == 'switch' and d['n_cases'] == 0:
