@@ -209,18 +209,20 @@ def classify_c2obra(exit_code, timed_out, log):
 def classify_run(cov_json, nondet, sikraken_tests):
     """(status, detail) once c2obra.sh finished. cov_json: run_tests.py's JSON, or None.
 
-    no_tests: a nondet file for which Sikraken wrote no test (run once with no inputs);
+    no_tests: a nondet file for which Sikraken wrote no test (run once with no inputs), whatever
+              that run did: checked before run_crash/run_timeout, because a crash with no
+              inputs is not a crash on a Sikraken test (2026-10-20 run: 6 such tasks);
     partial:  some test runs ended on a signal or timed out (run_tests.py 'partial'/'crash'/
               'timeout'), with at least one Sikraken test."""
     if not cov_json or ('branches' not in cov_json and 'summary' not in cov_json):
         return 'run_crash', {'error': 'no coverage JSON'}
     runs = cov_json.get('summary', {}).get('test_run_statuses', {})
     bad = {k: v for k, v in runs.items() if k != 'pass' and v}
+    if nondet and not sikraken_tests:
+        return 'no_tests', {'reason': 'nondet file, Sikraken wrote no test', 'test_run_statuses': runs}
     if runs and not runs.get('pass') and not runs.get('partial'):
         status = 'run_timeout' if runs.get('timeout') and not runs.get('crash') else 'run_crash'
         return status, {'test_run_statuses': runs}
-    if nondet and not sikraken_tests:
-        return 'no_tests', {'reason': 'nondet file, Sikraken wrote no test', 'test_run_statuses': runs}
     if bad:
         return 'partial', {'reason': 'some test runs did not pass', 'test_run_statuses': runs}
     return 'ok', {'test_run_statuses': runs}

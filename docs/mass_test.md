@@ -45,7 +45,7 @@ The first failing stage decides the status (`stage` column: where it stopped).
 |---|---|---|
 | `ok` | done | c2obra.sh exit 0, every test run `pass` |
 | `partial` | done | finished, but some test runs ended on a signal or timed out (with at least one Sikraken test); `detail.run_signals` = {test: signal}, `detail.run_timeouts` |
-| `no_tests` | done | nondet file, Sikraken exited normally but wrote no test (it was run once with no inputs) |
+| `no_tests` | done | nondet file, Sikraken exited normally but wrote no test (it was run once with no inputs; also when that run crashed or timed out) |
 | `input_missing` | prepare | input file not on disk |
 | `sikraken_parse` | sikraken | exit ≠ 0 and the log has `Sikraken ERROR from …call_parser.sh` (gcc -E, copy or parser failed); `detail.parser_error` = last non-Sikraken line before it |
 | `sikraken_error` | sikraken | other exit ≠ 0 (ECLiPSe), or exit 0 without `test-suite/` (`sikraken.sh` turns exit 137 into 0) |
@@ -54,8 +54,8 @@ The first failing stage decides the status (`stage` column: where it stopped).
 | `pairing_error` | instrument | log `could not be paired` |
 | `instrument_error` | instrument | any other failure before Step 2 |
 | `compile_error` | compile | exit ≠ 0 after `=== Step 2: Compile ===`; `detail.missing_symbols` = first 5 distinct `undefined reference` names, `detail.first_error` |
-| `run_crash` | run | exit ≠ 0 after Step 3, no coverage JSON, or every test run crashed |
-| `run_timeout` | run | driver timeout during Step 3, or every test run timed out |
+| `run_crash` | run | exit ≠ 0 after Step 3, no coverage JSON, or every test run crashed (not for a `no_tests` task) |
+| `run_timeout` | run | driver timeout during Step 3, or every test run timed out (not for a `no_tests` task) |
 | `tool_timeout` | instrument/compile/report | driver timeout outside Step 3 |
 | `report_error` | report | branch map without `edges`, unreadable JSON |
 | `driver_error` | – | c2obra.sh reported Done but exited ≠ 0 (should not happen) |

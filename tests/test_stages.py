@@ -199,9 +199,19 @@ class ClassifyRun(unittest.TestCase):
         self.assertEqual(S.classify_run(cov(**{'pass': 3}), True, 0)[0], 'no_tests')    # no Sikraken test
         self.assertEqual(S.classify_run(cov(**{'pass': 1}), True, None)[0], 'no_tests')
         self.assertEqual(S.classify_run(cov(**{'pass': 2, 'crash': 1}), True, 3)[0], 'partial')
-        self.assertEqual(S.classify_run(cov(crash=3), True, 3)[0], 'run_crash')
+        self.assertEqual(S.classify_run(cov(crash=3), True, 3)[0], 'run_crash')       # real tests, all crash
         self.assertEqual(S.classify_run(cov(timeout=3), True, 3)[0], 'run_timeout')
+        self.assertEqual(S.classify_run(cov(crash=1), False, None)[0], 'run_crash')   # no nondet call
         self.assertEqual(S.classify_run(None, True, 3)[0], 'run_crash')
+        self.assertEqual(S.classify_run(None, True, 0)[0], 'run_crash')               # no coverage JSON at all
+
+    def test_no_tests_wins_over_a_crash_of_the_no_input_run(self):
+        # array-multidimensional__min-3-n-u (2026-10-20): 0 Sikraken tests, no_inputs run SIGSEGV
+        status, detail = S.classify_run(cov(crash=1), True, 0)
+        self.assertEqual(status, 'no_tests')
+        self.assertEqual(detail['test_run_statuses']['crash'], 1)
+        self.assertEqual(S.classify_run(cov(timeout=1), True, 0)[0], 'no_tests')
+        self.assertEqual(S.classify_run(cov(crash=1), True, None)[0], 'no_tests')
 
 
 def synthetic_rows():
