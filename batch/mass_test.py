@@ -149,8 +149,8 @@ class Task:
         self.t0 = time.monotonic()
         self.r = {k: row.get(k, '') for k in ('id', 'category', 'yml_path', 'input_file', 'extension', 'data_model')}
         self.r.update(cleaned_markers=0, nondet=None, status=None, stage='prepare', sikraken_tests=None, decisions=None,
-                      skipped_macro=None, edges_covered=None, edges_total=None, pct=None, sikraken_exit=None,
-                      c2obra_exit=None, seconds_sikraken=None, seconds_c2obra=None,
+                      skipped_macro=None, skipped_outside_function=None, edges_covered=None, edges_total=None,
+                      pct=None, sikraken_exit=None, c2obra_exit=None, seconds_sikraken=None, seconds_c2obra=None,
                       log=os.path.relpath(os.path.join(self.dir, 'log.txt'), cfg.run_dir),
                       detail={'notes': S.notes_for(row)} if S.notes_for(row) else {})
 
@@ -255,8 +255,9 @@ class Task:
             self.r['detail']['run_signals'] = signals
         if timeouts:
             self.r['detail']['run_timeouts'] = timeouts
-        m = re.search(r'Skipped (\d+) Clang decision\(s\): macro', out)
-        self.r['skipped_macro'] = int(m.group(1)) if m else (0 if 'Done! Instrumented' in out else None)
+        for reason in ('macro', 'outside_function'):
+            m = re.search(rf'Skipped (\d+) Clang decision\(s\): {reason}\b', out)
+            self.r[f'skipped_{reason}'] = int(m.group(1)) if m else (0 if 'Done! Instrumented' in out else None)
 
         status, stage, detail = S.classify_c2obra(code, timed_out, out)
         if self.r['status'] is None:

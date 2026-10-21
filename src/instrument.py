@@ -552,7 +552,7 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         print(f"ℹ️ Skipped {n} Clang decision(s): {reason}")
     if unpaired:
         print(f"ℹ️ {len(unpaired)} Tree-sitter construct(s) have no Clang decision "
-              f"(inactive #if arm, or not compiled) — not instrumented")
+              f"(inactive #if arm, not compiled, or outside a function) — not instrumented")
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:

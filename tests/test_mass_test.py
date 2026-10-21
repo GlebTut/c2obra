@@ -59,6 +59,8 @@ int main(void) { int x = __VERIFIER_nondet_int(); if (x > 0) abort(); return 0; 
 '''
 INC_C = '#include "inc.h"\n' + TC.NONDET_C.replace('#include <stdio.h>', '#include <stdio.h>\n#define UNUSED INC_ONE')
 INC_H = '#define INC_ONE 1\n'
+# busybox <ctype.h>: a ?: in an enum value is not a decision (constant expression, no cover())
+ENUM_C = 'enum { A = ((0) < 8 ? 1 : 2) };\nint main(void) { int x = A; if (x > 0) return 0; return 1; }\n'
 
 
 def build_tree(root):
@@ -93,6 +95,7 @@ def build_tree(root):
         'inc':      ('SoftwareSystems-BusyBox', 'bb/inc', '.c', INC_C, 'LP64'),
         'notests':  ('ProductLines', 'pl/notests', '.c', '/* FAKE_NO_TESTS */\n' + TC.NONDET_C, 'LP64'),
         'abort':    ('Hardness', 'hard/abort', '.c', ABORT_C, 'LP64'),
+        'enum':     ('SoftwareSystems-BusyBox', 'bb/enum', '.c', ENUM_C, 'LP64'),
     }
     if TC.can_build_m32():
         tasks['m32'] = ('Loops', 'loops/m32', '.c', TC.NONDET_C, 'ILP32')
@@ -174,7 +177,7 @@ class FullBatch(unittest.TestCase):
         want = {'plain': 'ok', 'tree_a': 'ok', 'tree_b': 'ok', 'marked': 'ok', 'xmacro': 'pairing_error',
                 'floats': 'ok', 'nostub': 'compile_error', 'parse': 'sikraken_parse',
                 'missing': 'input_missing', 'sleep': 'sikraken_timeout', 'inc': 'ok', 'm32': 'ok',
-                'notests': 'no_tests', 'abort': 'partial'}
+                'notests': 'no_tests', 'abort': 'partial', 'enum': 'ok'}
         got = {n: self.r(n)['status'] for n in self.rows}
         self.assertEqual(got, {n: want[n] for n in self.rows})
 
@@ -188,6 +191,11 @@ class FullBatch(unittest.TestCase):
         r = self.r('plain')             # d01: 2 decisions, 3 of 4 edges (tests/definition/expected.csv)
         self.assertEqual((r['edges_covered'], r['edges_total'], r['pct'], r['decisions']), ('3', '4', '75.0', '2'))
         self.assertEqual(r['sikraken_tests'], '')
+
+    def test_skipped_decisions_reported(self):
+        r = self.r('enum')
+        self.assertEqual((r['skipped_outside_function'], r['skipped_macro'], r['decisions']), ('1', '0', '1'))
+        self.assertEqual(self.r('plain')['skipped_outside_function'], '0')
 
     def test_markers_cleaned(self):
         self.assertEqual(self.r('marked')['cleaned_markers'], '1')

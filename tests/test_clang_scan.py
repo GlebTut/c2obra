@@ -111,6 +111,22 @@ class Filter(unittest.TestCase):
         self.assertEqual(kept, [])
         self.assertEqual(skipped, Counter({'macro': 4}))
 
+    def test_decisions_outside_functions_are_skipped_and_counted(self):
+        # busybox <ctype.h>: _ISupper = ((0) < 8 ? ...) is an enum value, a constant expression
+        # that cannot hold cover(). Also a global initialiser, a file-scope array size and a
+        # parameter's array size; only the ?: in the function body is kept.
+        src = ('enum { A = ((0) < 8 ? 1 : 2) };\n'
+               'int g = 1 < 2 ? 3 : 4;\n'
+               'int arr[(1 < 2) ? 3 : 4];\n'
+               'int f(int n, int a[n ? 1 : 2]) { return n > 0 ? a[0] : A; }\n')
+        with tempfile.TemporaryDirectory() as d:
+            p = write_tmp(d, src)
+            scanned = [(d['line'], d['in_function']) for d in C.scan(p)]
+            kept, skipped = C.decisions(p)
+        self.assertEqual(scanned, [(1, False), (2, False), (3, False), (4, False), (4, True)])
+        self.assertEqual([(d['kind'], d['line']) for d in kept], [('?:', 4)])
+        self.assertEqual(skipped, Counter({'outside_function': 4}))
+
     def test_switch_without_labels_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:
             p = write_tmp(d, 'int f(int x) { switch (x) { x++; } return x; }\n')

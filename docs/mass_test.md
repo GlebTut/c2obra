@@ -100,8 +100,8 @@ the instrumented `.c`, the HTML reports and the input copy unless it was cleaned
 (`detail.input_sha256` identifies the input). Failed tasks keep everything.
 
 `results.csv` columns: `id,category,yml_path,input_file,extension,data_model,cleaned_markers,
-status,stage,sikraken_tests,decisions,skipped_macro,edges_covered,edges_total,pct,seconds,log,
-detail,sikraken_exit,c2obra_exit,seconds_sikraken,seconds_c2obra,nondet` (`detail` is JSON).
+status,stage,sikraken_tests,decisions,skipped_macro,skipped_outside_function,edges_covered,edges_total,pct,
+seconds,log,detail,sikraken_exit,c2obra_exit,seconds_sikraken,seconds_c2obra,nondet` (`detail` is JSON).
 `edges_total` is filled whenever a branch map exists; `edges_covered`/`pct` for `ok`, `partial`
 and `no_tests`. The summary's edge total is the sum of the per-task `edge_coverage()` results
 over `ok` and `partial` tasks that had at least one Sikraken test or no nondet call; it also

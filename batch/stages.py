@@ -350,8 +350,8 @@ def select_tasks(rows, tasks_dir, retry_statuses=()):
 # ─── Results ─────────────────────────────────────────────────────────────────
 
 FIELDS = ['id', 'category', 'yml_path', 'input_file', 'extension', 'data_model', 'cleaned_markers',
-          'status', 'stage', 'sikraken_tests', 'decisions', 'skipped_macro', 'edges_covered',
-          'edges_total', 'pct', 'seconds', 'log', 'detail', 'sikraken_exit', 'c2obra_exit',
+          'status', 'stage', 'sikraken_tests', 'decisions', 'skipped_macro', 'skipped_outside_function',
+          'edges_covered', 'edges_total', 'pct', 'seconds', 'log', 'detail', 'sikraken_exit', 'c2obra_exit',
           'seconds_sikraken', 'seconds_c2obra', 'nondet']
 
 
