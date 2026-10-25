@@ -24,6 +24,7 @@ DEFAULT_SVCOMP_FLAGS = ['-DLARGE_INT=1000000']
 # Tree-sitter node type -> Clang decision kind (clang_scan.KINDS)
 TS_KIND = {'if_statement': 'if', 'for_statement': 'for', 'while_statement': 'while',
            'do_statement': 'do', 'switch_statement': 'switch', 'conditional_expression': '?:'}
+TS_TYPE = {v: k for k, v in TS_KIND.items()}
 
 
 class PairingError(Exception):
@@ -174,13 +175,21 @@ def build_cover_chain(switch_meta, base_id, var):
     return ' '.join(parts)
 
 
+class OverlapError(ValueError):
+    """Two edits partly overlap (neither nested nor disjoint); start/end: the second one's bytes."""
+
+    def __init__(self, start, end):
+        super().__init__(f"overlapping edits at bytes {start}-{end}")
+        self.start, self.end = start, end
+
+
 class SourceRewriter:
     """Collects edits as wraps (text before + text after a byte range) and applies them inside-out.
 
     Decisions can nest: a ?: inside an if condition gives a wrap inside a wrap. The inner wrap
     is applied first and the outer one wraps the result, so no decision is lost and no text is
     duplicated (the old replace-by-range version copied overlapping ranges twice).
-    Edits must nest or be disjoint; a partial overlap raises ValueError.
+    Edits must nest or be disjoint; a partial overlap raises OverlapError (a ValueError).
     """
 
     def __init__(self, source: bytes):
@@ -212,7 +221,7 @@ class SourceRewriter:
             while opened and opened[-1][0] <= start:
                 close()
             if opened and end > opened[-1][0]:
-                raise ValueError(f"overlapping edits at bytes {start}-{end}")
+                raise OverlapError(start, end)
             parts[-1].append(src[pos:start])
             pos = start
             if start == end:
@@ -297,6 +306,8 @@ def is_instrumentable(branch, source_code):
     """
     node = branch['node']
     kind = branch['type']
+    if node is None:
+        return True     # Clang branch (clang_branch()): built only when there is something to wrap
     if kind in ('if_statement', 'while_statement', 'do_statement'):
         return get_condition_node(node) is not None
     if kind == 'for_statement':
@@ -314,12 +325,51 @@ def instrumentable_branches(branches, source_code):
     return [b for b in sorted(branches, key=lambda b: b['start_byte']) if is_instrumentable(b, source_code)]
 
 
+def ts_condition_span(branch):
+    """(start, end) bytes of the condition expression of a Tree-sitter if/while/do/for, without
+    the header's parentheses (Clang's condition extent covers the same text); None if none."""
+    node = branch['node']
+    if branch['type'] == 'for_statement':
+        cond = get_for_condition_node(node)
+    else:
+        paren = get_condition_node(node)
+        inner = [c for c in paren.named_children if c.type != 'comment'] if paren else []
+        cond = inner[0] if len(inner) == 1 else None
+    return (cond.start_byte, cond.end_byte) if cond else None
+
+
+def clang_branch(d):
+    """A branch built from Clang's header data (clang_scan._header_info) instead of a
+    Tree-sitter node, for a header written with a GNU statement expression '({ ... })':
+    tree-sitter-c 0.21.3 has no rule for it, so its node is missing or its condition span is
+    wrong. None if Clang's data cannot be wrapped either (then pairing behaves as before)."""
+    slot = None
+    if d['cond_span'] is None:
+        # only a for without condition has a slot to fill, at the header's second ';'
+        if d['kind'] != 'for' or d['has_condition'] is not False or not d['for_semis']:
+            return None
+        slot = d['for_semis'][1]
+    return {
+        'type':        TS_TYPE[d['kind']],
+        'node':        None,
+        'start_byte':  d['offset'],
+        'start_point': (d['line'] - 1, d['col'] - 1),
+        'cond_span':   d['cond_span'],
+        'cond_lc':     d['cond_lc'],
+        'slot':        slot,
+        'else_info':   d['else_info'],
+    }
+
+
 def pair_decisions(decisions, branches, source_code, path):
     """Pair each counted Clang decision with the Tree-sitter node to rewrite.
 
     Key: (kind, line, column) — Clang's expansion location and the start of the Tree-sitter
     node (both point at the keyword, or at the start of the condition for ?:).
-    Returns (paired Tree-sitter branches, Tree-sitter constructs with no Clang decision).
+    Exception: an if/while/do/for whose header text holds a GNU statement expression
+    (d['header_stmt_expr']) gets a Clang branch (clang_branch()) when Tree-sitter has no node
+    for it or the node's condition span differs from Clang's.
+    Returns (paired branches, Tree-sitter constructs with no Clang decision).
     Raises PairingError if any decision has no node, or its node cannot be wrapped as Clang
     sees it (no condition, or a different number of case labels): instrumenting it anyway
     would silently count something else.
@@ -333,6 +383,14 @@ def pair_decisions(decisions, branches, source_code, path):
     for d in decisions:
         key = (d['kind'], d['line'], d['col'])
         nodes = by_key.get(key)
+        cb = clang_branch(d) if d.get('header_stmt_expr') else None
+        if cb is not None:
+            b = nodes.pop(0) if nodes else None
+            same = (b is not None and is_instrumentable(b, source_code)
+                    and ts_condition_span(b) == cb['cond_span']
+                    and (cb['slot'] is None or get_for_condition_slot(b['node']) == cb['slot']))
+            paired.append(b if same else cb)
+            continue
         if not nodes:
             problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: Clang sees a decision here, "
                             f"Tree-sitter has no {d['kind']} node starting at this position")
@@ -361,7 +419,18 @@ def instrument_code(source_code, branches, start_id=1):
         branch_type = branch['type']
         node        = branch['node']
 
-        if branch_type in ['if_statement', 'while_statement', 'do_statement']:
+        if node is None:
+            # Clang branch (clang_branch()): Clang's condition span, which has no header
+            # parentheses, so the wrap gives the same text as the Tree-sitter cases below
+            if branch['cond_span'] is None:
+                rewriter.insert(branch['slot'], f"cover((1), {current_id})")
+            elif branch_type == 'for_statement':
+                rewriter.wrap(*branch['cond_span'], " cover((", f"), {current_id}) ")
+            else:
+                rewriter.wrap(*branch['cond_span'], "cover((", f"), {current_id})")
+            current_id += 1
+
+        elif branch_type in ['if_statement', 'while_statement', 'do_statement']:
             condition_node = get_condition_node(node)
             if condition_node:
                 cond_start     = condition_node.start_byte
@@ -410,7 +479,15 @@ def instrument_code(source_code, branches, start_id=1):
                     rewriter.wrap(cond_start, cond_end, "cover((", f"), {current_id})")
                     current_id += 1
 
-    code = rewriter.apply()
+    try:
+        code = rewriter.apply()
+    except OverlapError as e:
+        line = source_code.count(b'\n', 0, e.start) + 1
+        col = e.start - (source_code.rfind(b'\n', 0, e.start) + 1) + 1
+        raise PairingError(
+            f"{line}:{col}: two cover() wraps partly overlap (bytes {e.start}-{e.end}): a condition "
+            f"span crosses another decision's span (Tree-sitter span inside a GNU statement "
+            f"expression?); the output would be broken")
     code = strip_verifier_boilerplate(code)
     VERIFIER_PREAMBLE = '''\
 #include "cov_runtime.h"
@@ -464,7 +541,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 current_id += 1
 
         elif branch_type == 'if_statement':
-            has_else, else_line, is_else_if = get_else_info(node)
+            has_else, else_line, is_else_if = branch['else_info'] if node is None else get_else_info(node)
 
             # Build a human-readable label for the true edge
             if has_else and is_else_if:
@@ -558,7 +635,11 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
     else:
         print(f"✓ Found {len(branches)} decisions")
 
-    instrumented_code = instrument_code(source_code, branches, start_id=start_id)
+    try:
+        instrumented_code = instrument_code(source_code, branches, start_id=start_id)
+    except PairingError as e:
+        print(f"❌ Error: {input_file}:{e}")
+        sys.exit(1)
 
     try:
         with open(output_file, 'w') as f:
