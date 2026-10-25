@@ -111,6 +111,7 @@ class _FileTokens:
         toks = [t for t in tu.get_tokens(extent=r) if t.kind != ci.TokenKind.COMMENT]
         self.offsets = [t.location.offset for t in toks]
         self.spellings = [t.spelling for t in toks]
+        self.tu, self.file = tu, f
 
     def between(self, start, end, limit=None):
         """Spellings of tokens starting in [start, end); at most `limit` of them."""
@@ -119,6 +120,27 @@ class _FileTokens:
         if limit is not None:
             j = min(j, i + limit)
         return self.spellings[i:j]
+
+    def paren_group(self, start):
+        """(offset, spelling) of the tokens from the first '(' at or after `start` to its
+        matching ')', both included; [] if there is none. Reads only the header, not the body."""
+        i = bisect.bisect_left(self.offsets, start)
+        while i < len(self.spellings) and self.spellings[i] != '(':
+            i += 1
+        depth = 0
+        for j in range(i, len(self.spellings)):
+            t = self.spellings[j]
+            if t in ('(', '[', '{'):
+                depth += 1
+            elif t in (')', ']', '}'):
+                depth -= 1
+                if depth == 0:
+                    return list(zip(self.offsets[i:j + 1], self.spellings[i:j + 1]))
+        return []
+
+    def line_col(self, offset):
+        loc = ci.SourceLocation.from_offset(self.tu, self.file, offset)
+        return loc.line, loc.column
 
 
 def _decision_tokens(ftoks, cursor, kind):
@@ -161,6 +183,81 @@ def _for_has_condition(tokens):
     return semis[1] > semis[0] + 1
 
 
+def _header_stmt_expr(group):
+    """True if a header's tokens (a paren_group) contain a GNU statement expression '({',
+    written in the file text. Tree-sitter has no rule for it and loses the header's structure;
+    one that comes from a macro is a plain macro call to Tree-sitter and needs nothing."""
+    return any(a == '(' and b == '{' for (_, a), (_, b) in zip(group, group[1:]))
+
+
+def _depth1_semicolons(group):
+    """Offsets of the ';' directly inside a for header's parens (a paren_group), or None
+    unless there are exactly two."""
+    depth, semis = 0, []
+    for off, t in group:
+        if t in ('(', '[', '{'):
+            depth += 1
+        elif t in (')', ']', '}'):
+            depth -= 1
+        elif t == ';' and depth == 1:
+            semis.append(off)
+    return tuple(semis) if len(semis) == 2 else None
+
+
+def _header_info(cursor, kind, ftoks, in_main):
+    """Clang's view of an if/while/do/for header, for headers that contain a statement
+    expression (instrument.py then wraps Clang's condition span instead of Tree-sitter's).
+
+    Returns a dict:
+      header_stmt_expr - the header text contains '({'
+      cond_span        - (start, end) byte offsets of the condition (end exclusive), or None
+                         (for without condition, or a span that is not plain file text inside
+                         the header, e.g. a macro whose expansion holds the ')' or a ';')
+      cond_lc          - ((line, col), (line, col)) of cond_span, for messages and the map
+      for_semis        - for: offsets of the two ';' of the header, or None
+      else_info        - if: (has_else, else_line, is_else_if), as instrument.get_else_info()
+    Only header_stmt_expr is computed for headers without a statement expression."""
+    children = list(cursor.get_children())
+    # The header starts at the keyword, except for do: its 'while (' follows the body
+    start = children[0].extent.end.offset if kind == 'do' else cursor.extent.start.offset
+    group = ftoks.paren_group(start)
+    info = {'header_stmt_expr': _header_stmt_expr(group), 'cond_span': None, 'cond_lc': None,
+            'for_semis': None, 'else_info': None}
+    if not info['header_stmt_expr']:
+        return info
+    lo, hi = group[0][0], group[-1][0]            # offsets of the header's '(' and ')'
+    if kind in ('if', 'while'):
+        cond = children[0]
+    elif kind == 'do':
+        cond = children[-1]
+    else:
+        # libclang leaves out a missing init/cond/inc, so for(;c;i++) has children
+        # [cond, inc, body]: the condition is the child that starts between the two ';'
+        info['for_semis'] = semis = _depth1_semicolons(group)
+        cond = None
+        if semis:
+            lo, hi = semis
+            cond = next((c for c in children[:-1] if lo < c.extent.start.offset < hi), None)
+    if cond is not None:
+        e = cond.extent
+        if (in_main(e.start) and in_main(e.end) and lo < e.start.offset < e.end.offset <= hi
+                and _spelling_offset(e.start) == e.start.offset):
+            info['cond_span'] = (e.start.offset, e.end.offset)
+            info['cond_lc'] = ((e.start.line, e.start.column), (e.end.line, e.end.column))
+    if kind == 'if':
+        if len(children) == 3:
+            # the 'else' keyword: the last 'else' token between the then-branch and the else-branch
+            then_end, else_start = children[1].extent.end.offset, children[2].extent.start.offset
+            i = bisect.bisect_left(ftoks.offsets, then_end)
+            j = bisect.bisect_left(ftoks.offsets, else_start)
+            elses = [k for k in range(i, j) if ftoks.spellings[k] == 'else']
+            else_line = ftoks.line_col(ftoks.offsets[elses[-1]])[0] if elses else children[2].extent.start.line
+            info['else_info'] = (True, else_line, children[2].kind == K.IF_STMT)
+        else:
+            info['else_info'] = (False, None, False)
+    return info
+
+
 def _count_cases(switch_cursor):
     """case/default labels belonging to this switch (not to a nested one)."""
     n, stack = 0, list(switch_cursor.get_children())
@@ -186,7 +283,9 @@ def scan(path, user_flags=(), res_dir=None):
 
     Each entry: kind, line, col (1-based expansion location; col counts bytes),
     from_macro, has_condition (for loops; None otherwise or unknown), n_cases (switch),
-    in_function (inside the body of a function definition).
+    in_function (inside the body of a function definition), header_stmt_expr (if/while/do/for
+    header written with a GNU statement expression; then also cond_span, cond_lc, for_semis,
+    else_info, see _header_info()).
     Raises ClangScanError if Clang reports any error-level diagnostic: a fatal error still
     yields a partial AST, so a scan with errors is never used.
     """
@@ -236,7 +335,7 @@ def scan(path, user_flags=(), res_dir=None):
                     continue
                 kind = '?:'
             tokens = _decision_tokens(ftoks, c, kind)
-            out.append({
+            d = {
                 'kind':          kind,
                 'line':          loc.line,
                 'col':           loc.column,
@@ -245,7 +344,11 @@ def scan(path, user_flags=(), res_dir=None):
                 'has_condition': _for_has_condition(tokens) if kind == 'for' else None,
                 'n_cases':       _count_cases(c) if kind == 'switch' else None,
                 'in_function':   in_body,
-            })
+                'header_stmt_expr': False,
+            }
+            if kind in ('if', 'while', 'do', 'for') and not d['from_macro']:
+                d.update(_header_info(c, kind, ftoks, in_main))
+            out.append(d)
     out.sort(key=lambda d: d['offset'])
     return out
 
