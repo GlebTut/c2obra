@@ -2,7 +2,8 @@
 set -e
 
 echo "=== Step 1: Installing system dependencies ==="
-sudo apt install -y python3.12-venv gcc-multilib wget unzip
+# clang-18: its resource dir (include/stddef.h, from libclang-common-18-dev) is passed to the libclang scan
+sudo apt install -y python3.12-venv gcc-multilib wget unzip clang-18
 
 echo "=== Step 2: Setting up Python environment ==="
 python3 -m venv venv
@@ -57,4 +58,8 @@ fi
 
 echo ""
 echo "=== Installation Complete! ==="
+# src/clang_scan.py runs `clang` unless C2OBRA_CLANG names another binary; clang-18 installs only clang-18
+if ! command -v clang >/dev/null; then
+    echo "Note: no 'clang' on PATH. Run: export C2OBRA_CLANG=clang-18"
+fi
 echo "Run: bash c2obra.sh filePATH/fileNAME"
