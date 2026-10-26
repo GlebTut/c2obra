@@ -10,24 +10,26 @@ Tools:
 - clang (resource dir for the scan): `Ubuntu clang version 18.1.3 (1ubuntu1)`
 - libclang (Python, used by the scan): `18.1.1`
 
-PASS 19, FAIL 0, SKIP 22 (of 41 programs)
+PASS 33, FAIL 1 (1 known bug), SKIP 9 (of 43 checks)
 
 | program | result | reason |
 |---|---|---|
-| corpusC/c01_macro_with_if.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c02_macro_condition_and_keyword.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c03_ifdef_split_braces.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c04_dead_code.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c05_flag_dependent.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c06_macro_loop_keyword.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c07_xmacro_switch.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c08_ternary_macros.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c09_gnu_extensions.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c10_include_header.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c11_kr_and_oddities.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c12_splices_comments.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c13_typedef_ambiguity.c | SKIP | original does not compile: undefined reference to `main' |
-| corpusC/c14_short_circuit.c | SKIP | original does not compile: undefined reference to `main' |
+| corpusC/c01 (with driver) | PASS |  |
+| corpusC/c02 (with driver) | PASS |  |
+| corpusC/c03 (with driver) | PASS |  |
+| corpusC/c03 (with driver) -DFAST | PASS |  |
+| corpusC/c04 (with driver) | PASS |  |
+| corpusC/c05 (with driver) | PASS |  |
+| corpusC/c05 (with driver) -DDEBUG | PASS |  |
+| corpusC/c06 (with driver) | PASS |  |
+| corpusC/c07 (with driver) | SKIP | instrument.py stopped: ❌ Error: 1 decision(s) could not be paired: |
+| corpusC/c08 (with driver) | PASS |  |
+| corpusC/c09 (with driver) | FAIL | known bug: GNU case range `case 1 ... 5:` (tree-sitter-c 0.21.3 makes `... 5` an ERROR node, get_switch_cases() uses it as the value). instrumented copy does not compile: c09_gnu_extensions_inst.c:11:85: error: expected expression before ‘...’ token |
+| corpusC/c10 (with driver) | PASS |  |
+| corpusC/c11 (with driver) | PASS |  |
+| corpusC/c12 (with driver) | PASS |  |
+| corpusC/c13 (with driver) | PASS |  |
+| corpusC/c14 (with driver) | PASS |  |
 | corpusC/c15_switch_side_effect.c | PASS |  |
 | examples/simple_if.c | SKIP | nondeterministic input (__VERIFIER_nondet_*) |
 | loop-simple/deep-nested.c | SKIP | timeout: original runs longer than 5 s |
