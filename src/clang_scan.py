@@ -6,6 +6,13 @@ Clang decides WHICH branch decisions exist in the program as compiled (it honour
 #ifdef and macros). Tree-sitter is then only used to find the byte range to rewrite
 (see pair_decisions() in instrument.py).
 
+Exception: for an if/while/do/for whose header text contains a GNU statement expression
+'({ ... })', Clang also gives the condition span (_header_info()), because tree-sitter-c
+0.21.3 has no rule for it and loses the node or mis-spans the condition. pair_decisions()
+keeps the Tree-sitter node only if its condition span matches Clang's; if Clang's span
+cannot be wrapped either, pairing behaves as for any other header. In all other cases the
+span to wrap comes from Tree-sitter.
+
 Uses the libclang Python bindings (pip: libclang==18.1.1). The pip wheel ships no Clang
 builtin headers (stddef.h, stdarg.h ...), so the resource directory of an installed clang is
 passed with -isystem; without it libclang silently returns a partial AST.
