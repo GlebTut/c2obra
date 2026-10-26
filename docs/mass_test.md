@@ -89,6 +89,7 @@ test binaries. Then the next task starts.
   run.json         per invocation: argv, sample sha256, timeouts, c2obra commit + dirty flag,
                    Sikraken version.txt, gcc / clang / libclang / python versions
   results.csv      one row per finished task (rebuilt after every task)
+  timing.csv       seconds per stage, one row per finished task (rebuilt after every task)
   summary.txt      status counts, category x status, times, 10 slowest, missing-symbol table
   tasks/<id>/      result.json, log.txt, out/ (branch map, coverage JSON, test inputs log,
                    report CSV), test-suite/ (tar.gz above 200 files), src/
@@ -110,6 +111,14 @@ prints how many test runs ended on each signal.
 `log.txt` has a `[HH:MM:SS.mmm +s]` timestamp (seconds since the task started) on each driver
 stage and each c2obra.sh step line; `detail.step_seconds` = time per c2obra.sh step
 (instrument, compile, run, report).
+
+`timing.csv` columns: `id,category,extension,input_bytes,status,sikraken,parse,instrument,compile,run,
+report,c2obra,total` (seconds). `parse` is the Tree-sitter parse plus the Clang scan, timed inside
+instrument.py (`C2OBRA_TIMING_FILE`, kept in `detail.instrument_timing`); `instrument` is the rest of
+c2obra.sh's instrument step (Python start-up, pairing, rewriting, writing the files). If instrument.py
+stopped early, `parse` is empty and `instrument` is the whole step. `compile`, `run`, `report` are
+c2obra.sh steps, `c2obra` its whole run, `total` the whole task. `input_bytes` is the size of the
+input file in sv-benchmarks.
 
 ## Resume
 
