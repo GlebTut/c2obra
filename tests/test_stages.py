@@ -325,6 +325,18 @@ class Results(unittest.TestCase):
         slow = text.split('10 slowest tasks:')[1].split('\n')[1]
         self.assertIn(' b', slow)
 
+    def test_summary_per_task_coverage(self):
+        # per task: 25%, 75%, 100%, and one with 0 edges (left out) -> median 75.0, mean 66.7
+        res = [self.result(id='a', edges_covered=1, edges_total=4),
+               self.result(id='b', edges_covered=3, edges_total=4),
+               self.result(id='c', status='partial', edges_covered=1, edges_total=1),
+               self.result(id='d', edges_covered=0, edges_total=0)]
+        lines = S.summary(res, planned=4, wall_seconds=1).split('\n')
+        i = next(k for k, l in enumerate(lines) if l.startswith('Edges over 4 '))
+        self.assertTrue(lines[i].endswith(': 5/9 = 55.6%'))
+        self.assertEqual(lines[i + 1], 'Per-task coverage over the same 4 tasks: '
+                                       'median 75.0%, mean 66.7% (tasks with 0 edges left out: 1)')
+
 
 ABORT_C = r'''#include <stdlib.h>
 extern int __VERIFIER_nondet_int(void);
