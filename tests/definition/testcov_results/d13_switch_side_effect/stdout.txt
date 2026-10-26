@@ -1,0 +1,10 @@
+⏳ Executing tests 1/1
+✔️  Done!
+WARNING:suite_validation:Not plotting coverage statistics: No module named 'matplotlib'
+
+---Results---
+Tests run: 1
+Tests in suite: 1
+Coverage: 50.0%
+Number of goals: 2
+Result: DONE

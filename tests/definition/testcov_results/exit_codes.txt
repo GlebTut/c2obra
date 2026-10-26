@@ -1,0 +1,15 @@
+d01_if 0
+d02_else_if 0
+d03_while 0
+d04_for 0
+d05_do_while 0
+d06_while1 0
+d07_for_infinite 0
+d08_ternary 0
+d09_switch_default 0
+d10_switch_no_default 0
+d11_switch_fallthrough 0
+d12_switch_stacked 0
+d13_switch_side_effect 0
+d14_logical_ops 0
+d15_macros 1

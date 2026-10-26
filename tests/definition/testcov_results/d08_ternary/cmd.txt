@@ -1,0 +1,1 @@
+/home/glebt/venvs/testcov/bin/testcov --no-isolation -64 --test-suite /tmp/claude-1000/-home-glebt/1dd0ce5c-90e6-4d5a-95e9-c0ea848e2fce/scratchpad/testcov_def/suite-noinput.zip --output /tmp/claude-1000/-home-glebt/1dd0ce5c-90e6-4d5a-95e9-c0ea848e2fce/scratchpad/testcov_def/out/d08_ternary /home/glebt/c2obra/tests/definition/d08_ternary.c 
