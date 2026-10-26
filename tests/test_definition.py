@@ -28,14 +28,16 @@ def expected_rows():
         return list(csv.DictReader(f))
 
 
-def build_and_run(d, c_file, extra=()):
-    """(exit code, stdout). Exit code is not checked here: d13 exits with 1 on purpose."""
+def build_and_run(d, c_file, extra=(), timeout=30):
+    """(exit code, stdout). Exit code is not checked here: d13 exits with 1 on purpose.
+    No input: stdin is /dev/null. Raises subprocess.TimeoutExpired after timeout seconds."""
     exe = c_file[:-2]
     r = subprocess.run(['gcc', '-w', '-o', exe, c_file, *extra, '-I', SRC], capture_output=True, text=True)
     if r.returncode:
         raise AssertionError(f"gcc failed on {os.path.basename(c_file)}:\n{r.stderr}")
     env = dict(os.environ, COVERAGE_OUTPUT=os.path.join(d, 'coverage.json'))
-    r = subprocess.run([exe], capture_output=True, text=True, cwd=d, env=env, timeout=30)
+    r = subprocess.run([exe], capture_output=True, text=True, cwd=d, env=env, timeout=timeout,
+                       stdin=subprocess.DEVNULL)
     return r.returncode, r.stdout
 
 
