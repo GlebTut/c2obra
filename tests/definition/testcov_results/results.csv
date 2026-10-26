@@ -1,0 +1,16 @@
+program,goals_total,goals_covered,status,coverage_printed
+d01_if,4,3,ok,75.0%
+d02_else_if,3,2,ok,66.67%
+d03_while,4,3,ok,75.0%
+d04_for,2,2,ok,100.0%
+d05_do_while,2,2,ok,100.0%
+d06_while1,4,4,ok,100.0%
+d07_for_infinite,4,4,ok,100.0%
+d08_ternary,4,3,ok,75.0%
+d09_switch_default,3,3,ok,100.0%
+d10_switch_no_default,2,2,ok,100.0%
+d11_switch_fallthrough,3,2,ok,66.67%
+d12_switch_stacked,3,3,ok,100.0%
+d13_switch_side_effect,2,1,ok,50.0%
+d14_logical_ops,2,2,ok,100.0%
+d15_macros,,,error,"error: ‘else’ without a previous ‘if’"

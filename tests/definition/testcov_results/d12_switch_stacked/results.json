@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "Test": "noinput.xml",
+    "Coverage (individual)": 100.0,
+    "Coverage (accumulated)": 100.0,
+    "Part of reduced suite": true,
+    "Execution success": true,
+    "Returncode": 0,
+    "CPU-Time (s)": "",
+    "Wall-Time (s)": 0.00048000300012063235,
+    "Memory used (byte)": ""
+  }
+]
