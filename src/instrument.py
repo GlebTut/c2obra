@@ -8,7 +8,7 @@ Phase 2: Clang decides which decisions exist (clang_scan.py); Tree-sitter finds 
 """
 
 
-import sys, json, os, re
+import sys, json, os, re, time
 from collections import Counter
 from tree_sitter import Language, Parser
 import tree_sitter_c
@@ -615,13 +615,16 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         print(f"❌ Error: Output directory '{output_dir}' does not exist")
         sys.exit(1)
 
+    t0 = time.perf_counter()
     tree, source_code = parse_c_file(input_file)
     if tree.root_node.has_error:
         print("⚠️ Warning: Source file contains syntax errors — instrumentation may be incomplete")
 
     try:
         decisions, skipped = clang_scan.decisions(input_file, flags)
-        branches, unpaired = pair_decisions(decisions, find_branches(tree), source_code, input_file)
+        ts_branches = find_branches(tree)
+        t_parse = time.perf_counter() - t0                 # Tree-sitter parse + Clang scan
+        branches, unpaired = pair_decisions(decisions, ts_branches, source_code, input_file)
     except (clang_scan.ClangScanError, PairingError) as e:
         print(f"❌ Error: {e}")
         sys.exit(1)
@@ -655,7 +658,17 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
     total_counters = (next_id - start_id) * 2
     print(f"BRANCH_COUNTERS={total_counters}")
     print(f"Done! Instrumented {len(branches)} decisions, {n_edges} branch edges.\n")
+    write_timing(t_parse, time.perf_counter() - t0 - t_parse)
     return next_id, n_edges
+
+
+def write_timing(parse, instrument):
+    """Seconds of the parse (Tree-sitter + Clang scan) and of the rest (pairing, rewriting, writing
+    the files) to $C2OBRA_TIMING_FILE as JSON; nothing if it is not set (batch/mass_test.py sets it)."""
+    path = os.environ.get('C2OBRA_TIMING_FILE')
+    if path:
+        with open(path, 'w') as f:
+            json.dump({'parse': round(parse, 4), 'instrument': round(instrument, 4)}, f)
 
 
 def instrument_directory(input_dir, output_dir, flags=None):

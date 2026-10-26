@@ -383,6 +383,26 @@ class StepSeconds(unittest.TestCase):
                          {'instrument': 2.5, 'compile': 0.5, 'run': 7.0, 'report': 0.5, 'done': 0.5})
 
 
+class TimingRow(unittest.TestCase):
+    def test_parse_is_split_off_the_instrument_step(self):
+        r = {'id': 't', 'category': 'Loops', 'extension': '.c', 'status': 'ok', 'seconds': 12.0,
+             'seconds_sikraken': 9.0, 'seconds_c2obra': 2.5,
+             'detail': {'input_bytes': 1234, 'instrument_timing': {'parse': 0.15, 'instrument': 0.02},
+                        'step_seconds': {'instrument': 0.4, 'compile': 1.2, 'run': 0.6, 'report': 0.3}}}
+        row = S.timing_row(r)
+        self.assertEqual(list(row), S.TIMING_FIELDS)
+        self.assertEqual((row['sikraken'], row['parse'], row['instrument'], row['compile'], row['run'],
+                          row['report'], row['c2obra'], row['total'], row['input_bytes']),
+                         (9.0, 0.15, 0.25, 1.2, 0.6, 0.3, 2.5, 12.0, 1234))
+
+    def test_stages_that_did_not_run_are_empty(self):
+        # instrument.py stopped (no timing file): parse empty, instrument = whole step
+        r = {'id': 't', 'status': 'pairing_error', 'seconds': 1.0, 'seconds_sikraken': None,
+             'detail': {'step_seconds': {'instrument': 0.5}}}
+        row = S.timing_row(r)
+        self.assertEqual((row['sikraken'], row['parse'], row['instrument'], row['compile']), ('', '', 0.5, ''))
+
+
 class CoverageFilter(unittest.TestCase):
     def test_counts_for_coverage(self):
         base = {'edges_total': 4, 'edges_covered': 2}

@@ -357,6 +357,29 @@ FIELDS = ['id', 'category', 'yml_path', 'input_file', 'extension', 'data_model',
           'seconds_sikraken', 'seconds_c2obra', 'nondet']
 
 
+# timing.csv: seconds per stage, one row per task. parse = Tree-sitter parse + Clang scan
+# (instrument.py's own timer); instrument = the rest of c2obra.sh's instrument step (Python start,
+# pairing, rewriting, writing files). If instrument.py stopped early, parse is empty and
+# instrument is the whole step. compile/run/report: c2obra.sh steps; c2obra: its whole run.
+TIMING_FIELDS = ['id', 'category', 'extension', 'input_bytes', 'status', 'sikraken', 'parse', 'instrument',
+                 'compile', 'run', 'report', 'c2obra', 'total']
+
+
+def timing_row(result):
+    """One timing.csv row from a result.json dict ('' where a stage did not run)."""
+    d = result.get('detail', {})
+    steps, parse = d.get('step_seconds', {}), d.get('instrument_timing', {}).get('parse')
+    inst = steps.get('instrument')
+    if inst is not None and parse is not None:
+        inst = round(max(inst - parse, 0.0), 3)
+    row = {'id': result.get('id'), 'category': result.get('category'), 'extension': result.get('extension'),
+           'input_bytes': d.get('input_bytes'), 'status': result.get('status'),
+           'sikraken': result.get('seconds_sikraken'), 'parse': parse, 'instrument': inst,
+           'compile': steps.get('compile'), 'run': steps.get('run'), 'report': steps.get('report'),
+           'c2obra': result.get('seconds_c2obra'), 'total': result.get('seconds')}
+    return {k: '' if v is None else v for k, v in row.items()}
+
+
 def csv_row(result):
     """One results.csv row from a result.json dict; 'detail' becomes compact JSON."""
     row = {k: result.get(k, '') for k in FIELDS}

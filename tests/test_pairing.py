@@ -5,7 +5,7 @@ Clang decides which decisions exist; each must pair with a Tree-sitter node at t
 
 Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
 """
-import contextlib, io, json, os, re, subprocess, sys, tempfile, unittest
+import contextlib, io, json, os, re, subprocess, sys, tempfile, unittest, unittest.mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
@@ -65,6 +65,22 @@ class PairDecisions(unittest.TestCase):
 
 
 class InstrumentFile(unittest.TestCase):
+    def test_timing_file_only_when_asked(self):
+        path = os.path.join(CORPUS, 'c03_ifdef_split_braces.c')
+        with tempfile.TemporaryDirectory() as d:
+            t = os.path.join(d, 'timing.json')
+            with unittest.mock.patch.dict(os.environ, {'C2OBRA_TIMING_FILE': t}):
+                self.assertEqual(run(path, flags=[])[0], 0)
+            with open(t) as f:
+                timing = json.load(f)
+            self.assertEqual(sorted(timing), ['instrument', 'parse'])
+            self.assertTrue(all(v >= 0 for v in timing.values()))
+            os.remove(t)
+            with unittest.mock.patch.dict(os.environ):
+                os.environ.pop('C2OBRA_TIMING_FILE', None)
+                run(path, flags=[])
+            self.assertFalse(os.path.exists(t))
+
     def test_flags_choose_the_ifdef_arm(self):
         path = os.path.join(CORPUS, 'c03_ifdef_split_braces.c')
         _, _, inst, _ = run(path, flags=[])

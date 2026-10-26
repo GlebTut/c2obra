@@ -189,6 +189,7 @@ class Task:
         write_text(self.src, text)
         self.r['cleaned_markers'] = 1 if n else 0
         self.r['detail']['input_sha256'] = sha256(src_in)
+        self.r['detail']['input_bytes'] = os.path.getsize(src_in)
         if n:
             self.r['detail']['marker_lines_blanked'] = n
         headers = sorted(glob.glob(os.path.join(os.path.dirname(src_in), '*.h')))
@@ -244,12 +245,17 @@ class Task:
         # of the input is not found next to it; the headers were copied to src/ in prepare.
         env.update(OUT_DIR=self.out_dir, DATA_MODEL=row['data_model'], SIKRAKEN_SUITE=suite, LDLIBS='-lm',
                    SIKRAKEN_DIR=cfg.sikraken_dir, CFLAGS=f'-DLARGE_INT=1000000 -I{self.src_dir}')
+        timing = os.path.join(self.dir, 'instrument_timing.json')      # instrument.py write_timing()
+        env['C2OBRA_TIMING_FILE'] = timing
         code, timed_out, out, secs, marks = run_proc(['bash', os.path.join(REPO, 'c2obra.sh'), self.src], REPO,
                                                      env, min(cfg.c2obra_timeout, self.left()), self.log, self.t0)
         self.r['c2obra_exit'], self.r['seconds_c2obra'] = code, round(secs, 2)
         steps = S.step_seconds(marks[:-1], marks[-1][1]) if len(marks) > 1 else {}
         steps.pop('done', None)
         self.r['detail']['step_seconds'] = steps
+        if os.path.exists(timing):
+            with open(timing) as f:
+                self.r['detail']['instrument_timing'] = json.load(f)
         signals, timeouts = S.run_signals(out)
         if signals:
             self.r['detail']['run_signals'] = signals
@@ -370,6 +376,12 @@ def rebuild_outputs(cfg, planned_ids, wall):
     for r in results:
         w.writerow(S.csv_row(r))
     S.atomic_write(os.path.join(cfg.run_dir, 'results.csv'), buf.getvalue())
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=S.TIMING_FIELDS, lineterminator='\n')
+    w.writeheader()
+    for r in results:
+        w.writerow(S.timing_row(r))
+    S.atomic_write(os.path.join(cfg.run_dir, 'timing.csv'), buf.getvalue())
     text = S.summary(results, len(planned_ids), wall)
     S.atomic_write(os.path.join(cfg.run_dir, 'summary.txt'), text)
     return text
