@@ -224,6 +224,15 @@ output/
 
 ---
 
+## Known Limitations
+
+- **Macro-only decisions.** Decisions that exist only in a macro expansion are skipped in `.c` files and counted in `.i` files; the skipped count is reported. Correct coverage of macro decisions is future work.
+- **GNU statement expressions in decision headers.** Headers containing `({ ... })` are handled through Clang's condition span (PR 9). Still open: an `if` inside a `for` header; 29 coreutils inputs give a pairing error, and the cause was not measured.
+- **Infinite loops.** The exit edge of `while (1)` and `for (;;)` is counted, but the tool does not flag it as infeasible.
+- **Undefined external functions.** Inputs that need external functions that are not defined (the 11 Intel-TDX tasks) cannot be linked. TestCov fails on them with the same undefined symbols.
+
+---
+
 ## References
 
 - Tree-sitter Python bindings: https://github.com/tree-sitter/py-tree-sitter
