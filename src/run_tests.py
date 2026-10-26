@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, glob, subprocess, json, resource, signal, argparse, tempfile, shutil, time
+import os, sys, glob, subprocess, json, resource, signal, argparse, tempfile, shutil
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import edges as E
@@ -65,17 +65,39 @@ def run_test(binary, inputs, test_name, work_dir):
     crashed   = False
 
     try:
-        result = subprocess.run(
+        # Popen, not subprocess.run: run() SIGKILLs the child itself on timeout, so the SIGTERM
+        # below never arrived and cov_runtime.c wrote no coverage. start_new_session gives the
+        # test its own process group, so killpg() signals the test and not run_tests.py.
+        with subprocess.Popen(
             [binary],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=WALL_TIMEOUT,
             preexec_fn=set_resource_limits,
             cwd=work_dir,
-            env=env
-        )
-        exit_code = result.returncode
-        if exit_code < 0:
+            env=env,
+            start_new_session=True
+        ) as proc:
+            try:
+                proc.communicate(timeout=WALL_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                # Stage 1: SIGTERM → triggers dump_coverage() in cov_runtime.c
+                timed_out = True
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                    proc.communicate(timeout=3)             # wait for coverage flush
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid, signal.SIGKILL)     # force kill if still alive
+                    proc.communicate()
+                except ProcessLookupError:
+                    pass                                    # exited just before the SIGTERM
+            except BaseException:
+                proc.kill()
+                raise
+        exit_code = -1 if timed_out else proc.returncode
+        if timed_out:
+            print(f"  ⚠️  [{test_name}] TIMED OUT after {WALL_TIMEOUT}s — killed")
+        elif exit_code < 0:
             crashed = True
             # cov_runtime.c re-raises SIGSEGV/SIGABRT/SIGFPE after dumping, so the signal is
             # visible here; SIGXCPU/SIGTERM end with _exit(1) and are not seen as signals.
@@ -84,19 +106,6 @@ def run_test(binary, inputs, test_name, work_dir):
             except ValueError:
                 sig = f"signal {-exit_code}"
             print(f"  ⚠️  [{test_name}] ended by {sig} (exit code {exit_code})")
-
-    except subprocess.TimeoutExpired as e:
-        # Stage 1: SIGTERM → triggers dump_coverage() in cov_runtime.c
-        try:
-            pid = e.process.pid
-            os.killpg(os.getpgid(pid), signal.SIGTERM)
-            time.sleep(3)                                   # wait for coverage flush
-            os.killpg(os.getpgid(pid), signal.SIGKILL)     # force kill if still alive
-        except Exception:
-            pass
-        timed_out = True
-        exit_code = -1
-        print(f"  ⚠️  [{test_name}] TIMED OUT after {WALL_TIMEOUT}s — killed")
 
     except Exception as e:
         crashed   = True
