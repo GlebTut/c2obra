@@ -20,7 +20,8 @@ against test inputs, and generates interactive HTML/CSV coverage reports.
          │  source.c
          ▼
 ┌─────────────────────┐
-│    instrument.py    │  tree-sitter AST parse
+│    instrument.py    │  clang_scan.py: libclang decides which decisions exist
+│                     │  tree-sitter finds the text range of each one
 │                     │  inject cover(true/false, id) calls
 │                     │  assign unique branch IDs
 └─────────────────────┘
@@ -106,9 +107,17 @@ against test inputs, and generates interactive HTML/CSV coverage reports.
 
 ## Component Descriptions
 
+### `src/clang_scan.py`
+- Parses the file with **libclang** (`libclang==18.1.1`), with the flags shared with gcc (`-D`, `-I`, `-std` ...), scan-only leniency flags, and `-isystem <resource dir>/include`; the resource dir comes from `clang -print-resource-dir` (or `$C2OBRA_CLANG`) and must contain `include/stddef.h`
+- Stops with an error if the compiler reports an error (a fatal error still gives a partial AST)
+- Lists every `if`, `for`, `while`, `do-while`, `switch` and `?:` (also GNU `a ?: b`) as a decision with kind, line and column
+- `counts_as_decision()` decides which are counted; skipped: outside a function body, produced by a macro expansion, `switch` without labels. The skipped counts are printed
+
 ### `src/instrument.py`
-- Parses C source using **tree-sitter** AST
-- Injects `cover(side, branch_id)` calls at every `if`, `for`, `while`, `do-while`, and `switch` branch point
+- Parses C source with **tree-sitter**, which is used only to find the text range to rewrite
+- `pair_decisions()` pairs each counted Clang decision with the Tree-sitter node at the same (kind, line, column). A decision with no node, a node with no condition to wrap, or a `switch` whose label count differs from Clang's is a pairing error and instrumentation stops. Tree-sitter constructs with no Clang decision (inactive `#if` arm, outside a function) are not instrumented
+- Exception: for an `if`/`while`/`do`/`for` whose header text contains a GNU statement expression `({ ... })`, the condition span from Clang is used when Tree-sitter has no node or its condition span differs from Clang's
+- Wraps each paired condition in `cover((cond), id)`; a `for(;;)` gets `cover((1), id)` in its empty condition slot
 - Strips conflicting `__VERIFIER_*` definitions and `typedef size_t`
 - Outputs instrumented `.c` and `branch_map.json` with `id`, `line`, `type`, `source_file`
 - In directory mode: assigns globally unique IDs across all files in one pass
@@ -215,7 +224,8 @@ output/
 
 | Component | Dependency | Purpose |
 |---|---|---|
-| `instrument.py` | `tree-sitter`, `tree-sitter-c` | AST parsing of C source |
+| `clang_scan.py` | `libclang` 18.1.1, Clang 18 (resource dir) | Which decisions exist |
+| `instrument.py` | `tree-sitter`, `tree-sitter-c` 0.21.3 | Text range of each decision |
 | `cov_runtime.c` | `gcc`, `libc` | Signal handling, JSON output |
 | `run_tests.py` | Python 3.8+, stdlib only | Test execution, coverage merging |
 | `report.py` | Python 3.8+, stdlib only | HTML/CSV report generation |
