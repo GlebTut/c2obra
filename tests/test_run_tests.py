@@ -1,4 +1,5 @@
-"""src/run_tests.py: a wall-clock timeout keeps the coverage written before it.
+"""src/run_tests.py: a wall-clock timeout keeps the coverage written before it, and a branch
+map that is given but unusable is an error (exit 2).
 
 The program is instrumented and compiled with the real runtime (cov_runtime.c); run_tests.py
 is run as a subprocess, as c2obra.sh runs it.
@@ -69,6 +70,57 @@ class Timeout(unittest.TestCase):
             # if: true edge taken; while: true edge taken; neither false edge
             self.assertEqual((summary['covered_branches'], summary['total_branches_count']), (2, 4))
             self.assertLess(secs, 15)
+
+
+class BranchMap(unittest.TestCase):
+    """A branch map that is given but unusable stops run_tests.py with exit 2 before any test."""
+
+    def fake_binary(self, d):
+        """A 'test binary' that leaves a file behind, to show whether any test was run."""
+        exe = os.path.join(d, 'bin.sh')
+        with open(exe, 'w') as f:
+            f.write(f"#!/bin/sh\ntouch '{os.path.join(d, 'ran')}'\n")
+        os.chmod(exe, 0o755)
+        return exe
+
+    def check_error(self, d, bmap, words):
+        r = run_tests(d, self.fake_binary(d), '-', bmap)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn(f"❌ Error: branch map '{bmap}' {words}", r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(d, 'ran')))
+        self.assertFalse(os.path.exists(os.path.join(d, 'output')))
+
+    def write(self, d, text):
+        p = os.path.join(d, 'm.json')
+        with open(p, 'w') as f:
+            f.write(text)
+        return p
+
+    def test_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.check_error(d, os.path.join(d, 'none.json'), 'not found')
+
+    def test_unreadable(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'dir.json'))                 # open() fails: a directory
+            self.check_error(d, os.path.join(d, 'dir.json'), 'cannot be read')
+
+    def test_malformed_json(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.check_error(d, self.write(d, '{"branches": ['), 'is malformed JSON')
+
+    def test_no_edges(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.check_error(d, self.write(d, '{"branches": []}'), 'is not usable')
+            self.check_error(d, self.write(d, '{"branches": [], "edges": {}}'), 'is not usable')
+            self.check_error(d, self.write(d, '[]'), 'is not usable')
+
+    def test_no_map_given_runs_as_before(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = run_tests(d, self.fake_binary(d), '-')
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('No branch map — edge totals unavailable', r.stdout)
+            self.assertTrue(os.path.exists(os.path.join(d, 'ran')))
 
 
 if __name__ == '__main__':

@@ -165,16 +165,27 @@ def merge_coverage(all_coverages):
 
 
 def load_branch_map(map_file):
-    """The whole map ({"branches": [...], "edges": [...]}); {} if missing or malformed."""
+    """The whole map ({"branches": [...], "edges": [...]}). A map that was given but is missing,
+    unreadable, not JSON or has no "edges" list stops the run with exit code 2: without it the
+    edge total would silently become the number of hit branches."""
     try:
         with open(map_file) as f:
-            return json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
-        print(f"⚠️  Branch map '{map_file}' not found — running without metadata")
-        return {}
-    except json.JSONDecodeError:
-        print(f"⚠️  Branch map '{map_file}' is malformed JSON")
-        return {}
+        problem = "not found"
+    except json.JSONDecodeError as e:
+        problem = f"is malformed JSON ({e})"
+    except (OSError, ValueError) as e:
+        problem = f"cannot be read ({e})"
+    else:
+        try:
+            if not isinstance(data, dict) or not isinstance(E.map_edges(data), list):
+                raise E.MissingEdgesError('branch map has no "edges" list')
+            return data
+        except E.MissingEdgesError as e:
+            problem = f"is not usable: {e}"
+    print(f"❌ Error: branch map '{map_file}' {problem}")
+    sys.exit(2)
 
 
 
