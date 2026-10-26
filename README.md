@@ -22,11 +22,12 @@ a summary dashboard, and full CI/CD integration via GitHub Actions.
 
 ## How It Works
 
-1. **Instrument** — `src/instrument.py` parses a C source file using tree-sitter and injects `cov_branch()` calls around every branch (`if`, `while`, `for`, `do-while`, `switch`, ternary)
-2. **Compile & Run** — the instrumented file is compiled with `src/cov_runtime.c` and executed against Sikraken-generated test inputs; each run is classified as `pass`, `partial`, `timeout`, or `crash`
-3. **Report** — branch coverage is calculated per branch edge (true/false) and output as JSON + interactive HTML/CSV with annotated source view
-4. **Summary** — `src/merge_reports.py` aggregates all per-file results into a single `summary_report.html` dashboard
-5. **Deploy** — GitHub Actions automatically instruments, compiles, tests, and publishes reports to GitHub Pages on every push to `main`
+1. **Scan** — `src/clang_scan.py` parses the file with libclang, using the same `-D`/`-I` flags as gcc, and decides which decisions exist (`if`, `while`, `for`, `do-while`, `switch`, ternary). It skips decisions outside a function body, decisions produced by a macro expansion and a `switch` with no labels, and prints how many it skipped.
+2. **Instrument** — `src/instrument.py` uses Tree-sitter only to find the text range to rewrite. It pairs each Clang decision with a Tree-sitter node by (kind, line, column) and wraps the condition in a `cover()` call; a decision with no matching node stops instrumentation with a pairing error. For a header containing a GNU statement expression `({ ... })`, the condition range can come from Clang instead.
+3. **Compile & Run** — the instrumented file is compiled with `src/cov_runtime.c` and executed against Sikraken-generated test inputs; each run is classified as `pass`, `partial`, `timeout`, or `crash`
+4. **Report** — branch coverage is calculated per branch edge (true/false) and output as JSON + interactive HTML/CSV with annotated source view
+5. **Summary** — `src/merge_reports.py` aggregates all per-file results into a single `summary_report.html` dashboard
+6. **Deploy** — GitHub Actions automatically instruments, compiles, tests, and publishes reports to GitHub Pages on every push to `main`
 
 ---
 
@@ -36,7 +37,8 @@ a summary dashboard, and full CI/CD integration via GitHub Actions.
 - GCC
 - gcc-multilib (for 32-bit compilation support used by Sikraken)
 - python3-venv
-- tree-sitter, tree-sitter-c (see `requirements.txt`)
+- Clang 18 (`clang-18`): the scan passes its builtin header folder (`clang -print-resource-dir`) to libclang. `src/clang_scan.py` runs `clang` unless `C2OBRA_CLANG` names another binary, e.g. `export C2OBRA_CLANG=clang-18`
+- tree-sitter, tree-sitter-c, libclang (pinned in `requirements.txt`)
 
 ---
 
@@ -56,7 +58,7 @@ bash install.sh
 #### 1. Install system dependencies
 
 ```bash
-sudo apt install python3.12-venv gcc-multilib
+sudo apt install python3.12-venv gcc-multilib clang-18
 ```
 
 #### 2. Clone and set up the project
@@ -209,6 +211,19 @@ and a per-file table with coverage %, branch counts, and colour-coded status row
 
 ---
 
+## Branch coverage definition
+
+C²oBra counts **edges**: each outcome of a decision (the true or false side of a condition, a
+`switch` label, the implicit default of a `switch`) is one edge, and coverage is the share of
+edges hit by the test runs. Edges that can never be taken are still counted. The definition is written down as one
+small program per construct with its expected edges in
+[`tests/definition/expected.csv`](tests/definition/expected.csv), checked by
+`tests/test_definition.py`; the counting rules are in [Coverage Model](#coverage-model) below.
+
+**Known limitations:** see [docs/architecture.md](docs/architecture.md#known-limitations).
+
+---
+
 ## Coverage Model
 
 C²oBra uses an **edge-based branch coverage model**:
@@ -262,7 +277,9 @@ Partial coverage is always preserved — no data is lost regardless of how a run
 ```
 c2obra/
 ├── src/
-│   ├── instrument.py       # Core instrumentation logic (tree-sitter AST)
+│   ├── clang_scan.py       # libclang scan: which decisions exist
+│   ├── instrument.py       # Pairs Clang decisions with Tree-sitter nodes, wraps conditions in cover()
+│   ├── edges.py            # The one place that computes covered/total edges from a branch map
 │   ├── run_tests.py        # Parallel test runner with status classification
 │   ├── report.py           # HTML/CSV/source-view report generator (C²oBra UI)
 │   ├── merge_reports.py    # Summary dashboard across multiple benchmarks
@@ -270,6 +287,7 @@ c2obra/
 │   ├── cov_runtime.h       # Runtime header (cov_branch() macro, MAX_BRANCHES)
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions
 ├── tests/                  # C benchmark files (SV-COMP / custom)
+│   ├── definition/         # One program per construct with expected edges (expected.csv)
 │   ├── loop-simple/        # Loop-focused test cases
 │   └── examples/           # Simple example files
 ├── output/                 # Instrumented files and reports (generated, not tracked)
@@ -299,12 +317,16 @@ c2obra/
 
 | Package       | Version | Purpose                          |
 |---------------|---------|----------------------------------|
-| tree-sitter   | 0.25.2  | C source parsing and AST walking |
-| tree-sitter-c | 0.24.1  | C grammar for tree-sitter        |
+| tree-sitter   | 0.21.3  | C source parsing and AST walking |
+| tree-sitter-c | 0.21.3  | C grammar for tree-sitter        |
+| libclang      | 18.1.1  | Python bindings for the Clang decision scan |
+| Clang 18 (apt `clang-18`) | 18 | Builtin header folder (resource dir) passed to the libclang scan |
 
 ---
 
 ## Benchmark Results
+
+> **Historical (April 2026, before the hybrid; not comparable to current results).**
 
 ### Iteration 3 — Full Scale Validation (602 rows in `benchmark_results.csv`)
 
