@@ -418,6 +418,11 @@ def summary(results, planned, wall_seconds):
         t = sum(r['edges_total'] for r in cov)
         w(f"Edges over {len(cov)} ok+partial tasks with >= 1 Sikraken test or no nondet "
           f"(sum of per-task edges.edge_coverage()): {c}/{t}" + (f" = {c / t * 100:.1f}%" if t else ''))
+        pct = [r['edges_covered'] / r['edges_total'] * 100 for r in cov if r['edges_total']]
+        stats = (f"median {statistics.median(pct):.1f}%, mean {statistics.mean(pct):.1f}%"
+                 if pct else 'median -, mean -')
+        w(f"Per-task coverage over the same {len(cov)} tasks: {stats} "
+          f"(tasks with 0 edges left out: {len(cov) - len(pct)})")
         w('')
     sigs = Counter(v for r in results for v in r.get('detail', {}).get('run_signals', {}).values())
     if sigs:
