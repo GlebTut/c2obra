@@ -1,4 +1,4 @@
-/* Driver for c04_dead_code.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c04_dead_code.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("k(2) = %d\n", k(2));

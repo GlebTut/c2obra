@@ -16,7 +16,8 @@ Usage:
 Arguments:
   source.c          Path to a C source file to instrument, compile, and test.
   source_dir/       Path to a directory — all .c files are instrumented with
-                    globally unique branch IDs and compiled as one binary.
+                    globally unique branch IDs; each .c file directly in the
+                    directory is built and run as its own binary.
 
 
 Options:

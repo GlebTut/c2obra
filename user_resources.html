@@ -209,7 +209,7 @@ pip install -r requirements.txt</pre></div></div>
     <section class="section" id="smoke">
       <h2>Smoke Test</h2>
       <p>After installation, run the smoke test to verify that instrumentation, compilation, execution, and reporting all work end-to-end on a minimal example.</p>
-      <pre>bash smoke_test.sh</pre>
+      <pre>bash scripts/smoke_test.sh</pre>
       <p>Expected output:</p>
       <pre>✓ Found 4 branches (2 branch constructs)
 Branch coverage: 100.0%
@@ -238,7 +238,7 @@ Branch coverage: 100.0%
       <p>Recursively instruments all <code>.c</code> files, assigns globally unique branch IDs, runs each benchmark, and generates <code>output/summary_report.html</code>.</p>
 
       <h3>Run a Timed Benchmark</h3>
-      <pre>bash benchmark_cobra.sh PATH/TO/FILE.c PATH/TO/test-suite</pre>
+      <pre>bash scripts/benchmark_cobra.sh PATH/TO/FILE.c PATH/TO/test-suite</pre>
       <p>Outputs structured per-step timings for instrumentation, compilation, test execution, and report generation:</p>
       <pre>========================================
  RESULTS: Problem_16

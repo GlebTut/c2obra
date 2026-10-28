@@ -32,7 +32,7 @@ every `&&` / `||` operand and the code of macro expansions as branches; C²oBra 
 ## How to reproduce
 
 ```
-venv/bin/python3 batch/lua_e2e.py --work ~/benchmarks/lua/e2e \
+venv/bin/python3 scripts/batch/lua_e2e.py --work ~/benchmarks/lua/e2e \
     --lua-tar ~/benchmarks/lua/dl/lua-5.4.9.tar.gz --tests-tar ~/benchmarks/lua/dl/lua-5.4.9-tests.tar.gz
 ```
 
@@ -104,9 +104,9 @@ their sha256 against the values on those pages (`2335b6c5…`, `7d971845…`) an
 
 - No change to `src/` (instrument.py, cov_runtime.c, run_tests.py, report.py, merge_reports.py,
   edges.py) and no change to the coverage logic.
-- New `batch/lua_e2e.py`: the driver of the steps above (file-by-file instrumentation with global
+- New `scripts/batch/lua_e2e.py`: the driver of the steps above (file-by-file instrumentation with global
   ids, build with Lua's flags, one coverage file per process, counter merge, reports).
-  `tests/test_lua_e2e.py` tests its two helpers (object list from the Makefile, counter merge).
+  `unittests/test_lua_e2e.py` tests its two helpers (object list from the Makefile, counter merge).
   c2obra.sh was not used: its directory mode builds and runs every `.c` file as a separate program,
   and its runner (`run_tests.py`) feeds Sikraken XML inputs on stdin, while Lua is one program
   built from 33 files whose test inputs are Lua scripts on the command line.

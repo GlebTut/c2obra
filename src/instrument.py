@@ -664,7 +664,7 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
 
 def write_timing(parse, instrument):
     """Seconds of the parse (Tree-sitter + Clang scan) and of the rest (pairing, rewriting, writing
-    the files) to $C2OBRA_TIMING_FILE as JSON; nothing if it is not set (batch/mass_test.py sets it)."""
+    the files) to $C2OBRA_TIMING_FILE as JSON; nothing if it is not set (scripts/batch/mass_test.py sets it)."""
     path = os.environ.get('C2OBRA_TIMING_FILE')
     if path:
         with open(path, 'w') as f:

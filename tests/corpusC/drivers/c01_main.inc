@@ -1,4 +1,4 @@
-/* Driver for c01_macro_with_if.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c01_macro_with_if.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("f(3, 4) = %d\n", f(3, 4));

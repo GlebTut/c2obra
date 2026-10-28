@@ -1,4 +1,4 @@
-/* Driver for c02_macro_condition_and_keyword.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c02_macro_condition_and_keyword.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("g(-5) = %d\n", g(-5));

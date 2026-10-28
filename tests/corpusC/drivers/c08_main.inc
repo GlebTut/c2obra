@@ -1,4 +1,4 @@
-/* Driver for c08_ternary_macros.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c08_ternary_macros.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("t(1, 2, 3) = %d\n", t(1, 2, 3));

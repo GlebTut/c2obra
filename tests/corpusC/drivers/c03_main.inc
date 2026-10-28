@@ -1,4 +1,4 @@
-/* Driver for c03_ifdef_split_braces.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c03_ifdef_split_braces.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("h(-1) = %d\n", h(-1));

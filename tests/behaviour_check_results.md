@@ -1,6 +1,6 @@
 # Behaviour preservation on the corpus
 
-Date: 2026-10-26. Written by `tests/test_behaviour.py` (`C2OBRA_BEHAVIOUR_MD=1`).
+Date: 2026-10-26. Written by `unittests/test_behaviour.py` (`C2OBRA_BEHAVIOUR_MD=1`).
 
 Original and instrumented program compiled with gcc, run with no input (stdin `/dev/null`) and a 5 s timeout; stdout and exit status compared.
 
