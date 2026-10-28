@@ -1,4 +1,4 @@
-"""batch/stages.py: task ids, marker cleaning, stage classification, pilot, resume, results.
+"""scripts/batch/stages.py: task ids, marker cleaning, stage classification, pilot, resume, results.
 
 The c2obra.sh logs used for classification are real: c2obra.sh is run in the sandbox of
 test_c2obra_sh.py (pairing error, link error, success). The Sikraken logs are built from the
@@ -10,7 +10,7 @@ Run from the repo root:  python3 -m unittest tests.test_stages -v
 import contextlib, io, json, os, random, shutil, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'batch'))
+sys.path.insert(0, os.path.join(HERE, '..', 'scripts', 'batch'))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 sys.path.insert(0, HERE)
 import stages as S

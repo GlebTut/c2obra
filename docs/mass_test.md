@@ -1,4 +1,4 @@
-# Batch runs on Test-Comp tasks (`batch/mass_test.sh`)
+# Batch runs on Test-Comp tasks (`scripts/batch/mass_test.sh`)
 
 Runs C²oBra, with Sikraken test suites, on the tasks of a `sample.csv`
 (`category,yml_path,input_file,extension,data_model`, one row per Test-Comp task), one task
@@ -7,13 +7,13 @@ WSL.
 
 ```bash
 # 20-task pilot (new run directory <runs-dir>/<YYYY-MM-DD>_pilot)
-batch/mass_test.sh --name pilot --pilot 20
-batch/mass_test.sh --name pilot --pilot 20 --dry-run      # only print the pilot tasks
+scripts/batch/mass_test.sh --name pilot --pilot 20
+scripts/batch/mass_test.sh --name pilot --pilot 20 --dry-run      # only print the pilot tasks
 
 # full sample, then resume after an interruption, then re-run some statuses
-batch/mass_test.sh --name full
-batch/mass_test.sh --run-dir ~/benchmarks/runs/2026-10-21_full
-batch/mass_test.sh --run-dir ~/benchmarks/runs/2026-10-21_full --retry-status sikraken_timeout,run_crash
+scripts/batch/mass_test.sh --name full
+scripts/batch/mass_test.sh --run-dir ~/benchmarks/runs/2026-10-21_full
+scripts/batch/mass_test.sh --run-dir ~/benchmarks/runs/2026-10-21_full --retry-status sikraken_timeout,run_crash
 ```
 
 Defaults: `--sample ~/benchmarks/sample.csv`, `--sv-root <sample dir>/sv-benchmarks`,

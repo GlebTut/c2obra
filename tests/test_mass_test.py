@@ -1,4 +1,4 @@
-"""batch/mass_test.py end to end on a small fake benchmark tree with a fake Sikraken.
+"""scripts/batch/mass_test.py end to end on a small fake benchmark tree with a fake Sikraken.
 
 Nothing here touches ~/benchmarks or ~/sikraken. The fake sv-benchmarks tree holds a few
 programs from tests/ (one per status the driver can reach without the real Sikraken); the
@@ -12,7 +12,7 @@ import csv, glob, json, os, re, shutil, signal, subprocess, sys, tempfile, time,
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(REPO, 'batch'))
+sys.path.insert(0, os.path.join(REPO, 'scripts', 'batch'))
 sys.path.insert(0, HERE)
 import stages as S
 import test_c2obra_sh as TC
@@ -20,7 +20,7 @@ import test_c2obra_sh as TC
 PY = os.path.join(REPO, 'venv', 'bin', 'python3')
 if not os.path.exists(PY):
     PY = sys.executable
-DRIVER = os.path.join(REPO, 'batch', 'mass_test.py')
+DRIVER = os.path.join(REPO, 'scripts', 'batch', 'mass_test.py')
 
 FAKE_SIKRAKEN = r'''#!/usr/bin/env bash
 # Fake Sikraken (same arguments and output layout as the real one).

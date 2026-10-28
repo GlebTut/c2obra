@@ -44,50 +44,17 @@ a summary dashboard, and full CI/CD integration via GitHub Actions.
 
 ## Setup
 
-### Option A — Quick install (recommended)
+Clone [github.com/GlebTut/c2obra](https://github.com/GlebTut/c2obra), then run from the repo folder:
 
 ```bash
-git clone https://github.com/GlebTut/c2obra.git
-cd c2obra
-chmod +x install.sh
 bash install.sh
 ```
 
-### Option B — Manual setup
+It installs the system packages (`python3.12-venv`, `gcc-multilib`, `wget`, `unzip`, `clang-18`),
+creates `venv/` with the pinned Python packages, and downloads Sikraken to `~/sikraken/`.
 
-#### 1. Install system dependencies
-
-```bash
-sudo apt install python3.12-venv gcc-multilib clang-18
-```
-
-#### 2. Clone and set up the project
-
-```bash
-git clone https://github.com/GlebTut/c2obra.git
-cd c2obra
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
----
-
-## Smoke Test
-
-After installation, verify everything works end-to-end:
-
-```bash
-./smoke_test.sh
-```
-
-Expected output (excerpt):
-```
-✓ Found 2 decisions
-Covered branches: 4/4 edges
-Branch coverage:  100.0%
-✅ Smoke test passed. Open smoke_report.html to view coverage.
-```
+Developer tools (smoke test, timing, batch runs) are in `scripts/`; see
+[scripts/README.md](scripts/README.md). They are not needed to use the tool.
 
 ---
 
@@ -125,58 +92,13 @@ The pipeline runs these steps automatically:
 Environment variables (single-file mode; unset = the behaviour above): `DATA_MODEL`
 (`ILP32`/`LP64`, passed to the Clang scan, gcc and Sikraken), `OUT_DIR` (all outputs and the
 binary go there), `SIKRAKEN_SUITE` (use this test suite, or `-` for none, and do not run
-Sikraken), `LDLIBS` (e.g. `-lm`), `CFLAGS`, `SIKRAKEN_DIR`. See `bash c2obra.sh --help`.
+Sikraken), `LDLIBS` (e.g. `-lm`), `CFLAGS`, `SIKRAKEN_DIR`. See the `--help` output of `c2obra.sh`.
 
-### Batch run on Test-Comp tasks
+### Directory mode
 
-```bash
-batch/mass_test.sh --name pilot --pilot 20      # tasks from ~/benchmarks/sample.csv
-```
-
-Resumable, one row per task in `results.csv`, with a status per failing stage. See
-[docs/mass_test.md](docs/mass_test.md).
-
-### Run the full pipeline on a directory
-
-```bash
-bash c2obra.sh path/to/directory/
-```
-
-Recursively instruments all `.c` files, assigns globally unique branch IDs across all files,
-compiles and runs each benchmark, then generates a summary report at `output/summary_report.html`.
-
-### Benchmark a file against a Sikraken test suite (timed)
-
-```bash
-bash benchmark_cobra.sh PATH/TO/FILE.c PATH/TO/test-suite
-```
-
-Runs the full pipeline with per-step timing and prints a structured results block:
-
-```
-========================================
- C²oBra Benchmark: Problem_16
- Suite:  /home/user/sikraken_output/Problem_16/test-suite
- Date:   Mon Apr 20 16:35:50 IST 2026
-========================================
-[1/4] Instrumenting...   ✅ Done in 4253ms — branches: 14472
-[2/4] Compiling...       ✅ Done in 5317ms
-[3/4] Running tests...   ✅ Done in 462ms (exit 0)
-[4/4] Generating report...✅ Done in 8469ms
-
-========================================
- RESULTS: Problem_16
-========================================
- Coverage:      17.9%
- Branches:      2592 / 14472
-----------------------------------------
- Instrument:    4253ms
- Compile:       5317ms
- Run tests:     462ms
- Report:        8469ms
- TOTAL:         18501ms
-========================================
-```
+`path/to/file.c` can also be a directory. Every `.c` file in it, including subfolders, is
+instrumented with globally unique branch IDs; each `.c` file directly in the directory is then
+built and run as its own binary, and a summary report is written to `output/summary_report.html`.
 
 ### Inspect a report locally (no server needed)
 
@@ -186,28 +108,6 @@ Open `covcheck.html` in your browser and drag-and-drop any `coverage_report.json
 - Filterable branch table with status badges
 - Test run list with inputs, status, and pass/fail/timeout/crash classification
 - Multi-file comparison mode when multiple JSON files are loaded simultaneously
-
-### Generate HTML/CSV report manually
-
-```bash
-source venv/bin/activate
-python3 src/report.py output/benchmark_inst_branch_map.json output/benchmark_inst_coverage.json
-```
-
-This generates:
-- `output/benchmark_inst_report.html` — interactive C²oBra coverage report (dark/light mode, sorting, filtering, run-status badges)
-- `output/benchmark_inst_report.csv` — CSV export
-- `output/benchmark_inst_source.html` — VS Code-style source view with branch highlighting
-
-### Generate summary report across multiple benchmarks
-
-```bash
-source venv/bin/activate
-python3 src/merge_reports.py output/
-```
-
-Generates `output/summary_report.html` — a dashboard with KPI cards, overall progress bar,
-and a per-file table with coverage %, branch counts, and colour-coded status rows.
 
 ---
 
@@ -254,8 +154,7 @@ For example, a single `if` statement at line 10 = 2 edges:
 (`expected.csv`); `tests/test_definition.py` checks them.
 
 > Before 2026-10-20 every entry, including each `switch` label, counted 2 edges and `for(;;)`
-> counted none. The numbers under [Benchmark Results](#benchmark-results) were measured with that
-> earlier model and have not been re-measured.
+> counted none.
 
 ### Run Status Classification
 
@@ -286,7 +185,7 @@ c2obra/
 │   ├── cov_runtime.c       # Runtime coverage tracking (signal handlers, dump)
 │   ├── cov_runtime.h       # Runtime header (cov_branch() macro, MAX_BRANCHES)
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions
-├── tests/                  # C benchmark files (SV-COMP / custom)
+├── tests/                  # Unit tests and their C inputs
 │   ├── definition/         # One program per construct with expected edges (expected.csv)
 │   ├── loop-simple/        # Loop-focused test cases
 │   └── examples/           # Simple example files
@@ -298,18 +197,22 @@ c2obra/
 ├── docs/
 │   ├── logo.png            # Project logo
 │   └── screenshots/        # UI screenshots for README and user resources page
-├── batch/
-│   ├── mass_test.sh        # Batch driver on Test-Comp tasks (docs/mass_test.md)
-│   ├── mass_test.py
-│   └── stages.py           # Task ids, marker cleaning, status classification
+├── scripts/                # Developer tools, not needed to use c2obra.sh (scripts/README.md)
+│   ├── smoke_test.sh       # Post-install sanity check
+│   ├── benchmark_cobra.sh  # Timed run of one file
+│   └── batch/
+│       ├── mass_test.sh    # Batch driver on Test-Comp tasks (docs/mass_test.md)
+│       ├── mass_test.py
+│       ├── stages.py       # Task ids, marker cleaning, status classification
+│       └── lua_e2e.py      # Lua case study (docs/lua_case_study.md)
 ├── c2obra.sh               # End-to-end pipeline script
-├── benchmark_cobra.sh      # Timed benchmarking script
-├── smoke_test.sh           # Post-install sanity check
 ├── covcheck.html           # Standalone drag-and-drop report viewer (no server needed)
 ├── user_resources.html     # Full user guide (also at glebtut.github.io/c2obra/user_resources.html)
 ├── install.sh              # One-command installer
 └── requirements.txt
 ```
+
+tests/ holds test code and test inputs only; it is not needed to use the tool.
 
 ---
 
@@ -321,57 +224,6 @@ c2obra/
 | tree-sitter-c | 0.21.3  | C grammar for tree-sitter        |
 | libclang      | 18.1.1  | Python bindings for the Clang decision scan |
 | Clang 18 (apt `clang-18`) | 18 | Builtin header folder (resource dir) passed to the libclang scan |
-
----
-
-## Benchmark Results
-
-> **Historical (April 2026, before the hybrid; not comparable to current results).**
-
-### Iteration 3 — Full Scale Validation (602 rows in `benchmark_results.csv`)
-
-| Tool        | Avg Coverage | Programs with a result | Notes |
-|-------------|--------------|------------------------|-------|
-| **C²oBra**  | **62.7%**    | 539 of 602             | —     |
-| TestCov     | 69.9%        | 263 of 602             | cause of difference not investigated |
-| TestCoCa    | 48.0%        | 464 of 602             | cause of difference not investigated |
-
-> Observed in `benchmark_results.csv`: the averages above are means over the programs where each
-> tool produced a number, which is a different set per tool (C²oBra 539, TestCoCa 464, TestCov 263
-> of 602 rows). On the 259 programs where all three produced a number, the means are C²oBra 76.9%,
-> TestCoCa 67.2%, TestCov 70.9%. The cause of the differences between the tools has not been
-> investigated. These numbers predate the current edge model (see [Coverage Model](#coverage-model)).
-
-### Iteration 3 — Problem_16 Benchmark
-
-| Step        | Time          |
-|-------------|---------------|
-| Instrument  | 4,253 ms      |
-| Compile     | 5,317 ms      |
-| Run tests   | 462 ms        |
-| Report      | 8,469 ms      |
-| **Total**   | **18,501 ms** |
-
-- **14,472** branches detected &nbsp;|&nbsp; **2,592** covered &nbsp;|&nbsp; **17.9%** coverage
-
-### Iteration 3 — Tool Comparison (functions_test.c)
-
-| Tool        | Branches   | Coverage % |
-|-------------|------------|------------|
-| TestCov     | 7 / 18     | 38.89%     |
-| Sikraken    | 7 / 20     | 35.00%     |
-| TestCoCa    | 7 / 24     | 29.17%     |
-| **C²oBra**  | **7 / 24** | **29.17%** |
-
-Which of these branches are reachable has not been verified here.
-
-### Iteration 2 — Scale Results (for reference)
-
-| Benchmark Set            | C²oBra | TestCoCa | TestCov |
-|--------------------------|--------|----------|---------|
-| Custom benchmarks (12)   | 84.9%  | 79.8%    | 76.3%   |
-| SV-COMP benchmarks (145) | 58.1%  | 50.4%    | 47.7%   |
-| All benchmarks (157)     | 60.2%  | 53.3%    | 51.0%   |
 
 ---
 
@@ -408,41 +260,27 @@ Every push to `main` triggers a four-job GitHub Actions pipeline:
 C²oBra uses **Sikraken** for symbolic execution and automatic test input generation.
 
 - Download: [https://zenodo.org/records/18062402](https://zenodo.org/records/18062402)
-- Extract the zip to `~/sikraken/` so the script is at `~/sikraken/bin/sikraken.sh`
-- Make all Sikraken scripts and binaries executable:
-
-```bash
-chmod +x ~/sikraken/bin/sikraken.sh
-chmod -R +x ~/sikraken/bin/
-chmod -R +x ~/sikraken/eclipse/
-```
-
-> **Important:** The Sikraken zip archive often does not preserve execute permissions.
-> Running `chmod -R +x` on both `bin/` and `eclipse/` avoids fixing permissions incrementally.
+- `bash install.sh` downloads it to `~/sikraken/` (so the script is at `~/sikraken/bin/sikraken.sh`)
+  and makes its scripts executable. The zip archive does not always keep execute permissions;
+  if Sikraken later fails with `Permission denied`, make everything under `~/sikraken/bin/` and
+  `~/sikraken/eclipse/` executable.
 
 ---
 
 ## Troubleshooting
 
-### `python3 -m venv venv` fails with "ensurepip is not available"
-```bash
-sudo apt install python3.12-venv
-```
+### Creating the venv fails with "ensurepip is not available"
+The `python3.12-venv` package is missing; `bash install.sh` installs it.
 
 ### Sikraken fails with `Permission denied` on `.sh` or `eclipse` binaries
-```bash
-chmod -R +x ~/sikraken/bin/
-chmod -R +x ~/sikraken/eclipse/
-```
+Make everything under `~/sikraken/bin/` and `~/sikraken/eclipse/` executable (see the Sikraken section).
 
 ### Sikraken fails with `bits/wordsize.h: No such file or directory`
-```bash
-sudo apt install gcc-multilib
-```
+The `gcc-multilib` package is missing; `bash install.sh` installs it.
 
 ### Coverage report shows 0% on a benchmark that ran successfully
 This usually means the binary was killed before coverage was flushed.
-Use `bash c2obra.sh` (which sets resource limits and uses two-stage kill) rather than running the binary directly.
+Use `c2obra.sh` (which sets resource limits and uses two-stage kill) rather than running the binary directly.
 
 ### Partial coverage instead of full coverage
 Check the run status in the HTML report's Test Inputs table.

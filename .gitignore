@@ -45,3 +45,10 @@ benchmark_results.csv
 *.gcov
 *.c.i
 smoke_*.html
+
+# Work-only files, kept locally but not part of the release
+tests/sv_benchmarks_all/
+benchmark.sh
+tests/Problem_16.c
+tests/functions_test.c
+tests/example_test.c
