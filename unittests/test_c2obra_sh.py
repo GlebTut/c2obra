@@ -9,15 +9,16 @@ Sandbox: a temp dir with a copy of c2obra.sh, symlinks to src/ and venv/, the in
 and SIKRAKEN_DIR pointing to a fake Sikraken whose bin/sikraken.sh records its arguments and
 writes a fixed two-test suite to sikraken_output/<name>/test-suite (the real layout).
 
-Run from the repo root:  python3 -m unittest tests.test_c2obra_sh -v
-Regenerate the golden:   python3 tests/test_c2obra_sh.py --regen
+Run from the repo root:  python3 -m unittest unittests.test_c2obra_sh -v
+Regenerate the golden:   python3 unittests/test_c2obra_sh.py --regen
 """
 import json, os, shutil, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 ROOT = os.path.dirname(HERE)
-DEFS = os.path.join(HERE, 'definition')
-GOLDEN = os.path.join(HERE, 'c2obra_sh', 'golden_unset.json')
+DEFS = os.path.join(TESTS, 'definition')
+GOLDEN = os.path.join(TESTS, 'c2obra_sh', 'golden_unset.json')
 NEW_VARS = ('OUT_DIR', 'DATA_MODEL', 'SIKRAKEN_SUITE', 'LDLIBS')
 
 NONDET_C = r'''#include <stdio.h>
@@ -106,7 +107,7 @@ def cases():
         return 'in/nondet.c'
 
     def pairing_error(d):           # X-macro case labels: instrumentation stops (CLAUDE.md)
-        shutil.copy(os.path.join(HERE, 'corpusC', 'c07_xmacro_switch.c'), os.path.join(d, 'in'))
+        shutil.copy(os.path.join(TESTS, 'corpusC', 'c07_xmacro_switch.c'), os.path.join(d, 'in'))
         return 'in/c07_xmacro_switch.c'
 
     def directory(d):

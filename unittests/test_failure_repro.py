@@ -4,7 +4,7 @@ An open issue is a test of the CORRECT behaviour marked @unittest.expectedFailur
 while the bug is there, and reports an unexpected success (the run is then not successful)
 once the bug is fixed, so the catalogue row must be updated.
 
-Run from the repo root:  python3 -m unittest tests.test_failure_repro -v
+Run from the repo root:  python3 -m unittest unittests.test_failure_repro -v
 """
 import contextlib, io, json, os, resource, subprocess, sys, tempfile, unittest
 

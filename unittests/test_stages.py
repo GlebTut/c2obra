@@ -5,11 +5,12 @@ test_c2obra_sh.py (pairing error, link error, success). The Sikraken logs are bu
 echo lines of sikraken.sh / call_parser.sh; the parser's own error text is made up, because
 the real sikraken_parser.exe output has not been captured yet (do that in the pilot).
 
-Run from the repo root:  python3 -m unittest tests.test_stages -v
+Run from the repo root:  python3 -m unittest unittests.test_stages -v
 """
 import contextlib, io, json, os, random, shutil, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 sys.path.insert(0, os.path.join(HERE, '..', 'scripts', 'batch'))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 sys.path.insert(0, HERE)
@@ -77,7 +78,7 @@ class LineMarkers(unittest.TestCase):
         (test_preprocessed_input); after cleaning it instruments like gcc -E -P (4 decisions)."""
         with tempfile.TemporaryDirectory() as d:
             i = os.path.join(d, 'd15.i')
-            subprocess.run(['gcc', '-E', os.path.join(HERE, 'definition', 'd15_macros.c'), '-o', i], check=True)
+            subprocess.run(['gcc', '-E', os.path.join(TESTS, 'definition', 'd15_macros.c'), '-o', i], check=True)
             with open(i) as f:
                 new, n = S.strip_line_markers(f.read())
             self.assertGreater(n, 0)
@@ -128,7 +129,7 @@ class ClassifyC2obraRealLogs(unittest.TestCase):
     def setUpClass(cls):
         cls.d = tempfile.mkdtemp()
         TC.make_sandbox(cls.d)
-        shutil.copy(os.path.join(HERE, 'corpusC', 'c07_xmacro_switch.c'), os.path.join(cls.d, 'in'))
+        shutil.copy(os.path.join(TESTS, 'corpusC', 'c07_xmacro_switch.c'), os.path.join(cls.d, 'in'))
         with open(os.path.join(cls.d, 'in', 'm.c'), 'w') as f:
             f.write(TC.LIBM_C)
         cls.pairing = TC.run_c2obra(cls.d, 'in/c07_xmacro_switch.c', OUT_DIR='a')

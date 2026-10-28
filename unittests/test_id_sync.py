@@ -4,7 +4,7 @@ Before the fix, instrument_code() skipped constructs it could not wrap (for(;;),
 no case labels) without consuming an ID, while write_branch_map() still assigned one, so every
 later map entry pointed at the wrong construct.
 
-Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
+Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """
 import json, os, re, sys, tempfile, unittest
 

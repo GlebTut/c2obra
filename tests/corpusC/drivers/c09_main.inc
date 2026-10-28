@@ -1,4 +1,4 @@
-/* Driver for c09_gnu_extensions.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c09_gnu_extensions.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("u(3, 7) = %d\n", u(3, 7));

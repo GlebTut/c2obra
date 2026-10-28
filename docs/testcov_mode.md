@@ -10,7 +10,7 @@ the count follow TestCov's goal definition instead of C²oBra's edge definition.
 one CSV row per goal plus a `SUMMARY` row (`covered/total goals (pct)`), prints the totals, and
 writes no HTML. Without `--mode`, report.py and its output are unchanged (HTML, CSV and source
 view compared with `main` on d02, d10 and d11: identical apart from the generation time).
-Code: `src/testcov_goals.py`. Tests: `tests/test_testcov_mode.py`.
+Code: `src/testcov_goals.py`. Tests: `unittests/test_testcov_mode.py`.
 
 ## Where the definition comes from
 

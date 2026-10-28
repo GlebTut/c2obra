@@ -6,7 +6,7 @@ __VERIFIER_nondet_memory zero-fills and reads nothing (Sikraken writes no input 
 Values outside int (seen in Sikraken suites: 4207103166, -2163838572) were cut by the old
 fscanf("%d") stubs. Each case runs under -m64, and -m32 where gcc-multilib is installed.
 
-Run from the repo root:  python3 -m unittest tests.test_verifier_stubs -v
+Run from the repo root:  python3 -m unittest unittests.test_verifier_stubs -v
 """
 import os, struct, subprocess, sys, tempfile, unittest
 

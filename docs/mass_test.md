@@ -35,7 +35,7 @@ anything: a task whose input file is not on disk gets `input_missing`.
 `[A-Za-z0-9_-]` → `_` (e.g. `c/ldv-linux-4.2-rc1/x.cil.out.yml` → `ldv-linux-4_2-rc1__x_cil_out`).
 Test-Comp basenames repeat across directories, and Sikraken names its output directory after
 the file name only, so the copy is named `c2b__<id>`. The ids of all 15,401 Cover-Branches tasks
-are unique (checked by `tests/test_stages.py` with `C2OBRA_TASK_LIST`).
+are unique (checked by `unittests/test_stages.py` with `C2OBRA_TASK_LIST`).
 
 ## Status values
 
@@ -148,10 +148,10 @@ threads), and the `seconds` columns would no longer be usable for timing claims.
 
 ## Tests
 
-- `tests/test_stages.py`: ids, marker cleaning (line numbers kept; gcc -E d15 instruments after
+- `unittests/test_stages.py`: ids, marker cleaning (line numbers kept; gcc -E d15 instruments after
   cleaning), classification (c2obra.sh logs are real: pairing error, link error, success),
   pilot, resume selection, CSV and summary.
-- `tests/test_mass_test.py`: the driver on a fake benchmark tree with a fake Sikraken: every
+- `unittests/test_mass_test.py`: the driver on a fake benchmark tree with a fake Sikraken: every
   status that can be reached without the real Sikraken, two tasks with the same basename,
   group kill on timeout, resume, `--retry-status`, an interrupted task, Ctrl-C, pilot dry run.
 - The pilot is the integration test with the real Sikraken and the real benchmarks.
@@ -164,7 +164,7 @@ threads), and the `seconds` columns would no longer be usable for timing claims.
   scan stops (`clang_error`). Seen with a local gcc 13 `.i`; not known for the Test-Comp `.i`.
 - **Macros in `.i` files are counted**: after preprocessing, decisions from macros (e.g. the
   `if` inside glibc's `assert`) are plain text and get instrumented, while in a `.c` they are
-  skipped (`tests/test_preprocessed_input.py`, d15: 3/8 for the `.i`, 1/2 for the `.c`). So
+  skipped (`unittests/test_preprocessed_input.py`, d15: 3/8 for the `.i`, 1/2 for the `.c`). So
   `.c` and `.i` tasks are not counted the same way.
 - **Line markers inside expressions** (gcc puts them inside `assert()` expansions) stop
   pairing; the driver cleans them when line 1 is a marker. A `.i` whose line 1 is not a marker

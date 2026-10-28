@@ -106,7 +106,7 @@ their sha256 against the values on those pages (`2335b6c5…`, `7d971845…`) an
   edges.py) and no change to the coverage logic.
 - New `scripts/batch/lua_e2e.py`: the driver of the steps above (file-by-file instrumentation with global
   ids, build with Lua's flags, one coverage file per process, counter merge, reports).
-  `tests/test_lua_e2e.py` tests its two helpers (object list from the Makefile, counter merge).
+  `unittests/test_lua_e2e.py` tests its two helpers (object list from the Makefile, counter merge).
   c2obra.sh was not used: its directory mode builds and runs every `.c` file as a separate program,
   and its runner (`run_tests.py`) feeds Sikraken XML inputs on stdin, while Lua is one program
   built from 33 files whose test inputs are Lua scripts on the command line.

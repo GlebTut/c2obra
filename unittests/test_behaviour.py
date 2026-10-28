@@ -16,13 +16,14 @@ KNOWN_FAIL fails the test.
 
 The table is printed. With C2OBRA_BEHAVIOUR_MD=1 it is also written to
 tests/behaviour_check_results.md:
-    C2OBRA_BEHAVIOUR_MD=1 venv/bin/python3 -m unittest tests.test_behaviour -v
+    C2OBRA_BEHAVIOUR_MD=1 venv/bin/python3 -m unittest unittests.test_behaviour -v
 
-Run from the repo root:  python3 -m unittest tests.test_behaviour -v
+Run from the repo root:  python3 -m unittest unittests.test_behaviour -v
 """
 import contextlib, datetime, glob, importlib.metadata, io, os, re, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 SRC = os.path.join(HERE, '..', 'src')
 sys.path.insert(0, SRC)
 sys.path.insert(0, HERE)
@@ -31,8 +32,8 @@ from test_definition import build_and_run
 
 CORPUS = ['corpusC/c*.c', 'examples/*.c', 'loop-simple/*.c', 'loop-lit/*.c', 'definition/d*.c']
 TIMEOUT = 5                      # seconds per run
-RESULTS_MD = os.path.join(HERE, 'behaviour_check_results.md')
-DRIVERS = os.path.join(HERE, 'corpusC', 'drivers')
+RESULTS_MD = os.path.join(TESTS, 'behaviour_check_results.md')
+DRIVERS = os.path.join(TESTS, 'corpusC', 'drivers')
 
 # -D flags per program, one check per flag list; the same flags go to instrument.py and gcc.
 # As in test_pairing.py / test_clang_scan.py: c03 and c05 also with the define that selects
@@ -63,10 +64,10 @@ def corpus():
     """(row label, path, flags, driver .inc or None) for every check."""
     cases = []
     for g in CORPUS:
-        for p in sorted(glob.glob(os.path.join(HERE, g))):
+        for p in sorted(glob.glob(os.path.join(TESTS, g))):
             drv = driver(p)
             for flags in FLAGS.get(os.path.basename(p), [[]]):
-                label = os.path.relpath(p, HERE)
+                label = os.path.relpath(p, TESTS)
                 if drv:
                     label = f"corpusC/{os.path.basename(p)[:3]} (with driver)"
                 if flags:
@@ -152,7 +153,7 @@ def summary_line(rows, counts):
 def write_md(rows, counts, versions):
     with open(RESULTS_MD, 'w') as f:
         f.write('# Behaviour preservation on the corpus\n\n')
-        f.write(f'Date: {datetime.date.today().isoformat()}. Written by `tests/test_behaviour.py` '
+        f.write(f'Date: {datetime.date.today().isoformat()}. Written by `unittests/test_behaviour.py` '
                 f'(`C2OBRA_BEHAVIOUR_MD=1`).\n\n')
         f.write('Original and instrumented program compiled with gcc, run with no input (stdin '
                 f'`/dev/null`) and a {TIMEOUT} s timeout; stdout and exit status compared.\n\n')

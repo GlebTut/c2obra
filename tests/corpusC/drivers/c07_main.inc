@@ -1,4 +1,4 @@
-/* Driver for c07_xmacro_switch.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c07_xmacro_switch.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("first_letter(RED) = %d\n", first_letter(RED));

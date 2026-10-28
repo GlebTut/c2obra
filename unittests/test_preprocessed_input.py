@@ -8,7 +8,7 @@ physical lines of the .i file (Clang's expansion location, not the line the mark
 Not covered: .i files made from glibc >= 2.34 headers. Their __attribute__((__malloc__(f)))
 is GCC-only, and the Clang scan stops with an error (seen with a local gcc 13 / glibc 2.39 .i).
 
-Run from the repo root:  python3 -m unittest tests.test_preprocessed_input -v
+Run from the repo root:  python3 -m unittest unittests.test_preprocessed_input -v
 """
 import contextlib, io, json, os, subprocess, sys, tempfile, unittest
 

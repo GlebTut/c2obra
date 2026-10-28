@@ -4,7 +4,7 @@ definition is removed so verifier_stubs.c's version (dump coverage, exit 1) is l
 Pilot 2026-10-20: recursified_nested_1b.c writes 'void reach_error()' and the '{' on the next
 line; the definition was kept and the link failed with 'multiple definition of reach_error'.
 
-Run from the repo root:  python3 -m unittest tests.test_verifier_boilerplate -v
+Run from the repo root:  python3 -m unittest unittests.test_verifier_boilerplate -v
 """
 import contextlib, io, json, os, subprocess, sys, tempfile, unittest
 

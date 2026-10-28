@@ -6,11 +6,12 @@ fake bin/sikraken.sh writes a 2-test suite, or fails like the parser (FAKE_PARSE
 the file), or hangs with a child process (FAKE_SLEEP) so the timeout must kill the group.
 The real c2obra.sh, instrument.py, gcc and run_tests.py are used.
 
-Run from the repo root:  python3 -m unittest tests.test_mass_test -v
+Run from the repo root:  python3 -m unittest unittests.test_mass_test -v
 """
 import csv, glob, json, os, re, shutil, signal, subprocess, sys, tempfile, time, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(REPO, 'scripts', 'batch'))
 sys.path.insert(0, HERE)
@@ -66,7 +67,7 @@ ENUM_C = 'enum { A = ((0) < 8 ? 1 : 2) };\nint main(void) { int x = A; if (x > 0
 def build_tree(root):
     """Fake sv-benchmarks + sample.csv + Sikraken under root. Returns {name: row}."""
     sv = os.path.join(root, 'sv-benchmarks')
-    defs = os.path.join(HERE, 'definition')
+    defs = os.path.join(TESTS, 'definition')
 
     def put(rel, text):
         p = os.path.join(sv, rel)
@@ -86,7 +87,7 @@ def build_tree(root):
         'tree_a':   ('Loops', 'loops/tree-4', '.c', TC.NONDET_C, 'LP64'),
         'tree_b':   ('Heap', 'heap/tree-4', '.c', TC.NONDET_C, 'LP64'),
         'marked':   ('Arrays', 'arr/marked', '.i', marked, 'LP64'),
-        'xmacro':   ('ECA', 'eca/xmacro', '.c', read(os.path.join(HERE, 'corpusC', 'c07_xmacro_switch.c')), 'LP64'),
+        'xmacro':   ('ECA', 'eca/xmacro', '.c', read(os.path.join(TESTS, 'corpusC', 'c07_xmacro_switch.c')), 'LP64'),
         'floats':   ('Floats', 'floats/m', '.c', TC.LIBM_C, 'LP64'),
         'nostub':   ('Combinations', 'comb/nostub', '.c', NOSTUB_C, 'LP64'),
         'parse':    ('Hardness', 'hard/parse', '.c', '/* FAKE_PARSE_FAIL */\n' + TC.NONDET_C, 'LP64'),

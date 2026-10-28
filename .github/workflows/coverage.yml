@@ -51,7 +51,7 @@ jobs:
           echo "resource dir: $(clang-18 -print-resource-dir)"
 
       - name: Run unit tests
-        run: venv/bin/python3 -m unittest discover -s tests -p "test_*.py" -v
+        run: venv/bin/python3 -m unittest discover -s unittests -p "test_*.py" -v
 
       - name: Cache venv
         uses: actions/cache@v5

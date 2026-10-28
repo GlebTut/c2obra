@@ -53,6 +53,19 @@ bash install.sh
 It installs the system packages (`python3.12-venv`, `gcc-multilib`, `wget`, `unzip`, `clang-18`),
 creates `venv/` with the pinned Python packages, and downloads Sikraken to `~/sikraken/`.
 
+### Manual setup (if install.sh fails)
+
+```bash
+sudo apt install python3.12-venv gcc-multilib clang-18
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Sikraken is then not installed; see the Sikraken section below.
+
+`scripts/smoke_test.sh` checks the install.
+
 Developer tools (smoke test, timing, batch runs) are in `scripts/`; see
 [scripts/README.md](scripts/README.md). They are not needed to use the tool.
 
@@ -118,7 +131,7 @@ C²oBra counts **edges**: each outcome of a decision (the true or false side of 
 edges hit by the test runs. Edges that can never be taken are still counted. The definition is written down as one
 small program per construct with its expected edges in
 [`tests/definition/expected.csv`](tests/definition/expected.csv), checked by
-`tests/test_definition.py`; the counting rules are in [Coverage Model](#coverage-model) below.
+`unittests/test_definition.py`; the counting rules are in [Coverage Model](#coverage-model) below.
 
 **Known limitations:** see [docs/architecture.md](docs/architecture.md#known-limitations).
 
@@ -151,7 +164,7 @@ For example, a single `if` statement at line 10 = 2 edges:
 - `if` at line 10 — false edge (condition does not hold)
 
 `tests/definition/` holds one small program per construct with hand-derived expected edges
-(`expected.csv`); `tests/test_definition.py` checks them.
+(`expected.csv`); `unittests/test_definition.py` checks them.
 
 > Before 2026-10-20 every entry, including each `switch` label, counted 2 edges and `for(;;)`
 > counted none.
@@ -185,10 +198,12 @@ c2obra/
 │   ├── cov_runtime.c       # Runtime coverage tracking (signal handlers, dump)
 │   ├── cov_runtime.h       # Runtime header (cov_branch() macro, MAX_BRANCHES)
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions
-├── tests/                  # Unit tests and their C inputs
+├── tests/                  # Test inputs only (C programs, expected results)
 │   ├── definition/         # One program per construct with expected edges (expected.csv)
+│   ├── corpusC/            # Stress files with hand-written expectations
 │   ├── loop-simple/        # Loop-focused test cases
 │   └── examples/           # Simple example files
+├── unittests/              # Test code: test_*.py (python3 -m unittest discover -s unittests)
 ├── output/                 # Instrumented files and reports (generated, not tracked)
 ├── build/                  # Compiled test binaries (generated, not tracked)
 ├── .github/
@@ -212,7 +227,7 @@ c2obra/
 └── requirements.txt
 ```
 
-tests/ holds test code and test inputs only; it is not needed to use the tool.
+tests/ holds test inputs only; unittests/ holds the test code.
 
 ---
 

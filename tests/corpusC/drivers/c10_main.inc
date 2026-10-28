@@ -1,4 +1,4 @@
-/* Driver for c10_include_header.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c10_include_header.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("v(-4) = %d\n", v(-4));

@@ -8,7 +8,7 @@ was run, see the 5.3 study):
 They count every decision in the compiled program, including macro-produced ones, so they
 are compared with the raw scan; which of them the filter skips is tested separately.
 
-Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
+Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """
 import os, re, sys, tempfile, unittest
 from collections import Counter
@@ -17,7 +17,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 import clang_scan as C
 
-CORPUS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'corpusC')
+CORPUS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tests', 'corpusC')
 KIND_WORDS = {'if', 'for', 'while', 'do', 'switch', '?:'}
 E_RE = re.compile(r'//\s*E(?:\[(\w+)\])?(?:@(\d+))?:\s*(.*)')
 

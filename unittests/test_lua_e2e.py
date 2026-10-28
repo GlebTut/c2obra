@@ -3,7 +3,7 @@
 The end-to-end run itself needs the Lua tarballs and is not part of the unit tests
 (docs/lua_case_study.md has the command and the results).
 
-Run from the repo root:  python3 -m unittest tests.test_lua_e2e -v
+Run from the repo root:  python3 -m unittest unittests.test_lua_e2e -v
 """
 import json, os, sys, tempfile, unittest
 

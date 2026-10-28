@@ -3,18 +3,19 @@
 Clang decides which decisions exist; each must pair with a Tree-sitter node at the same
 (kind, line, column), otherwise instrumentation stops.
 
-Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
+Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """
 import contextlib, io, json, os, re, subprocess, sys, tempfile, unittest, unittest.mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 sys.path.insert(0, HERE)
 import instrument as I
 from test_id_sync import cover_ids
 from test_c2obra_sh import can_build_m32
 
-CORPUS = os.path.join(HERE, 'corpusC')
+CORPUS = os.path.join(TESTS, 'corpusC')
 SRC = os.path.join(HERE, '..', 'src')
 
 

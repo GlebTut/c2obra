@@ -4,7 +4,7 @@ Pilot 2026-10-20: 6 of 10 .i tasks failed to compile with 'conflicting types for
 (glibc's typedef struct { int __val[2]; } __fsid_t, already in the .i, defined again through
 the header's <stdint.h>) or 'conflicting types for uint64_t' (Intel-TDX: unsigned long long).
 
-Run from the repo root:  python3 -m unittest tests.test_runtime_header -v
+Run from the repo root:  python3 -m unittest unittests.test_runtime_header -v
 """
 import contextlib, io, json, os, re, subprocess, sys, tempfile, unittest
 

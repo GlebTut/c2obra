@@ -7,7 +7,7 @@ One row per suspected issue. Status is one of:
 - **NOT REPRODUCED**: tried and the failure did not occur.
 - **NOT TESTED**: no evidence either way.
 
-Evidence comes from the git history (commit messages and the tests they added), from tests that pass in the current suite, and (phase 2) from reproductions run on 2026-10-26. An open issue reproduced by a unit test is a test of the correct behaviour marked `@unittest.expectedFailure` (`tests/test_failure_repro.py`): it reports an unexpected success once the bug is fixed. Test names are `file::Class.test`. PR numbers are the GitHub merge commits on `main`.
+Evidence comes from the git history (commit messages and the tests they added), from tests that pass in the current suite, and (phase 2) from reproductions run on 2026-10-26. An open issue reproduced by a unit test is a test of the correct behaviour marked `@unittest.expectedFailure` (`unittests/test_failure_repro.py`): it reports an unexpected success once the bug is fixed. Test names are `file::Class.test`. PR numbers are the GitHub merge commits on `main`.
 
 Status of 2026-10-26, `main` at `db95992` (PR #16).
 

@@ -4,11 +4,12 @@ Each case is a small C function shaped after code where the rewriter produced br
 (examples from Lua 5.4.6 / zlib 1.3.1, Phase 2 step 4). The original and the instrumented
 program are compiled with gcc, run, and their output compared.
 
-Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
+Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """
 import contextlib, io, json, os, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 SRC = os.path.join(HERE, '..', 'src')
 sys.path.insert(0, SRC)
 sys.path.insert(0, HERE)
@@ -126,7 +127,7 @@ class SwitchEvaluatedOnce(unittest.TestCase):
     (switch (next()), switch ((*i)++)) the instrumented program would behave differently."""
 
     def test_switch_expression_with_side_effect(self):
-        path = os.path.join(HERE, 'corpusC', 'c15_switch_side_effect.c')
+        path = os.path.join(TESTS, 'corpusC', 'c15_switch_side_effect.c')
         with tempfile.TemporaryDirectory() as d:
             inst = os.path.join(d, 'c15_inst.c')
             with contextlib.redirect_stdout(io.StringIO()):

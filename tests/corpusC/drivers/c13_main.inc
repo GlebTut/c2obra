@@ -1,4 +1,4 @@
-/* Driver for c13_typedef_ambiguity.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c13_typedef_ambiguity.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("y(2, 1) = %d\n", y(2, 1));

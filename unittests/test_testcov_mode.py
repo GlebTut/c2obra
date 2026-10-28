@@ -5,13 +5,14 @@ goals of src/testcov_goals.py are compared with what TestCov measured on the sam
 one empty test (tests/definition/testcov_results/results.csv). d15: TestCov fails on it
 ("else without a previous if"), so there is no number to match; the mode's result is recorded.
 
-Run from the repo root:  python3 -m unittest tests.test_testcov_mode -v
+Run from the repo root:  python3 -m unittest unittests.test_testcov_mode -v
 """
 import csv, json, os, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 SRC = os.path.join(HERE, '..', 'src')
-DEFS = os.path.join(HERE, 'definition')
+DEFS = os.path.join(TESTS, 'definition')
 sys.path.insert(0, SRC)
 sys.path.insert(0, HERE)
 import testcov_goals as G

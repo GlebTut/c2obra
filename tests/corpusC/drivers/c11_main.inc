@@ -1,4 +1,4 @@
-/* Driver for c11_kr_and_oddities.c: a main() appended to a copy of it by tests/test_behaviour.py. */
+/* Driver for c11_kr_and_oddities.c: a main() appended to a copy of it by unittests/test_behaviour.py. */
 #include <stdio.h>
 int main(void) {
     printf("w(3, 1) = %d\n", w(3, 1));

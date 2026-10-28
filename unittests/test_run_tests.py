@@ -4,7 +4,7 @@ map that is given but unusable is an error (exit 2).
 The program is instrumented and compiled with the real runtime (cov_runtime.c); run_tests.py
 is run as a subprocess, as c2obra.sh runs it.
 
-Run from the repo root:  python3 -m unittest tests.test_run_tests -v
+Run from the repo root:  python3 -m unittest unittests.test_run_tests -v
 """
 import contextlib, io, json, os, subprocess, sys, tempfile, time, unittest
 

@@ -9,13 +9,14 @@ also behave like the original (same stdout and exit code; d13 exits with 1).
 A second test checks that every place that reports a total (run_tests.py summary JSON,
 report.py CSV and HTML, merge_reports.py) gives the same numbers as edges.edge_coverage().
 
-Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
+Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """
 import contextlib, csv, io, json, os, shutil, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 SRC = os.path.join(HERE, '..', 'src')
-DEFS = os.path.join(HERE, 'definition')
+DEFS = os.path.join(TESTS, 'definition')
 sys.path.insert(0, SRC)
 import instrument as I
 import edges as E

@@ -7,13 +7,14 @@ is paired as before.
 
 tests/stmtexpr/stmtexpr_{b,c,d}.c are copies of ~/benchmarks/runs/2026-10-25_stmtexpr/src/.
 
-Run from the repo root:  python3 -m unittest discover -s tests -p "test_*.py" -v
+Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """
 import contextlib, io, json, os, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 SRC = os.path.join(HERE, '..', 'src')
-CASES = os.path.join(HERE, 'stmtexpr')
+CASES = os.path.join(TESTS, 'stmtexpr')
 sys.path.insert(0, SRC)
 sys.path.insert(0, HERE)
 import instrument as I
