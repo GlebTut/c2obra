@@ -27,7 +27,7 @@ def testcov_rows():
 def mode_result(name):
     with tempfile.TemporaryDirectory() as d:
         branch_map, coverage, _, _ = instrument_and_run(d, name)
-        return G.goals(branch_map, coverage, os.path.join(d, name))
+        return G.goals(branch_map, coverage)
 
 
 class MatchesTestCov(unittest.TestCase):
@@ -37,7 +37,6 @@ class MatchesTestCov(unittest.TestCase):
         for name, row in sorted(rows.items()):
             with self.subTest(program=name):
                 r = mode_result(name)
-                self.assertEqual(r['unmatched'], [])
                 if row['status'] == 'ok':
                     self.assertEqual((r['covered'], r['total']),
                                      (int(row['goals_covered']), int(row['goals_total'])))
@@ -75,7 +74,7 @@ class ReportCli(unittest.TestCase):
                 json.dump({'branches': list(coverage.values())}, f)
             out = os.path.join(d, 'goals.csv')
             r = subprocess.run([sys.executable, os.path.join(SRC, 'report.py'), bmap, cov, '--mode', 'testcov',
-                                '--source', os.path.join(d, name), '--csv', out, '--output', os.path.join(d, 'x.html')],
+                                '--csv', out, '--output', os.path.join(d, 'x.html')],
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn('TestCov goals: 2/3 (66.7%)', r.stdout)

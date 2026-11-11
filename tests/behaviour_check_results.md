@@ -1,16 +1,16 @@
 # Behaviour preservation on the corpus
 
-Date: 2026-10-26. Written by `unittests/test_behaviour.py` (`C2OBRA_BEHAVIOUR_MD=1`).
+Date: 2026-11-11. Written by `unittests/test_behaviour.py` (`C2OBRA_BEHAVIOUR_MD=1`).
 
 Original and instrumented program compiled with gcc, run with no input (stdin `/dev/null`) and a 5 s timeout; stdout and exit status compared.
 
 Tools:
 
 - gcc: `gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`
-- clang (resource dir for the scan): `Ubuntu clang version 18.1.3 (1ubuntu1)`
+- clang-18 (resource dir for the scan): `Ubuntu clang version 18.1.3 (1ubuntu1)`
 - libclang (Python, used by the scan): `18.1.1`
 
-PASS 33, FAIL 1 (1 known bug), SKIP 9 (of 43 checks)
+PASS 34, FAIL 0 (0 known bug), SKIP 9 (of 43 checks)
 
 | program | result | reason |
 |---|---|---|
@@ -22,9 +22,9 @@ PASS 33, FAIL 1 (1 known bug), SKIP 9 (of 43 checks)
 | corpusC/c05 (with driver) | PASS |  |
 | corpusC/c05 (with driver) -DDEBUG | PASS |  |
 | corpusC/c06 (with driver) | PASS |  |
-| corpusC/c07 (with driver) | SKIP | instrument.py stopped: ❌ Error: 1 decision(s) could not be paired: |
+| corpusC/c07 (with driver) | SKIP | instrument.py stopped: ❌ Error: 1 decision(s) could not be paired with a plain-text condition: |
 | corpusC/c08 (with driver) | PASS |  |
-| corpusC/c09 (with driver) | FAIL | known bug: GNU case range `case 1 ... 5:` (tree-sitter-c 0.21.3 makes `... 5` an ERROR node, get_switch_cases() uses it as the value). instrumented copy does not compile: c09_gnu_extensions_inst.c:11:85: error: expected expression before ‘...’ token |
+| corpusC/c09 (with driver) | PASS |  |
 | corpusC/c10 (with driver) | PASS |  |
 | corpusC/c11 (with driver) | PASS |  |
 | corpusC/c12 (with driver) | PASS |  |

@@ -357,7 +357,7 @@ FIELDS = ['id', 'category', 'yml_path', 'input_file', 'extension', 'data_model',
           'seconds_sikraken', 'seconds_c2obra', 'nondet']
 
 
-# timing.csv: seconds per stage, one row per task. parse = Tree-sitter parse + Clang scan
+# timing.csv: seconds per stage, one row per task. parse = Clang scan
 # (instrument.py's own timer); instrument = the rest of c2obra.sh's instrument step (Python start,
 # pairing, rewriting, writing files). If instrument.py stopped early, parse is empty and
 # instrument is the whole step. compile/run/report: c2obra.sh steps; c2obra: its whole run.

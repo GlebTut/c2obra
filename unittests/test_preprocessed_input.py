@@ -68,7 +68,7 @@ class PreprocessedInput(unittest.TestCase):
             self.assertEqual(E.edge_coverage(branch_map, coverage), (3, 8))
 
     def test_d15_markers_inside_expression_are_instrumented(self):
-        """gcc -E puts line markers inside assert()'s expansion. Tree-sitter had no node there and
+        """gcc -E puts line markers inside assert()'s expansion. the old Tree-sitter scheme had no node there and
         pairing stopped; Clang positions are plain file offsets, so the .i file is instrumented
         and has the same 4 decisions as the one without markers."""
         with tempfile.TemporaryDirectory() as d:

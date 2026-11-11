@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-C²oBra - Clang decision scan (Phase 2, spec section 5.3: hybrid design)
+C²oBra - Clang decision scan
 
 Clang decides WHICH branch decisions exist in the program as compiled (it honours -D, -I,
-#ifdef and macros). Tree-sitter is then only used to find the byte range to rewrite
-(see pair_decisions() in instrument.py).
-
-Exception: for an if/while/do/for whose header text contains a GNU statement expression
-'({ ... })', Clang also gives the condition span (_header_info()), because tree-sitter-c
-0.21.3 has no rule for it and loses the node or mis-spans the condition. pair_decisions()
-keeps the Tree-sitter node only if its condition span matches Clang's; if Clang's span
-cannot be wrapped either, pairing behaves as for any other header. In all other cases the
-span to wrap comes from Tree-sitter.
+#ifdef and macros) and WHERE their conditions are: for every decision it gives the byte span
+of the condition (_header_info(), _expr_info()), the else information of an if, the labels of
+a switch, and the facts the TestCov goal count needs (breaks of a loop, fall-through of a
+label). instrument.py wraps those spans with cover(); it does not parse the file itself.
+(Until iteration 2 Tree-sitter found the spans; it failed on 19% of the sv-benchmarks files,
+for example on a GNU statement expression '({ ... })' in a header.)
 
 Uses the libclang Python bindings (pip: libclang==18.1.1). The pip wheel ships no Clang
 builtin headers (stddef.h, stdarg.h ...), so the resource directory of an installed clang is
@@ -199,8 +196,7 @@ def _for_has_condition(tokens):
 
 def _header_stmt_expr(group):
     """True if a header's tokens (a paren_group) contain a GNU statement expression '({',
-    written in the file text. Tree-sitter has no rule for it and loses the header's structure;
-    one that comes from a macro is a plain macro call to Tree-sitter and needs nothing."""
+    written in the file text (not one that comes from a macro)."""
     return any(a == '(' and b == '{' for (_, a), (_, b) in zip(group, group[1:]))
 
 
@@ -219,8 +215,8 @@ def _depth1_semicolons(group):
 
 
 def _header_info(cursor, kind, ftoks, in_main):
-    """Clang's view of an if/while/do/for header, for headers that contain a statement
-    expression (instrument.py then wraps Clang's condition span instead of Tree-sitter's).
+    """Clang's view of an if/while/do/for header: the span of its condition, the two ';' of a
+    for, the else information of an if.
 
     Returns a dict:
       header_stmt_expr - the header text contains '({'
@@ -229,8 +225,8 @@ def _header_info(cursor, kind, ftoks, in_main):
                          the header, e.g. a macro whose expansion holds the ')' or a ';')
       cond_lc          - ((line, col), (line, col)) of cond_span, for messages and the map
       for_semis        - for: offsets of the two ';' of the header, or None
-      else_info        - if: (has_else, else_line, is_else_if), as instrument.get_else_info()
-    Only header_stmt_expr is computed for headers without a statement expression."""
+      else_info        - if: (has_else, else_line, is_else_if)
+    Every key is computed for every header."""
     children = list(cursor.get_children())
     # The header starts at the keyword, except for do: its 'while (' follows the body
     start = children[0].extent.end.offset if kind == 'do' else cursor.extent.start.offset
@@ -279,6 +275,63 @@ def _plain_span(ext, in_main):
     if _spelling_offset(s) != s.offset or not s.offset < e.offset:
         return None
     return (s.offset, e.offset)
+
+
+LOOP_KINDS = (K.FOR_STMT, K.WHILE_STMT, K.DO_STMT)
+JUMP_KINDS = (K.BREAK_STMT, K.RETURN_STMT, K.CONTINUE_STMT, K.GOTO_STMT)
+
+
+def _loop_breaks(loop):
+    """The `break` statements that leave this loop (not those of a nested loop or switch), each as
+    the chain of `if` statements around it inside the loop, innermost first:
+    [(offset of the if, 'true' | 'false'), ...]. An empty chain is a break directly in the loop
+    body. Used by the TestCov goal count (testcov_goals.py)."""
+    kids = list(loop.get_children())
+    body = kids[0] if loop.kind == K.DO_STMT else kids[-1]
+    out, stack = [], [(body, ())]
+    while stack:
+        c, chain = stack.pop()
+        if c.kind == K.BREAK_STMT:
+            out.append(list(chain))
+        elif c.kind in LOOP_KINDS or c.kind == K.SWITCH_STMT:
+            continue
+        elif c.kind == K.IF_STMT:
+            for i, ch in enumerate(c.get_children()):
+                # children: condition, then, else
+                stack.append((ch, ((c.location.offset, 'true' if i == 1 else 'false'),) + chain if i else chain))
+        else:
+            stack.extend((ch, chain) for ch in c.get_children())
+    return out
+
+
+def _switch_items(stmt, out, top=True):
+    """The body of a switch as a flat list of ('label', cursor) and ('stmt', cursor), in source
+    order: the direct children of the body block, and the statement after each label (labels
+    stacked as `case 1: case 2: x` come out as two labels and one statement)."""
+    if top and stmt.kind == K.COMPOUND_STMT:
+        for ch in stmt.get_children():
+            _switch_items(ch, out, False)
+    elif stmt.kind in (K.CASE_STMT, K.DEFAULT_STMT):
+        out.append(('label', stmt))
+        kids = list(stmt.get_children())
+        if kids:
+            _switch_items(kids[-1], out, False)
+    else:
+        out.append(('stmt', stmt))
+
+
+def _falls_through(items):
+    """{label offset: True if the statements of the label run into the next label}: the label
+    has no statement of its own, or its last one is not break / return / continue / goto
+    (a block or an if at the end counts as running on). Static, see testcov_goals.py."""
+    result, current = {}, None
+    for kind, c in items:
+        if kind == 'label':
+            current = c.location.offset
+            result[current] = True                   # no statement yet: runs into the next label
+        elif current is not None:
+            result[current] = c.kind not in JUMP_KINDS
+    return result
 
 
 def _case_label_spans(ftoks, start):
@@ -337,10 +390,16 @@ def _expr_info(cursor, kind, in_main, ftoks):
                 found.append(c)
             stack.extend(c.get_children())
         found.sort(key=lambda c: c.location.offset)
+        items = []
+        if len(children) > 1:
+            _switch_items(children[1], items)
+        falls = _falls_through(items)
         cases = []
         for c in found:
+            ft = falls.get(c.location.offset, True)
             if c.kind == K.DEFAULT_STMT:
-                cases.append({'kind': 'default', 'line': c.location.line, 'span': None})
+                cases.append({'kind': 'default', 'line': c.location.line, 'span': None,
+                              'falls_through': ft})
             else:
                 # the label as written in the file (also when it is a macro); a GNU range
                 # 'case 1 ... 5:' has an upper bound
@@ -348,7 +407,7 @@ def _expr_info(cursor, kind, in_main, ftoks):
                 cases.append({'kind': 'case', 'line': c.location.line,
                               'span': lab[0] if lab else None,
                               'range_hi': lab[1] if lab else None,
-                              'is_range': bool(lab and lab[1])})
+                              'is_range': bool(lab and lab[1]), 'falls_through': ft})
         info['cases'] = cases
     return info
 
@@ -427,10 +486,11 @@ def scan(path, user_flags=(), res_dir=None):
             if not in_main(loc):
                 continue
             kind = KINDS.get(c.kind)
+            gnu_elvis = False
             if kind is None:
                 if not _is_gnu_conditional(c):
                     continue
-                kind = '?:'
+                kind, gnu_elvis = '?:', True
             tokens = _decision_tokens(ftoks, c, kind)
             d = {
                 'kind':          kind,
@@ -442,7 +502,10 @@ def scan(path, user_flags=(), res_dir=None):
                 'n_cases':       _count_cases(c) if kind == 'switch' else None,
                 'in_function':   in_body,
                 'header_stmt_expr': False,
+                'gnu_elvis':     gnu_elvis,        # GNU `a ?: b`: the value of a is the result
             }
+            if kind in ('while', 'do', 'for') and not d['from_macro']:
+                d['breaks'] = _loop_breaks(c)
             if kind in ('if', 'while', 'do', 'for') and not d['from_macro']:
                 d.update(_header_info(c, kind, ftoks, in_main))
             elif kind in ('?:', 'switch') and not d['from_macro']:

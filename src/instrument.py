@@ -195,6 +195,8 @@ def branch_from_decision(d, source_code):
         'slot':        None,
         'else_info':   d.get('else_info'),
         'switch':      None,
+        'breaks':      d.get('breaks'),
+        'gnu_elvis':   d.get('gnu_elvis', False),
     }
     if kind == 'for' and d['cond_span'] is None:
         # only a for without condition has a slot to fill, at the header's second ';'
@@ -207,12 +209,12 @@ def branch_from_decision(d, source_code):
         cases = []
         for c in d['cases']:
             if c['kind'] == 'default':
-                cases.append({'kind': 'default', 'line': c['line']})
+                cases.append({'kind': 'default', 'line': c['line'], 'falls_through': c['falls_through']})
             elif c['span'] is None or (c['is_range'] and c['range_hi'] is None):
                 return None, "a case label is not plain text (macro argument?)"
             else:
                 value = source_code[c['span'][0]:c['span'][1]].decode('utf-8').strip()
-                case = {'kind': 'case', 'value': value, 'line': c['line']}
+                case = {'kind': 'case', 'value': value, 'line': c['line'], 'falls_through': c['falls_through']}
                 if c['is_range']:       # GNU 'case lo ... hi:'
                     case['high'] = source_code[c['range_hi'][0]:c['range_hi'][1]].decode('utf-8').strip()
                 cases.append(case)
@@ -277,7 +279,14 @@ def instrument_code(source_code, branches, start_id=1):
 
         elif branch_type == 'conditional_expression':
             # ternary: condition ? true_expr : false_expr
-            rewriter.wrap(*span, "cover((", f"), {current_id})")
+            if branch['gnu_elvis']:
+                # GNU `a ?: b` gives a itself when it is true, and cover() returns 1: keep the value
+                var = f"__c2obra_t_{current_id}"
+                text = source_code[span[0]:span[1]].decode('utf-8')
+                rewriter.wrap(*span, f"({{ __typeof__(({text}) + 0) {var} = (",
+                              f"); cover(({var}), {current_id}); {var}; }})")
+            else:
+                rewriter.wrap(*span, "cover((", f"), {current_id})")
             current_id += 1
 
     try:
@@ -309,16 +318,26 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
     that label is taken; its false counter only means "not this label" and is not an edge.
     The implicit default is also recorded as cover(1, id) (build_cover_chain), so every switch
     label edge is a true side. edges.edge_coverage() turns this list into covered/total.
+
+    Two facts for the TestCov goal count (testcov_goals.py, read from Clang while the file is
+    scanned) are stored too, so that mode does not need the source or a second parse:
+    a switch_case has "switch_id" (the id of the first label of its switch) and "falls_through"
+    (its statements run into the next label); a loop has "breaks", one entry per break that
+    leaves it: {"if": id of the innermost counted if around it, "side": "true"|"false"}, or
+    {"direct": true} when no counted if is between the break and the loop.
     """
     sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
     branch_map  = []
     edges       = []
     current_id  = start_id
+    id_of_if    = {}        # byte offset of an if -> its id
+    loop_entries = []       # (map entry, breaks of the loop) resolved once all ids are known
 
     for branch in sorted_branches:
         branch_type = branch['type']
         if branch_type == 'switch_statement':
             meta = branch['switch']
+            first_label_id = current_id
             for case in meta['cases']:
                 label = (f"case {case['value']}" + (f" ... {case['high']}" if 'high' in case else '')
                          if case['kind'] == 'case' else 'default')
@@ -327,6 +346,8 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                     "line":  case['line'],
                     "type":  "switch_case",
                     "label": label,
+                    "switch_id":     first_label_id,
+                    "falls_through": case['falls_through'],
                 })
                 edges.append({"id": current_id, "side": "true"})
                 current_id += 1
@@ -354,6 +375,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 true_label  = "if (true)"
                 false_label = "no else (false)"
 
+            id_of_if[branch['start_byte']] = current_id
             branch_map.append({
                 "id":         current_id,
                 "line":       branch['start_point'][0] + 1,
@@ -377,13 +399,22 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
 
         else:
             # for_statement, while_statement, do_statement
-            branch_map.append({
+            entry = {
                 "id":   current_id,
                 "line": branch['start_point'][0] + 1,
                 "type": branch_type,
-            })
+            }
+            branch_map.append(entry)
+            loop_entries.append((entry, branch['breaks']))
             edges += [{"id": current_id, "side": "true"}, {"id": current_id, "side": "false"}]
             current_id += 1
+
+    for entry, breaks in loop_entries:
+        entry["breaks"] = []
+        for chain in breaks or []:
+            # the innermost if of the chain that has an id; none: the break is directly in the loop
+            hit = next(((id_of_if[off], side) for off, side in chain if off in id_of_if), None)
+            entry["breaks"].append({"if": hit[0], "side": hit[1]} if hit else {"direct": True})
 
     with open(output_file, 'w') as f:
         json.dump({

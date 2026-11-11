@@ -452,11 +452,13 @@
    "output/d03_while_inst_branch_map.json": {
     "branches": [
      {
+      "breaks": [],
       "id": 1,
       "line": 2,
       "type": "while_statement"
      },
      {
+      "breaks": [],
       "id": 2,
       "line": 3,
       "type": "while_statement"
@@ -632,6 +634,7 @@
    "output/d04_for_inst_branch_map.json": {
     "branches": [
      {
+      "breaks": [],
       "id": 1,
       "line": 2,
       "type": "for_statement"
@@ -799,11 +802,13 @@
    "output/d05_do_while_inst_branch_map.json": {
     "branches": [
      {
+      "breaks": [],
       "id": 1,
       "line": 2,
       "type": "do_statement"
      },
      {
+      "breaks": [],
       "id": 2,
       "line": 3,
       "type": "do_statement"
@@ -987,6 +992,12 @@
    "output/d06_while1_inst_branch_map.json": {
     "branches": [
      {
+      "breaks": [
+       {
+        "if": 2,
+        "side": "true"
+       }
+      ],
       "id": 1,
       "line": 4,
       "type": "while_statement"
@@ -1177,6 +1188,12 @@
    "output/d07_for_infinite_inst_branch_map.json": {
     "branches": [
      {
+      "breaks": [
+       {
+        "if": 2,
+        "side": "true"
+       }
+      ],
       "id": 1,
       "line": 4,
       "type": "for_statement"
@@ -1567,21 +1584,27 @@
    "output/d09_switch_default_inst_branch_map.json": {
     "branches": [
      {
+      "falls_through": false,
       "id": 1,
       "label": "case 1",
       "line": 4,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 2,
       "label": "case 2",
       "line": 5,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 3,
       "label": "default",
       "line": 6,
+      "switch_id": 1,
       "type": "switch_case"
      }
     ],
@@ -1775,15 +1798,19 @@
    "output/d10_switch_no_default_inst_branch_map.json": {
     "branches": [
      {
+      "falls_through": false,
       "id": 1,
       "label": "case 1",
       "line": 4,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 2,
       "label": "case 2",
       "line": 5,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
@@ -1983,21 +2010,27 @@
    "output/d11_switch_fallthrough_inst_branch_map.json": {
     "branches": [
      {
+      "falls_through": true,
       "id": 1,
       "label": "case 1",
       "line": 5,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 2,
       "label": "case 2",
       "line": 6,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": true,
       "id": 3,
       "label": "default",
       "line": 7,
+      "switch_id": 1,
       "type": "switch_case"
      }
     ],
@@ -2199,21 +2232,27 @@
    "output/d12_switch_stacked_inst_branch_map.json": {
     "branches": [
      {
+      "falls_through": true,
       "id": 1,
       "label": "case 1",
       "line": 4,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 2,
       "label": "case 2",
       "line": 5,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 3,
       "label": "case 3",
       "line": 6,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
@@ -2425,15 +2464,19 @@
    "output/d13_switch_side_effect_inst_branch_map.json": {
     "branches": [
      {
+      "falls_through": false,
       "id": 1,
       "label": "case 0",
       "line": 5,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {
+      "falls_through": false,
       "id": 2,
       "label": "case 1",
       "line": 6,
+      "switch_id": 1,
       "type": "switch_case"
      },
      {

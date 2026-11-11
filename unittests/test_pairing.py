@@ -1,7 +1,7 @@
-"""Tests for the Clang/Tree-sitter pairing in instrument.py (Phase 2).
+"""Tests for build_branches() in instrument.py.
 
-Clang decides which decisions exist; each must pair with a Tree-sitter node at the same
-(kind, line, column), otherwise instrumentation stops.
+Clang decides which decisions exist and gives the text range of each; a decision without a
+range to wrap stops instrumentation (PairingError).
 
 Run from the repo root:  python3 -m unittest discover -s unittests -p "test_*.py" -v
 """

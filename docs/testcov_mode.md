@@ -29,8 +29,8 @@ goal label (`Goal_N:;`) at the start of each block and after each loop and case 
 | `&&`, `\|\|` | none of their own (one `if`) | — |
 | decisions from a macro | counted by TestCov (it works on the preprocessed text) | **not counted**: no counters in a `.c` file |
 
-Two goals need facts the counters do not hold; `testcov_goals.py` reads them from the original
-source with Tree-sitter (no change to the instrumentation or to the branch map):
+Two goals need facts the counters do not hold; `instrument.py` reads them from Clang while it
+instruments and stores them in the branch map (`breaks`, `falls_through`); `testcov_goals.py` needs only the map and the counters:
 
 - **A break of the loop.** The break is credited when the edge of the innermost `if` around it
   (inside the loop) was taken; a break with no `if` around it, when the loop ran. Breaks of a
@@ -38,7 +38,7 @@ source with Tree-sitter (no change to the instrumentation or to the branch map):
 - **Fall-through.** A label falls through into the next one when its statements are empty
   (stacked labels) or do not end with `break`, `return`, `continue` or `goto`.
 
-Each branch-map entry is paired with its Tree-sitter node by (type, line), in source order.
+Branch maps written by an older `instrument.py` lack these facts; re-run the instrumentation to regenerate them.
 
 ## Result on tests/definition
 
@@ -85,6 +85,5 @@ which goals TestCov itself counted as reached was not compared.
   `goto` targets, labels inside nested blocks of a case, a `switch` without braces, statement
   expressions, nested functions. Whether TestCov adds goals elsewhere in larger programs (for
   example at function entry) was not checked; none of the 15 programs shows one.
-- **Branch-map entries without a Tree-sitter node** (decisions Clang found in a header with a GNU
-  statement expression) get no goal; they are printed as unmatched.
+- **Approximations** in the two facts: code between the `if` edge and the `break` (a `return`, a nested `if`) is not looked at; a case body ending in an `if` or a block is taken to fall through.
 - **No HTML** in this mode, only the CSV and the printed totals.

@@ -113,7 +113,7 @@ stage and each c2obra.sh step line; `detail.step_seconds` = time per c2obra.sh s
 (instrument, compile, run, report).
 
 `timing.csv` columns: `id,category,extension,input_bytes,status,sikraken,parse,instrument,compile,run,
-report,c2obra,total` (seconds). `parse` is the Tree-sitter parse plus the Clang scan, timed inside
+report,c2obra,total` (seconds). `parse` is the Clang scan, timed inside
 instrument.py (`C2OBRA_TIMING_FILE`, kept in `detail.instrument_timing`); `instrument` is the rest of
 c2obra.sh's instrument step (Python start-up, pairing, rewriting, writing the files). If instrument.py
 stopped early, `parse` is empty and `instrument` is the whole step. `compile`, `run`, `report` are

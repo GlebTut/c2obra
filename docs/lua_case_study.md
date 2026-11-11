@@ -77,7 +77,7 @@ their sha256 against the values on those pages (`2335b6c5…`, `7d971845…`) an
    investigated further; the basic mode (`_U=true`, which sets `_soft`, `_port`, `_nomsg`) was used.
    So `main.lua`, the heavy tests and the parts that need the internal test library (`ltests`, `T`)
    are not run, and `lua.c` (the stand-alone interpreter) is the least covered file (25.5 %).
-2. **`ltm.c` cannot be instrumented: known limitation (pairing error).**
+2. **`ltm.c` cannot be instrumented: known limitation (pairing error). History: this run used the old Tree-sitter pairing, which iteration 2 removed; not re-run.**
    `ltm.c:206:8: if: Clang sees a decision here, Tree-sitter has no if node starting at this position`.
    The `else if (event == TM_LE)` is inside `#if defined(LUA_COMPAT_LT_LE)`, which
    `-DLUA_COMPAT_5_3` turns on; Tree-sitter cannot parse an `else` that follows an `#if` and puts
@@ -88,7 +88,7 @@ their sha256 against the values on those pages (`2335b6c5…`, `7d971845…`) an
 3. **Directory mode stops at the first file instrument.py stops on.** `instrument.py src/ inst/`
    ended at `ltm.c` (file 23 of 33 in alphabetical order). The driver instruments file by file and
    keeps going, so one file does not block the rest.
-4. **Tree-sitter syntax-error warnings in 28 of the 32 instrumented files.** instrument.py prints
+4. **(Old Tree-sitter scheme, removed in iteration 2.) Tree-sitter syntax-error warnings in 28 of the 32 instrumented files.** instrument.py prints
    `Source file contains syntax errors — instrumentation may be incomplete` (Tree-sitter ERROR
    nodes, mostly from Lua's macros). Every decision Clang found was still paired with a node, and
    the instrumented suite behaves like the baseline, so the warning did not change the result
