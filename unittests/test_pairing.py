@@ -11,6 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TESTS = os.path.join(HERE, '..', 'tests')   # test inputs (unittests/ holds the code)
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 sys.path.insert(0, HERE)
+import clang_scan
 import instrument as I
 from test_id_sync import cover_ids
 from test_c2obra_sh import can_build_m32
@@ -46,23 +47,42 @@ def write_tmp(d, text):
     return p
 
 
-class PairDecisions(unittest.TestCase):
-    def test_decision_without_tree_sitter_node_is_an_error(self):
+class BuildBranches(unittest.TestCase):
+    def test_decision_without_plain_text_span_is_an_error(self):
         with tempfile.TemporaryDirectory() as d:
             p = write_tmp(d, 'int f(int x) { if (x) return 1; return 0; }\n')
-            tree, src = I.parse_c_file(p)
-            fake = [{'kind': 'while', 'line': 1, 'col': 16, 'n_cases': None}]
+            src = open(p, 'rb').read()
+            fake = [{'kind': 'while', 'line': 1, 'col': 16, 'offset': 15, 'cond_span': None,
+                     'has_condition': True, 'for_semis': None}]
             with self.assertRaisesRegex(I.PairingError, r't\.c:1:16: while'):
-                I.pair_decisions(fake, I.find_branches(tree), src, p)
+                I.build_branches(fake, src, p)
 
-    def test_tree_sitter_nodes_without_decision_are_returned_unpaired(self):
+    def test_branches_come_back_in_source_order_with_clang_spans(self):
         with tempfile.TemporaryDirectory() as d:
             p = write_tmp(d, 'int f(int x) { for (;;) { if (x) return 1; } }\n')
-            tree, src = I.parse_c_file(p)
-            ifs = [{'kind': 'if', 'line': 1, 'col': 27, 'n_cases': None}]
-            paired, unpaired = I.pair_decisions(ifs, I.find_branches(tree), src, p)
-        self.assertEqual([b['type'] for b in paired], ['if_statement'])
-        self.assertEqual([b['type'] for b in unpaired], ['for_statement'])
+            src = open(p, 'rb').read()
+            decisions, _ = clang_scan.decisions(p, [])
+            branches = I.build_branches(list(reversed(decisions)), src, p)
+        self.assertEqual([b['type'] for b in branches], ['for_statement', 'if_statement'])
+        self.assertIsNone(branches[0]['cond_span'])       # for(;;): no condition, a slot instead
+        self.assertIsNotNone(branches[0]['slot'])
+        self.assertEqual(src[slice(*branches[1]['cond_span'])], b'x')
+
+
+class MacroCaseLabels(unittest.TestCase):
+    def test_case_labels_written_as_macros_are_instrumented(self):
+        """`case NAME:`, `case F(2):` and `case LO ... 9:` keep the text written in the file."""
+        code = ('#define A 1\n#define F(x) ((x)+1)\n#define R 7\n'
+                'int f(int c) { switch (c) { case A: return 1; case F(2): return 2;'
+                ' case R ... 9: return 3; default: return 0; } }\n')
+        with tempfile.TemporaryDirectory() as d:
+            p = write_tmp(d, code)
+            src = open(p, 'rb').read()
+            decisions, _ = clang_scan.decisions(p, [])
+            out = I.instrument_code(src, I.build_branches(decisions, src, p))
+        self.assertIn('cover((__c2obra_sw_1) == (A), 1)', out)
+        self.assertIn('cover((__c2obra_sw_1) == (F(2)), 2)', out)
+        self.assertIn('(__c2obra_sw_1) >= (R) && (__c2obra_sw_1) <= (9)', out)
 
 
 class InstrumentFile(unittest.TestCase):

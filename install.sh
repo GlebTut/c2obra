@@ -3,7 +3,9 @@ set -e
 
 echo "=== Step 1: Installing system dependencies ==="
 # clang-18: its resource dir (include/stddef.h, from libclang-common-18-dev) is passed to the libclang scan
-sudo apt install -y python3.12-venv gcc-multilib wget unzip clang-18
+# update first and retry downloads: a CI runner can fail a mirror lookup once (DNS), which is not an error in this project
+sudo apt-get update
+sudo apt-get install -y -o Acquire::Retries=3 python3.12-venv gcc-multilib wget unzip clang-18
 
 echo "=== Step 2: Setting up Python environment ==="
 python3 -m venv venv

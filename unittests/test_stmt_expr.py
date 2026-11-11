@@ -175,14 +175,14 @@ class OtherShapes(unittest.TestCase):
         self.assertEqual((cov[1]['true'], cov[1]['false']), (2, 1))
         self.assertEqual((cov[2]['true'], cov[2]['false']), (2, 1))
 
-    def test_if_inside_for_header_statement_expression_still_stops(self):
-        # here Tree-sitter has no node for the inner if, whose own header has no statement
-        # expression, so it is paired as before: hard PairingError (decision 2026-10-25)
+    def test_if_inside_for_header_statement_expression_is_instrumented(self):
+        # Tree-sitter had no node for the inner if (decision 2026-10-25: hard error); with
+        # Clang spans both the for condition and the inner if are wrapped
         with tempfile.TemporaryDirectory() as d:
             p = write(d, 'int f(int i) {\n  for (; i < ({ int t = 2; if (t) t++; t; }); i++) ;\n  return i;\n}\n')
-            code, out, _, _ = instrument(d, p)
-        self.assertEqual(code, 1)
-        self.assertRegex(out, r't\.c:2:28: if: Clang sees a decision here, Tree-sitter has no if node')
+            code, out, inst, _ = instrument(d, p)
+        self.assertEqual(code, 0, out)
+        self.assertIn('cover((i < ({ int t = 2; if (cover((t), 2)) t++; t; })), 1)', inst)
 
     def test_partly_overlapping_wraps_are_a_pairing_error(self):
         src = b'int f(int a, int b) { return a + b; }\n'

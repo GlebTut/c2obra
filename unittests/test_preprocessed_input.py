@@ -67,14 +67,34 @@ class PreprocessedInput(unittest.TestCase):
                 coverage = {b['id']: b for b in json.load(f)['branches']}
             self.assertEqual(E.edge_coverage(branch_map, coverage), (3, 8))
 
-    def test_d15_markers_inside_expression_stop_pairing(self):
-        """gcc -E puts line markers inside assert()'s expansion; Tree-sitter has no node there,
-        so pairing stops (a hard error, as designed). The batch driver cleans markers first."""
+    def test_d15_markers_inside_expression_are_instrumented(self):
+        """gcc -E puts line markers inside assert()'s expansion. Tree-sitter had no node there and
+        pairing stopped; Clang positions are plain file offsets, so the .i file is instrumented
+        and has the same 4 decisions as the one without markers."""
         with tempfile.TemporaryDirectory() as d:
             i_file = preprocess(d, 'd15_macros.c', plain=False)
-            with self.assertRaises(SystemExit), contextlib.redirect_stdout(io.StringIO()) as out:
-                I.instrument_file(i_file, os.path.join(d, 'd15_macros_inst.c'), flags=[])
-            self.assertIn('could not be paired', out.getvalue())
+            inst, branch_map = instrument_i(d, i_file)
+            self.assertEqual(sorted(b['type'] for b in branch_map['branches']),
+                             ['if_statement', 'if_statement', 'ternary_expression', 'ternary_expression'])
+
+    def test_gcc_only_text_in_an_i_file_is_accepted(self):
+        """glibc's _FloatN types and __attribute__((__malloc__(free, 1))) are GCC-only; Clang
+        rejects them and the scan stopped. For a .i file they are mapped to what Clang knows
+        for the scan only, and the conditions are still wrapped."""
+        text = ('extern void *m(unsigned long) __attribute__ ((__malloc__)) '
+                '__attribute__ ((__malloc__ (free, 1)));\n'
+                'typedef _Float128 a; typedef _Float64x b; typedef _Float32x c; '
+                'typedef _Float64 d; typedef _Float32 e;\n'
+                'int f(int x) { if (x) return 1; return 0; }\n')
+        with tempfile.TemporaryDirectory() as d:
+            i_file = os.path.join(d, 't.i')
+            with open(i_file, 'w') as f:
+                f.write(text)
+            inst_path, branch_map = instrument_i(d, i_file)
+            with open(inst_path) as f:
+                inst = f.read()
+        self.assertIn('if (cover((x), 1))', inst)
+        self.assertEqual([b['type'] for b in branch_map['branches']], ['if_statement'])
 
     def test_lines_are_physical_lines_of_the_i_file(self):
         keyword = {'if_statement': 'if', 'for_statement': 'for', 'while_statement': 'while'}

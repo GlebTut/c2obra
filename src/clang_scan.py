@@ -36,6 +36,13 @@ LENIENCY_FLAGS = ['-Wno-error=implicit-function-declaration',
 # Clang's default bracket-nesting limit (256) is lower than GCC's; CIL-reduced SV-COMP files
 # need more. Affects only whether Clang accepts the file, not its meaning.
 CLANG_ONLY_FLAGS = ['-fbracket-depth=4096']
+# A .i file was preprocessed by GCC and keeps GCC-only text that Clang rejects: the _FloatN types of
+# glibc and `__attribute__((__malloc__(free, 1)))`. Clang ignores -D for a .i file unless it is read
+# as C source (-x c), so the scan reads .i as C and maps those names to what Clang knows. Scan-only:
+# the macros change what Clang sees, not the file, so the byte spans of the conditions stay the same.
+PREPROCESSED_FLAGS = ['-x', 'c', '-D__malloc__(...)=',
+                      '-D_Float128=__float128', '-D_Float64x=__float128', '-D_Float128x=__float128',
+                      '-D_Float32x=double', '-D_Float64=double', '-D_Float32=float']
 
 
 class ClangScanError(Exception):
@@ -230,8 +237,6 @@ def _header_info(cursor, kind, ftoks, in_main):
     group = ftoks.paren_group(start)
     info = {'header_stmt_expr': _header_stmt_expr(group), 'cond_span': None, 'cond_lc': None,
             'for_semis': None, 'else_info': None}
-    if not info['header_stmt_expr']:
-        return info
     lo, hi = group[0][0], group[-1][0]            # offsets of the header's '(' and ')'
     if kind in ('if', 'while'):
         cond = children[0]
@@ -262,6 +267,89 @@ def _header_info(cursor, kind, ftoks, in_main):
             info['else_info'] = (True, else_line, children[2].kind == K.IF_STMT)
         else:
             info['else_info'] = (False, None, False)
+    return info
+
+
+def _plain_span(ext, in_main):
+    """(start, end) byte offsets of a cursor extent when it is plain text of the main file
+    (not from another file, not a macro argument); None otherwise."""
+    s, e = ext.start, ext.end
+    if not (in_main(s) and in_main(e)):
+        return None
+    if _spelling_offset(s) != s.offset or not s.offset < e.offset:
+        return None
+    return (s.offset, e.offset)
+
+
+def _case_label_spans(ftoks, start):
+    """Text spans of a case label written in the file: ((lo_start, lo_end), (hi_start, hi_end) or
+    None), from the tokens after the `case` keyword at offset `start` up to its ':'. Reading the
+    tokens (not Clang's extent) keeps a label that is a macro name or macro call, like
+    `case SCULL_IOCRESET:`, whose extent Clang places inside the macro definition.
+    None if the tokens do not look like a label."""
+    i = bisect.bisect_left(ftoks.offsets, start)
+    if i >= len(ftoks.spellings) or ftoks.spellings[i] != 'case':
+        return None
+    depth = questions = 0
+    parts, cur = [], []
+    for j in range(i + 1, len(ftoks.spellings)):
+        t = ftoks.spellings[j]
+        if t in ('(', '[', '{'):
+            depth += 1
+        elif t in (')', ']', '}'):
+            depth -= 1
+        elif depth == 0 and t == '?':
+            questions += 1
+        elif depth == 0 and t == ':':
+            if questions:
+                questions -= 1
+            else:
+                parts.append(cur)
+                break
+        elif depth == 0 and t == '...':
+            parts.append(cur)
+            cur = []
+            continue
+        cur.append(j)
+    else:
+        return None
+    if not parts or any(not p for p in parts) or len(parts) > 2:
+        return None
+    span = lambda p: (ftoks.offsets[p[0]], ftoks.offsets[p[-1]] + len(ftoks.spellings[p[-1]]))
+    return span(parts[0]), (span(parts[1]) if len(parts) == 2 else None)
+
+
+def _expr_info(cursor, kind, in_main, ftoks):
+    """Clang's view of a ?: or a switch: the byte span of the condition (for switch: of the
+    expression in the parentheses) and, for switch, every case/default label that belongs to
+    it (not to a nested switch) in source order, as {kind, line, span, range_hi, is_range}; span is the
+    text span of the label's first expression, range_hi that of the upper bound of a GNU range. cond_span is None if it is not plain text."""
+    children = list(cursor.get_children())
+    info = {'cond_span': _plain_span(children[0].extent, in_main) if children else None,
+            'cases': None}
+    if kind == 'switch':
+        found, stack = [], children[1:]
+        while stack:
+            c = stack.pop()
+            if c.kind == K.SWITCH_STMT:
+                continue
+            if c.kind in (K.CASE_STMT, K.DEFAULT_STMT):
+                found.append(c)
+            stack.extend(c.get_children())
+        found.sort(key=lambda c: c.location.offset)
+        cases = []
+        for c in found:
+            if c.kind == K.DEFAULT_STMT:
+                cases.append({'kind': 'default', 'line': c.location.line, 'span': None})
+            else:
+                # the label as written in the file (also when it is a macro); a GNU range
+                # 'case 1 ... 5:' has an upper bound
+                lab = _case_label_spans(ftoks, c.location.offset) if in_main(c.location) else None
+                cases.append({'kind': 'case', 'line': c.location.line,
+                              'span': lab[0] if lab else None,
+                              'range_hi': lab[1] if lab else None,
+                              'is_range': bool(lab and lab[1])})
+        info['cases'] = cases
     return info
 
 
@@ -298,6 +386,8 @@ def scan(path, user_flags=(), res_dir=None):
     """
     res_dir = res_dir or resource_dir()
     flags = scan_flags(user_flags, res_dir)
+    if path.endswith('.i'):
+        flags = flags + PREPROCESSED_FLAGS
     tu = ci.Index.create().parse(path, args=flags)
     errors = [d for d in tu.diagnostics if d.severity >= ci.Diagnostic.Error]
     if errors:
@@ -355,6 +445,8 @@ def scan(path, user_flags=(), res_dir=None):
             }
             if kind in ('if', 'while', 'do', 'for') and not d['from_macro']:
                 d.update(_header_info(c, kind, ftoks, in_main))
+            elif kind in ('?:', 'switch') and not d['from_macro']:
+                d.update(_expr_info(c, kind, in_main, ftoks))
             out.append(d)
     out.sort(key=lambda d: d['offset'])
     return out
