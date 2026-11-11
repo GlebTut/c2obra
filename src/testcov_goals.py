@@ -35,6 +35,16 @@ import os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import instrument as I
+from tree_sitter import Language, Parser     # only this optional mode still uses Tree-sitter
+import tree_sitter_c
+
+
+def _parse(path):
+    with open(path, 'rb') as f:
+        source = f.read()
+    parser = Parser()
+    parser.set_language(Language(tree_sitter_c.language(), "c"))
+    return parser.parse(source)
 
 MAP_TYPE = {'if_statement': 'if_statement', 'while_statement': 'while_statement',
             'for_statement': 'for_statement', 'do_statement': 'do_statement',
@@ -87,8 +97,7 @@ def _falls_through(case_node):
 def goals(branch_map, coverage, source_path):
     """{'goals': [{kind, line, id, reached}], 'covered', 'total', 'unmatched': [map entries]}.
     coverage: {id: {"true": n, "false": n}} as for edges.edge_coverage()."""
-    tree, _ = I.parse_c_file(source_path)
-    idx = _nodes_by_key(tree.root_node)
+    idx = _nodes_by_key(_parse(source_path).root_node)
     node_of, id_of, unmatched = {}, {}, []
     for b in sorted(branch_map.get('branches', []), key=lambda b: b['id']):
         if b['type'] == 'switch_implicit_default':

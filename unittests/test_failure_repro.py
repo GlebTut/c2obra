@@ -85,15 +85,16 @@ class R3BranchCounters(unittest.TestCase):
 
 
 class W3bUnbracedSwitchBody(unittest.TestCase):
-    def test_unbraced_switch_body_stops_instrumentation(self):
-        """switch (x) case 1: ... (no braces): Tree-sitter has no switch node at Clang's
-        position, so instrumentation stops with a pairing error (no instrumented output)."""
+    def test_unbraced_switch_body_is_instrumented(self):
+        """switch (x) case 1: ... (no braces). Tree-sitter had no switch node here and
+        instrumentation stopped; with Clang positions it is instrumented and still compiles."""
         code = 'int f(int x) { switch (x) case 1: return 10; return 20; }\n'
         with tempfile.TemporaryDirectory() as d:
-            with self.assertRaises(SystemExit) as cm:
-                instrument(d, 'w3.c', code)
-            self.assertEqual(cm.exception.code, 1)
-            self.assertFalse(os.path.exists(os.path.join(d, 'w3_inst.c')))
+            instrument(d, 'w3.c', code)
+            out = open(os.path.join(d, 'w3_inst.c')).read()
+            self.assertIn('cover((__c2obra_sw_1) == (1), 1)', out)
+            self.assertEqual(subprocess.run(['gcc', '-fsyntax-only', '-I', SRC, '-x', 'c',
+                                             os.path.join(d, 'w3_inst.c')]).returncode, 0)
 
 
 R1_C = r'''#include <stdio.h>

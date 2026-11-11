@@ -4,14 +4,13 @@ C²oBra - Source Instrumenter
 Iteration 1: Basic branch instrumentation ->
 Iteration 2: Switch instrumentation + error handling + multi-file directory support ->
 Iteration 3: Explicit else branch metadata tracking
-Phase 2: Clang decides which decisions exist (clang_scan.py); Tree-sitter finds the text to wrap
+Iteration 2: Clang (clang_scan.py) decides which decisions exist AND where their conditions are;
+this file only turns those byte spans into cover() calls. Tree-sitter is no longer used.
 """
 
 
 import sys, json, os, re, time
 from collections import Counter
-from tree_sitter import Language, Parser
-import tree_sitter_c
 import clang_scan
 
 
@@ -21,14 +20,14 @@ import clang_scan
 # LARGE_INT without defining it; the pipeline's gcc gets it from cov_runtime.h (same value).
 DEFAULT_SVCOMP_FLAGS = ['-DLARGE_INT=1000000']
 
-# Tree-sitter node type -> Clang decision kind (clang_scan.KINDS)
-TS_KIND = {'if_statement': 'if', 'for_statement': 'for', 'while_statement': 'while',
-           'do_statement': 'do', 'switch_statement': 'switch', 'conditional_expression': '?:'}
-TS_TYPE = {v: k for k, v in TS_KIND.items()}
+# Clang decision kind (clang_scan.KINDS) -> the "type" used for a branch here and in branch_map.json
+TYPE_OF_KIND = {'if': 'if_statement', 'for': 'for_statement', 'while': 'while_statement',
+                'do': 'do_statement', 'switch': 'switch_statement', '?:': 'conditional_expression'}
 
 
 class PairingError(Exception):
-    """A Clang decision has no Tree-sitter node to wrap, or the node cannot be wrapped."""
+    """A Clang decision has no plain-text span to wrap (e.g. its condition is inside a macro argument),
+    or two cover() wraps would partly overlap."""
 
 
 VERIFIER_STUB_PATTERNS = [
@@ -36,119 +35,6 @@ VERIFIER_STUB_PATTERNS = [
     r'void\s+__VERIFIER_error\s*\([^)]*\)\s*\{[^}]*\}',
     r'extern\s+[^;]*__assert_fail[^;]*;',
 ]
-
-
-def parse_c_file(filename):
-    """Parse C source file with tree-sitter"""
-    try:
-        with open(filename, 'rb') as f:
-            source_code = f.read()
-    except OSError as e:
-        print(f"❌ Error reading file: {e}")
-        sys.exit(1)
-
-    C_LANGUAGE = Language(tree_sitter_c.language(), "c")
-    parser = Parser()
-    parser.set_language(C_LANGUAGE)
-    tree = parser.parse(source_code)
-    return tree, source_code
-
-
-def find_branches(tree):
-    """Find all branch points in the AST — iterative to avoid recursion overhead"""
-    BRANCH_TYPES = frozenset([
-        'if_statement', 'for_statement', 'while_statement',
-        'switch_statement', 'do_statement', 'conditional_expression'
-    ])
-    branches = []
-    stack = [tree.root_node]
-    while stack:
-        node = stack.pop()
-        if node.type in BRANCH_TYPES:
-            branches.append({
-                'type':        node.type,
-                'node':        node,
-                'start_byte':  node.start_byte,
-                'end_byte':    node.end_byte,
-                'start_point': node.start_point,
-                'end_point':   node.end_point,
-            })
-        stack.extend(node.children)
-    return branches
-
-
-def get_condition_node(branch_node):
-    """Extract the condition node from an if/for/while statement"""
-    for child in branch_node.children:
-        if child.type == 'parenthesized_expression':
-            return child
-    return None
-
-
-def get_for_condition_node(for_node):
-    """The condition of a for loop, or None if it has none (for(;;), for(i=0;;i++)).
-
-    Only the Tree-sitter "condition" field. The old fallback took the first expression child
-    when the field was missing, which is the initializer (i=0) or the update (i++) of a for
-    without a condition: wrapping it would count the wrong expression."""
-    return for_node.child_by_field_name("condition")
-
-
-def get_for_condition_slot(for_node):
-    """Byte offset of the ';' that ends the (empty) condition slot of a for loop.
-
-    It is the last ';' child of the for node: for(;;) and for(i=0;;i++) have two ';' children,
-    for(int i=0;;i++) has one (the declaration owns its own ';')."""
-    semis = [c for c in for_node.children if c.type == ';']
-    return semis[-1].start_byte if semis else None
-
-
-def get_switch_cases(switch_node, source_code):
-    """Extract switch expression and all case/default labels"""
-    expr = ""
-    for child in switch_node.children:
-        if child.type == 'parenthesized_expression':
-            inner = source_code[child.start_byte:child.end_byte].decode('utf-8')
-            expr = inner[1:-1].strip()
-            break
-
-    cases = []
-    for child in switch_node.children:
-        if child.type == 'compound_statement':
-            for stmt in child.children:
-                if stmt.type == 'case_statement':
-                    first = stmt.children[0] if stmt.children else None
-                    if first and first.type == 'default':
-                        cases.append({'kind': 'default', 'line': stmt.start_point[0] + 1})
-                        continue
-                    value_node = None
-                    for sub in stmt.children:
-                        if sub.type == ':':
-                            break
-                        if sub.type not in ('case', 'comment'):
-                            value_node = sub
-                    if value_node is None:
-                        continue
-                    val = source_code[value_node.start_byte:value_node.end_byte].decode('utf-8').strip()
-                    cases.append({'kind': 'case', 'value': val, 'line': stmt.start_point[0] + 1})
-    return {'expression': expr, 'cases': cases}
-
-
-def get_else_info(if_node):
-    """
-    Inspect an if_statement node for an else clause.
-    Returns (has_else, else_line, is_else_if) where:
-      - has_else    : bool — True if an explicit else clause exists
-      - else_line   : int  — source line of the else keyword
-      - is_else_if  : bool — True if the else body is another if_statement (else if chain)
-    """
-    for child in if_node.children:
-        if child.type == 'else_clause':
-            else_line = child.start_point[0] + 1
-            # Check if the body of the else is itself an if_statement
-            is_else_if = any(c.type == 'if_statement' for c in child.children)
-            return True, else_line, is_else_if
-    return False, None, False
 
 
 def build_cover_chain(switch_meta, base_id, var):
@@ -161,12 +47,13 @@ def build_cover_chain(switch_meta, base_id, var):
     cases, default_id, parts = [], None, []
     for i, case in enumerate(switch_meta['cases']):
         if case['kind'] == 'case':
-            cases.append((base_id + i, case['value']))
+            cases.append((base_id + i, case['value'], case.get('high')))
         else:
             default_id = base_id + i
-    for k, (cid, value) in enumerate(cases):
+    for k, (cid, value, high) in enumerate(cases):
         # parenthesised: switch (x & 3) case 1 must not become x & 3 == 1
-        parts.append(f"{'if' if k == 0 else 'else if'} (cover(({var}) == ({value}), {cid})) ;")
+        test = f"({var}) == ({value})" if high is None else f"(({var}) >= ({value}) && ({var}) <= ({high}))"
+        parts.append(f"{'if' if k == 0 else 'else if'} (cover({test}, {cid})) ;")
     if default_id is not None:
         last = f"cover(1, {default_id});"
     else:
@@ -295,119 +182,59 @@ def strip_verifier_boilerplate(code: str) -> str:
     return code  # ← always returns
 
 
-def is_instrumentable(branch, source_code):
-    """Single source of truth for which constructs get a cover() ID.
-
-    Both instrument_code() and write_branch_map() iterate over the constructs this accepts,
-    so the IDs in the instrumented source and the entries in branch_map.json cannot drift
-    apart. A construct is skipped (consumes no ID, appears in no map) when there is nothing
-    to wrap: a switch with no condition node or no case/default labels. A for without a
-    condition (for(;;)) is instrumentable: cover((1), id) is inserted in its empty slot.
-    """
-    node = branch['node']
-    kind = branch['type']
-    if node is None:
-        return True     # Clang branch (clang_branch()): built only when there is something to wrap
-    if kind in ('if_statement', 'while_statement', 'do_statement'):
-        return get_condition_node(node) is not None
-    if kind == 'for_statement':
-        return get_for_condition_node(node) is not None or get_for_condition_slot(node) is not None
-    if kind == 'switch_statement':
-        return get_condition_node(node) is not None and bool(get_switch_cases(node, source_code)['cases'])
-    if kind == 'conditional_expression':
-        cond = node.children[0] if node.children else None
-        return cond is not None and source_code[cond.start_byte:cond.end_byte].decode('utf-8').strip() != ''
-    return False
-
-
-def instrumentable_branches(branches, source_code):
-    """Branches that receive IDs, in source order."""
-    return [b for b in sorted(branches, key=lambda b: b['start_byte']) if is_instrumentable(b, source_code)]
-
-
-def ts_condition_span(branch):
-    """(start, end) bytes of the condition expression of a Tree-sitter if/while/do/for, without
-    the header's parentheses (Clang's condition extent covers the same text); None if none."""
-    node = branch['node']
-    if branch['type'] == 'for_statement':
-        cond = get_for_condition_node(node)
-    else:
-        paren = get_condition_node(node)
-        inner = [c for c in paren.named_children if c.type != 'comment'] if paren else []
-        cond = inner[0] if len(inner) == 1 else None
-    return (cond.start_byte, cond.end_byte) if cond else None
-
-
-def clang_branch(d):
-    """A branch built from Clang's header data (clang_scan._header_info) instead of a
-    Tree-sitter node, for a header written with a GNU statement expression '({ ... })':
-    tree-sitter-c 0.21.3 has no rule for it, so its node is missing or its condition span is
-    wrong. None if Clang's data cannot be wrapped either (then pairing behaves as before)."""
-    slot = None
-    if d['cond_span'] is None:
-        # only a for without condition has a slot to fill, at the header's second ';'
-        if d['kind'] != 'for' or d['has_condition'] is not False or not d['for_semis']:
-            return None
-        slot = d['for_semis'][1]
-    return {
-        'type':        TS_TYPE[d['kind']],
-        'node':        None,
+def branch_from_decision(d, source_code):
+    """A branch (what instrument_code() and write_branch_map() work on) from one counted Clang
+    decision (clang_scan.decisions()), or a list of problems if its condition has no plain
+    text to wrap. Returns (branch, None) or (None, reason)."""
+    kind = d['kind']
+    branch = {
+        'type':        TYPE_OF_KIND[kind],
         'start_byte':  d['offset'],
         'start_point': (d['line'] - 1, d['col'] - 1),
         'cond_span':   d['cond_span'],
-        'cond_lc':     d['cond_lc'],
-        'slot':        slot,
-        'else_info':   d['else_info'],
+        'slot':        None,
+        'else_info':   d.get('else_info'),
+        'switch':      None,
     }
+    if kind == 'for' and d['cond_span'] is None:
+        # only a for without condition has a slot to fill, at the header's second ';'
+        if d['has_condition'] is not False or not d.get('for_semis'):
+            return None, "no plain-text condition span (macro argument or inside a macro?)"
+        branch['slot'] = d['for_semis'][1]
+    elif d['cond_span'] is None:
+        return None, "no plain-text condition span (macro argument or inside a macro?)"
+    if kind == 'switch':
+        cases = []
+        for c in d['cases']:
+            if c['kind'] == 'default':
+                cases.append({'kind': 'default', 'line': c['line']})
+            elif c['span'] is None or (c['is_range'] and c['range_hi'] is None):
+                return None, "a case label is not plain text (macro argument?)"
+            else:
+                value = source_code[c['span'][0]:c['span'][1]].decode('utf-8').strip()
+                case = {'kind': 'case', 'value': value, 'line': c['line']}
+                if c['is_range']:       # GNU 'case lo ... hi:'
+                    case['high'] = source_code[c['range_hi'][0]:c['range_hi'][1]].decode('utf-8').strip()
+                cases.append(case)
+        expr = source_code[d['cond_span'][0]:d['cond_span'][1]].decode('utf-8').strip()
+        branch['switch'] = {'expression': expr, 'cases': cases}
+    return branch, None
 
 
-def pair_decisions(decisions, branches, source_code, path):
-    """Pair each counted Clang decision with the Tree-sitter node to rewrite.
-
-    Key: (kind, line, column) — Clang's expansion location and the start of the Tree-sitter
-    node (both point at the keyword, or at the start of the condition for ?:).
-    Exception: an if/while/do/for whose header text holds a GNU statement expression
-    (d['header_stmt_expr']) gets a Clang branch (clang_branch()) when Tree-sitter has no node
-    for it or the node's condition span differs from Clang's.
-    Returns (paired branches, Tree-sitter constructs with no Clang decision).
-    Raises PairingError if any decision has no node, or its node cannot be wrapped as Clang
-    sees it (no condition, or a different number of case labels): instrumenting it anyway
-    would silently count something else.
-    """
-    by_key = {}
-    for b in sorted(branches, key=lambda b: b['start_byte']):
-        key = (TS_KIND[b['type']], b['start_point'][0] + 1, b['start_point'][1] + 1)
-        by_key.setdefault(key, []).append(b)
-
-    paired, problems = [], []
+def build_branches(decisions, source_code, path):
+    """Branches for all counted Clang decisions, in source order. Raises PairingError listing
+    every decision that cannot be wrapped: instrumenting around it would count something else."""
+    branches, problems = [], []
     for d in decisions:
-        key = (d['kind'], d['line'], d['col'])
-        nodes = by_key.get(key)
-        cb = clang_branch(d) if d.get('header_stmt_expr') else None
-        if cb is not None:
-            b = nodes.pop(0) if nodes else None
-            same = (b is not None and is_instrumentable(b, source_code)
-                    and ts_condition_span(b) == cb['cond_span']
-                    and (cb['slot'] is None or get_for_condition_slot(b['node']) == cb['slot']))
-            paired.append(b if same else cb)
-            continue
-        if not nodes:
-            problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: Clang sees a decision here, "
-                            f"Tree-sitter has no {d['kind']} node starting at this position")
-            continue
-        b = nodes.pop(0)
-        if not is_instrumentable(b, source_code):
-            problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: Tree-sitter node has no "
-                            f"condition / case labels to wrap")
-        elif d['kind'] == 'switch' and len(get_switch_cases(b['node'], source_code)['cases']) != d['n_cases']:
-            n_ts = len(get_switch_cases(b['node'], source_code)['cases'])
-            problems.append(f"{path}:{d['line']}:{d['col']}: switch: Clang counts {d['n_cases']} case "
-                            f"labels, Tree-sitter finds {n_ts} (labels from macros or nested blocks?)")
-        paired.append(b)
+        b, why = branch_from_decision(d, source_code)
+        if b is None:
+            problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: {why}")
+        else:
+            branches.append(b)
     if problems:
-        raise PairingError(f"{len(problems)} decision(s) could not be paired:\n  " + '\n  '.join(problems))
-    unpaired = [b for nodes in by_key.values() for b in nodes]
-    return paired, unpaired
+        # "could not be paired": scripts/batch/stages.py and docs/mass_test.md match this text
+        raise PairingError(f"{len(problems)} decision(s) could not be paired with a plain-text condition:\n  " + '\n  '.join(problems))
+    return sorted(branches, key=lambda b: b['start_byte'])
 
 
 def instrument_code(source_code, branches, start_id=1):
@@ -415,69 +242,43 @@ def instrument_code(source_code, branches, start_id=1):
     rewriter   = SourceRewriter(source_code)
     current_id = start_id
 
-    for branch in instrumentable_branches(branches, source_code):
+    for branch in branches:
         branch_type = branch['type']
-        node        = branch['node']
+        span        = branch['cond_span']
 
-        if node is None:
-            # Clang branch (clang_branch()): Clang's condition span, which has no header
-            # parentheses, so the wrap gives the same text as the Tree-sitter cases below
-            if branch['cond_span'] is None:
-                rewriter.insert(branch['slot'], f"cover((1), {current_id})")
-            elif branch_type == 'for_statement':
-                rewriter.wrap(*branch['cond_span'], " cover((", f"), {current_id}) ")
-            else:
-                rewriter.wrap(*branch['cond_span'], "cover((", f"), {current_id})")
+        if branch_type in ('if_statement', 'while_statement', 'do_statement'):
+            # if (cond) -> if (cover((cond), id)): the condition keeps its own parentheses inside
+            # cover(), so a top-level comma (while (f(), x)) cannot split the macro arguments.
+            rewriter.wrap(*span, "cover((", f"), {current_id})")
             current_id += 1
 
-        elif branch_type in ['if_statement', 'while_statement', 'do_statement']:
-            condition_node = get_condition_node(node)
-            if condition_node:
-                cond_start     = condition_node.start_byte
-                cond_end       = condition_node.end_byte
-                # (cond) -> (cover((cond), id)): the condition keeps its own parentheses inside
-                # cover(), so a top-level comma (while (f(), x)) cannot split the macro arguments.
-                rewriter.wrap(cond_start, cond_end, "(cover(", f", {current_id}))")
-                current_id += 1
-
         elif branch_type == 'for_statement':
-            condition_node = get_for_condition_node(node)
-            if condition_node:
-                rewriter.wrap(condition_node.start_byte, condition_node.end_byte,
-                              " cover((", f"), {current_id}) ")
+            if span is not None:
+                rewriter.wrap(*span, " cover((", f"), {current_id}) ")
             else:
                 # for(;;) is counted like while(1): a decision whose condition is always true
                 # (its false edge exists in the map but cannot be hit)
-                rewriter.insert(get_for_condition_slot(node), f"cover((1), {current_id})")
+                rewriter.insert(branch['slot'], f"cover((1), {current_id})")
             current_id += 1
 
         elif branch_type == 'switch_statement':
-            # is_instrumentable() guarantees a condition node and at least one label
-            switch_meta = get_switch_cases(node, source_code)
-            condition_node = get_condition_node(node)
+            switch_meta = branch['switch']
             # switch (E) -> switch (({ __typeof__((E) + 0) v = (E); <chain on v>; v; })):
             # E is evaluated once (a GNU statement expression; __typeof__ does not evaluate its
             # operand, and its copy of E is the original text, so it holds no cover() call).
             # (E) + 0 is the promoted type the switch itself uses, and works for bit-fields.
             var = f"__c2obra_sw_{current_id}"
             chain = build_cover_chain(switch_meta, current_id, var)
-            rewriter.wrap(condition_node.start_byte, condition_node.end_byte,
-                          f"(({{ __typeof__(({switch_meta['expression']}) + 0) {var} = ",
-                          f"; {chain} {var}; }}))")
+            rewriter.wrap(*span,
+                          f"({{ __typeof__(({switch_meta['expression']}) + 0) {var} = (",
+                          f"); {chain} {var}; }})")
             has_default = any(c['kind'] == 'default' for c in switch_meta['cases'])
             current_id += len(switch_meta['cases']) + (0 if has_default else 1)
 
         elif branch_type == 'conditional_expression':
             # ternary: condition ? true_expr : false_expr
-            # condition is the first child node before '?'
-            condition_node = node.children[0] if node.children else None
-            if condition_node:
-                cond_start     = condition_node.start_byte
-                cond_end       = condition_node.end_byte
-                condition_text = source_code[cond_start:cond_end].decode('utf-8').strip()
-                if condition_text:
-                    rewriter.wrap(cond_start, cond_end, "cover((", f"), {current_id})")
-                    current_id += 1
+            rewriter.wrap(*span, "cover((", f"), {current_id})")
+            current_id += 1
 
     try:
         code = rewriter.apply()
@@ -486,7 +287,7 @@ def instrument_code(source_code, branches, start_id=1):
         col = e.start - (source_code.rfind(b'\n', 0, e.start) + 1) + 1
         raise PairingError(
             f"{line}:{col}: two cover() wraps partly overlap (bytes {e.start}-{e.end}): a condition "
-            f"span crosses another decision's span (Tree-sitter span inside a GNU statement "
+            f"span crosses another decision's span (a macro or a GNU statement "
             f"expression?); the output would be broken")
     code = strip_verifier_boilerplate(code)
     VERIFIER_PREAMBLE = '''\
@@ -509,19 +310,18 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
     The implicit default is also recorded as cover(1, id) (build_cover_chain), so every switch
     label edge is a true side. edges.edge_coverage() turns this list into covered/total.
     """
-    sorted_branches = instrumentable_branches(branches, source_code)
+    sorted_branches = sorted(branches, key=lambda b: b['start_byte'])
     branch_map  = []
     edges       = []
     current_id  = start_id
 
     for branch in sorted_branches:
         branch_type = branch['type']
-        node        = branch['node']
-
         if branch_type == 'switch_statement':
-            meta = get_switch_cases(node, source_code)
+            meta = branch['switch']
             for case in meta['cases']:
-                label = f"case {case['value']}" if case['kind'] == 'case' else 'default'
+                label = (f"case {case['value']}" + (f" ... {case['high']}" if 'high' in case else '')
+                         if case['kind'] == 'case' else 'default')
                 branch_map.append({
                     "id":    current_id,
                     "line":  case['line'],
@@ -541,7 +341,7 @@ def write_branch_map(branches, source_code, output_file, input_file, start_id=1)
                 current_id += 1
 
         elif branch_type == 'if_statement':
-            has_else, else_line, is_else_if = branch['else_info'] if node is None else get_else_info(node)
+            has_else, else_line, is_else_if = branch['else_info']
 
             # Build a human-readable label for the true edge
             if has_else and is_else_if:
@@ -616,23 +416,18 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
         sys.exit(1)
 
     t0 = time.perf_counter()
-    tree, source_code = parse_c_file(input_file)
-    if tree.root_node.has_error:
-        print("⚠️ Warning: Source file contains syntax errors — instrumentation may be incomplete")
+    with open(input_file, 'rb') as f:
+        source_code = f.read()
 
     try:
         decisions, skipped = clang_scan.decisions(input_file, flags)
-        ts_branches = find_branches(tree)
-        t_parse = time.perf_counter() - t0                 # Tree-sitter parse + Clang scan
-        branches, unpaired = pair_decisions(decisions, ts_branches, source_code, input_file)
+        t_parse = time.perf_counter() - t0                 # Clang scan
+        branches = build_branches(decisions, source_code, input_file)
     except (clang_scan.ClangScanError, PairingError) as e:
         print(f"❌ Error: {e}")
         sys.exit(1)
     for reason, n in sorted(skipped.items()):
         print(f"ℹ️ Skipped {n} Clang decision(s): {reason}")
-    if unpaired:
-        print(f"ℹ️ {len(unpaired)} Tree-sitter construct(s) have no Clang decision "
-              f"(inactive #if arm, not compiled, or outside a function) — not instrumented")
     if not branches:
         print("⚠️ Warning: No branches found — output will be identical to input")
     else:
@@ -663,7 +458,7 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
 
 
 def write_timing(parse, instrument):
-    """Seconds of the parse (Tree-sitter + Clang scan) and of the rest (pairing, rewriting, writing
+    """Seconds of the parse (the Clang scan) and of the rest (pairing, rewriting, writing
     the files) to $C2OBRA_TIMING_FILE as JSON; nothing if it is not set (scripts/batch/mass_test.py sets it)."""
     path = os.environ.get('C2OBRA_TIMING_FILE')
     if path:
