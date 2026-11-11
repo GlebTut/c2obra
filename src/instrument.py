@@ -506,6 +506,7 @@ def print_flags(flags, given):
           f"{' '.join(flags) or '(none)'}")
     print(f"Scan-only flags: {' '.join(clang_scan.LENIENCY_FLAGS + clang_scan.CLANG_ONLY_FLAGS)} "
           f"-isystem <clang resource dir>/include")
+    print(f"Scan-only flags for a .i file: {' '.join(clang_scan.PREPROCESSED_FLAGS)}")
 
 
 def main():

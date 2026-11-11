@@ -77,6 +77,25 @@ class PreprocessedInput(unittest.TestCase):
             self.assertEqual(sorted(b['type'] for b in branch_map['branches']),
                              ['if_statement', 'if_statement', 'ternary_expression', 'ternary_expression'])
 
+    def test_gcc_only_text_in_an_i_file_is_accepted(self):
+        """glibc's _FloatN types and __attribute__((__malloc__(free, 1))) are GCC-only; Clang
+        rejects them and the scan stopped. For a .i file they are mapped to what Clang knows
+        for the scan only, and the conditions are still wrapped."""
+        text = ('extern void *m(unsigned long) __attribute__ ((__malloc__)) '
+                '__attribute__ ((__malloc__ (free, 1)));\n'
+                'typedef _Float128 a; typedef _Float64x b; typedef _Float32x c; '
+                'typedef _Float64 d; typedef _Float32 e;\n'
+                'int f(int x) { if (x) return 1; return 0; }\n')
+        with tempfile.TemporaryDirectory() as d:
+            i_file = os.path.join(d, 't.i')
+            with open(i_file, 'w') as f:
+                f.write(text)
+            inst_path, branch_map = instrument_i(d, i_file)
+            with open(inst_path) as f:
+                inst = f.read()
+        self.assertIn('if (cover((x), 1))', inst)
+        self.assertEqual([b['type'] for b in branch_map['branches']], ['if_statement'])
+
     def test_lines_are_physical_lines_of_the_i_file(self):
         keyword = {'if_statement': 'if', 'for_statement': 'for', 'while_statement': 'while'}
         with tempfile.TemporaryDirectory() as d:

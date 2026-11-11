@@ -36,6 +36,13 @@ LENIENCY_FLAGS = ['-Wno-error=implicit-function-declaration',
 # Clang's default bracket-nesting limit (256) is lower than GCC's; CIL-reduced SV-COMP files
 # need more. Affects only whether Clang accepts the file, not its meaning.
 CLANG_ONLY_FLAGS = ['-fbracket-depth=4096']
+# A .i file was preprocessed by GCC and keeps GCC-only text that Clang rejects: the _FloatN types of
+# glibc and `__attribute__((__malloc__(free, 1)))`. Clang ignores -D for a .i file unless it is read
+# as C source (-x c), so the scan reads .i as C and maps those names to what Clang knows. Scan-only:
+# the macros change what Clang sees, not the file, so the byte spans of the conditions stay the same.
+PREPROCESSED_FLAGS = ['-x', 'c', '-D__malloc__(...)=',
+                      '-D_Float128=__float128', '-D_Float64x=__float128', '-D_Float128x=__float128',
+                      '-D_Float32x=double', '-D_Float64=double', '-D_Float32=float']
 
 
 class ClangScanError(Exception):
@@ -379,6 +386,8 @@ def scan(path, user_flags=(), res_dir=None):
     """
     res_dir = res_dir or resource_dir()
     flags = scan_flags(user_flags, res_dir)
+    if path.endswith('.i'):
+        flags = flags + PREPROCESSED_FLAGS
     tu = ci.Index.create().parse(path, args=flags)
     errors = [d for d in tu.diagnostics if d.severity >= ci.Diagnostic.Error]
     if errors:
