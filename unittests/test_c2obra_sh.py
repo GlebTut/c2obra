@@ -106,9 +106,9 @@ def cases():
             f.write(NONDET_C)
         return 'in/nondet.c'
 
-    def pairing_error(d):           # X-macro case labels: instrumentation stops (CLAUDE.md)
-        shutil.copy(os.path.join(TESTS, 'corpusC', 'c07_xmacro_switch.c'), os.path.join(d, 'in'))
-        return 'in/c07_xmacro_switch.c'
+    def pairing_error(d):           # macro call as condition: instrumentation stops
+        shutil.copy(os.path.join(TESTS, 'pairing_error', 'if_macro_call.c'), os.path.join(d, 'in'))
+        return 'in/if_macro_call.c'
 
     def directory(d):
         os.makedirs(os.path.join(d, 'in', 'proj'))

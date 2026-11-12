@@ -129,10 +129,10 @@ class ClassifyC2obraRealLogs(unittest.TestCase):
     def setUpClass(cls):
         cls.d = tempfile.mkdtemp()
         TC.make_sandbox(cls.d)
-        shutil.copy(os.path.join(TESTS, 'corpusC', 'c07_xmacro_switch.c'), os.path.join(cls.d, 'in'))
+        shutil.copy(os.path.join(TESTS, 'pairing_error', 'if_macro_call.c'), os.path.join(cls.d, 'in'))
         with open(os.path.join(cls.d, 'in', 'm.c'), 'w') as f:
             f.write(TC.LIBM_C)
-        cls.pairing = TC.run_c2obra(cls.d, 'in/c07_xmacro_switch.c', OUT_DIR='a')
+        cls.pairing = TC.run_c2obra(cls.d, 'in/if_macro_call.c', OUT_DIR='a')
         cls.link = TC.run_c2obra(cls.d, 'in/m.c', OUT_DIR='b')
         cls.good = TC.run_c2obra(cls.d, 'in/m.c', OUT_DIR='c', LDLIBS='-lm')
 

@@ -50,9 +50,9 @@ echo '<testcase><input>4</input><input>2</input></testcase>'  > "$out/test-suite
 echo '<testcase><input>-1</input><input>3</input></testcase>' > "$out/test-suite/test_input-2.xml"
 '''
 
-# __VERIFIER_nondet_pointer has no stub (Sikraken rejects it too): a link error
-NOSTUB_C = r'''extern void *__VERIFIER_nondet_pointer(void);
-int main(void) { void *x = __VERIFIER_nondet_pointer(); if (x) return 1; return 0; }
+# __VERIFIER_nondet_wchar has no stub (Sikraken rejects it too): a link error
+NOSTUB_C = r'''extern void *__VERIFIER_nondet_wchar(void);
+int main(void) { void *x = __VERIFIER_nondet_wchar(); if (x) return 1; return 0; }
 '''
 ABORT_C = r'''#include <stdlib.h>
 extern int __VERIFIER_nondet_int(void);
@@ -87,7 +87,7 @@ def build_tree(root):
         'tree_a':   ('Loops', 'loops/tree-4', '.c', TC.NONDET_C, 'LP64'),
         'tree_b':   ('Heap', 'heap/tree-4', '.c', TC.NONDET_C, 'LP64'),
         'marked':   ('Arrays', 'arr/marked', '.i', marked, 'LP64'),
-        'xmacro':   ('ECA', 'eca/xmacro', '.c', read(os.path.join(TESTS, 'corpusC', 'c07_xmacro_switch.c')), 'LP64'),
+        'xmacro':   ('ECA', 'eca/xmacro', '.c', read(os.path.join(TESTS, 'pairing_error', 'if_macro_call.c')), 'LP64'),
         'floats':   ('Floats', 'floats/m', '.c', TC.LIBM_C, 'LP64'),
         'nostub':   ('Combinations', 'comb/nostub', '.c', NOSTUB_C, 'LP64'),
         'parse':    ('Hardness', 'hard/parse', '.c', '/* FAKE_PARSE_FAIL */\n' + TC.NONDET_C, 'LP64'),
@@ -205,7 +205,7 @@ class FullBatch(unittest.TestCase):
 
     def test_compile_error_detail(self):
         r, d = self.r('nostub'), self.detail('nostub')
-        self.assertEqual((r['stage'], d['missing_symbols']), ('compile', ['__VERIFIER_nondet_pointer']))
+        self.assertEqual((r['stage'], d['missing_symbols']), ('compile', ['__VERIFIER_nondet_wchar']))
         self.assertEqual(r['edges_total'], '2')          # map exists, nothing ran
         self.assertEqual(r['edges_covered'], '')
 
@@ -275,7 +275,7 @@ class FullBatch(unittest.TestCase):
     def test_summary_and_run_json(self):
         with open(os.path.join(self.rd, 'summary.txt')) as f:
             text = f.read()
-        self.assertIn('    1  __VERIFIER_nondet_pointer', text)
+        self.assertIn('    1  __VERIFIER_nondet_wchar', text)
         self.assertNotIn('floats_stub_unfixed', text)
         with open(os.path.join(self.rd, 'run.json')) as f:
             inv = json.load(f)['invocations'][0]

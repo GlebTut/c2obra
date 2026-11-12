@@ -107,6 +107,15 @@ class Stubs(unittest.TestCase):
                 self.assertEqual(out, ['1', '5'])
                 self.assertEqual(err.count('c2obra: __VERIFIER_nondet_memory zero-filled, no input read'), 1)
 
+    def test_pointer_returns_null_and_reads_no_input(self):
+        body = r'''void *p = __VERIFIER_nondet_pointer();
+  printf("%d\n%d\n", p == 0, __VERIFIER_nondet_int());'''
+        for flag, _ in MODELS:
+            with self.subTest(model=flag):
+                out, err = run_c(body, ['5'], flag)
+                self.assertEqual(out, ['1', '5'])
+                self.assertEqual(err.count('c2obra: __VERIFIER_nondet_pointer returns NULL'), 1)
+
     # values outside int, under -m64 and -m32
     def test_out_of_range(self):
         body = r'''printf("%u\n", __VERIFIER_nondet_uint());

@@ -52,11 +52,13 @@ cat > "$TMP/suite/test_input-2.xml" << 'EOF'
 EOF
 
 echo "=== Smoke Test: instrumenting smoke.c ==="
-python3 "$TOOL_DIR/src/instrument.py" "$TMP/smoke.c" "$TMP/smoke_inst.c" -- "${CFLAGS_ARR[@]}"
+INST_OUT=$(python3 "$TOOL_DIR/src/instrument.py" "$TMP/smoke.c" "$TMP/smoke_inst.c" -- "${CFLAGS_ARR[@]}")
+echo "$INST_OUT"
 
 echo ""
 echo "=== Compiling ==="
-COUNTERS=$(grep 'BRANCH_COUNTERS=' "$TMP/smoke_inst.c" 2>/dev/null | tail -1 | cut -d= -f2 || echo 4)
+# instrument.py prints BRANCH_COUNTERS=<n> on stdout (it is not written into the .c file)
+COUNTERS=$(echo "$INST_OUT" | grep '^BRANCH_COUNTERS=' | tail -1 | cut -d= -f2)
 gcc -o "$TMP/smoke_bin" "$TMP/smoke_inst.c" "$TOOL_DIR/src/cov_runtime.c" "$TOOL_DIR/src/verifier_stubs.c" \
     -I"$TOOL_DIR/src" -DMAX_BRANCHES="${COUNTERS}" "${CFLAGS_ARR[@]}" -lm
 

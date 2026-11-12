@@ -133,10 +133,18 @@ class InstrumentFile(unittest.TestCase):
         self.assertIn('for (i = 0; cover((1), 1); i++)', inst)
         self.assertEqual(ids, [1, 2])
 
-    def test_switch_labels_from_macro_stop_instrumentation(self):
-        code, out, _, _ = run(os.path.join(CORPUS, 'c07_xmacro_switch.c'), flags=[])
+    def test_switch_labels_from_macro_are_skipped_with_a_count(self):
+        """X-macro case labels: no text to wrap. The switch is left out (like a macro
+        decision) and counted in the message; the file is still written."""
+        code, out, inst, ids = run(os.path.join(CORPUS, 'c07_xmacro_switch.c'), flags=[])
+        self.assertEqual(code, 0, out)
+        self.assertIn('Skipped 1 Clang decision(s): switch with case labels written by a macro', out)
+        self.assertEqual(ids, [])
+
+    def test_macro_call_as_condition_stops_instrumentation(self):
+        code, out, _, _ = run(os.path.join(TESTS, 'pairing_error', 'if_macro_call.c'), flags=[])
         self.assertEqual(code, 1)
-        self.assertIn('c07_xmacro_switch.c:9:3: switch', out)
+        self.assertIn('if_macro_call.c:7:3: if', out)
 
     def test_compiler_error_stops_and_shows_flags(self):
         with tempfile.TemporaryDirectory() as d:
@@ -149,7 +157,7 @@ class InstrumentFile(unittest.TestCase):
 
     def test_ids_match_map_on_every_corpus_file_that_instruments(self):
         for f in sorted(os.listdir(CORPUS)):
-            if not f.endswith('.c') or f.startswith('c07'):
+            if not f.endswith('.c'):
                 continue
             with self.subTest(file=f):
                 code, _, inst, ids = run(os.path.join(CORPUS, f), flags=[])
