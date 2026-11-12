@@ -24,6 +24,7 @@ extern unsigned long  __VERIFIER_nondet_ulong(void);
 extern unsigned long long __VERIFIER_nondet_ulonglong(void);
 extern size_t         __VERIFIER_nondet_size_t(void);   /* needs <stddef.h> */
 extern void           __VERIFIER_nondet_memory(void *dst, size_t size);
+extern void          *__VERIFIER_nondet_pointer(void);
 
 
 /* Weak declaration so benchmarks can override with their own definition */

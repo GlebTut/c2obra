@@ -166,3 +166,13 @@ void __VERIFIER_nondet_memory(void *dst, size_t size) {
     }
     memset(dst, 0, size);
 }
+
+// Pointers are not an input type for Sikraken (no <input> is written for it): return NULL, read nothing.
+void *__VERIFIER_nondet_pointer(void) {
+    static int warned = 0;
+    if (!warned) {
+        fprintf(stderr, "c2obra: __VERIFIER_nondet_pointer returns NULL, no input read\n");
+        warned = 1;
+    }
+    return NULL;
+}

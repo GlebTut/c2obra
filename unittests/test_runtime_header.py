@@ -122,8 +122,8 @@ class RuntimeHeader(unittest.TestCase):
             self.assertEqual((r.returncode, E.edge_coverage(branch_map, cov)), (0, (1, 2)))
 
     def test_out_of_bounds_id_reported(self):
-        """Ids beyond MAX_BRANCHES go through __c2obra_cover_out_of_bounds() (stderr, value 0);
-        as before, the condition is then not evaluated. MAX_BRANCHES=2 holds id 1 only.
+        """Ids beyond MAX_BRANCHES go through __c2obra_cover_out_of_bounds() (stderr); the
+        condition is still evaluated once and its value returned, so behaviour is unchanged. MAX_BRANCHES=2 holds id 1 only.
         (MAX_BRANCHES must be even: dump_coverage() reads counters in pairs. c2obra.sh
         always passes ids * 2.)"""
         two = OWN_TYPES.replace('    if (big > 3) return id.__val[0];',
@@ -132,9 +132,10 @@ class RuntimeHeader(unittest.TestCase):
             inst, _ = instrument(d, 'two.c', two)
             r, exe = build(d, inst, ['-DMAX_BRANCHES=2'])
             self.assertEqual(r.returncode, 0, r.stderr)
-            r, cov = run(d, exe, ['2'])                 # 2 > 3 false; id 2 out of bounds -> 0
+            r, cov = run(d, exe, ['2'])                 # 2 > 3 false; id 2 (2 > 1, true) out of bounds, value kept
             self.assertIn('cover(): branch_id 2 out of bounds', r.stderr)
-            self.assertEqual(r.returncode, 0)
+            self.assertEqual(r.stderr.count('out of bounds'), 1)   # once per run, with the fix
+            self.assertEqual(r.returncode, 7)           # as the original: 2 > 1 is true
             self.assertEqual(cov, {1: {'id': 1, 'true': 0, 'false': 1}})
 
 

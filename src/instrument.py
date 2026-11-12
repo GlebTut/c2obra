@@ -182,6 +182,9 @@ def strip_verifier_boilerplate(code: str) -> str:
     return code  # ← always returns
 
 
+CASE_LABEL_MACRO = "switch with case labels written by a macro"
+
+
 def branch_from_decision(d, source_code):
     """A branch (what instrument_code() and write_branch_map() work on) from one counted Clang
     decision (clang_scan.decisions()), or a list of problems if its condition has no plain
@@ -211,7 +214,7 @@ def branch_from_decision(d, source_code):
             if c['kind'] == 'default':
                 cases.append({'kind': 'default', 'line': c['line'], 'falls_through': c['falls_through']})
             elif c['span'] is None or (c['is_range'] and c['range_hi'] is None):
-                return None, "a case label is not plain text (macro argument?)"
+                return None, CASE_LABEL_MACRO
             else:
                 value = source_code[c['span'][0]:c['span'][1]].decode('utf-8').strip()
                 case = {'kind': 'case', 'value': value, 'line': c['line'], 'falls_through': c['falls_through']}
@@ -223,13 +226,18 @@ def branch_from_decision(d, source_code):
     return branch, None
 
 
-def build_branches(decisions, source_code, path):
+def build_branches(decisions, source_code, path, skipped=None):
     """Branches for all counted Clang decisions, in source order. Raises PairingError listing
-    every decision that cannot be wrapped: instrumenting around it would count something else."""
+    every decision that cannot be wrapped: instrumenting around it would count something else.
+    A switch whose case labels are written by a macro (X-macro) has no text to wrap, like a
+    decision made by a macro: it is left out and counted in `skipped` (if given) under
+    CASE_LABEL_MACRO, instead of stopping the file."""
     branches, problems = [], []
     for d in decisions:
         b, why = branch_from_decision(d, source_code)
-        if b is None:
+        if b is None and why == CASE_LABEL_MACRO and skipped is not None:
+            skipped[CASE_LABEL_MACRO] += 1
+        elif b is None:
             problems.append(f"{path}:{d['line']}:{d['col']}: {d['kind']}: {why}")
         else:
             branches.append(b)
@@ -453,7 +461,7 @@ def instrument_file(input_file, output_file, start_id=1, flags=None):
     try:
         decisions, skipped = clang_scan.decisions(input_file, flags)
         t_parse = time.perf_counter() - t0                 # Clang scan
-        branches = build_branches(decisions, source_code, input_file)
+        branches = build_branches(decisions, source_code, input_file, skipped)
     except (clang_scan.ClangScanError, PairingError) as e:
         print(f"❌ Error: {e}")
         sys.exit(1)

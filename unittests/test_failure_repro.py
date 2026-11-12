@@ -1,4 +1,4 @@
-"""Minimal reproductions for docs/failure_catalogue.md (phase 2): T2, R1, R2, R3, W3b.
+"""Minimal reproductions for docs/failure_catalogue.md (phase 2): T2, R1, R2, R3, W3b (all fixed).
 
 An open issue is a test of the CORRECT behaviour marked @unittest.expectedFailure: it passes
 while the bug is there, and reports an unexpected success (the run is then not successful)
@@ -32,10 +32,9 @@ def instrument(d, name, code):
 
 
 class T2CpuLimit(unittest.TestCase):
-    @unittest.expectedFailure
     def test_cpu_limit_exit_is_not_a_pass(self):
-        """RLIMIT_CPU soft limit (cpu - 1 = 1 s) -> SIGXCPU -> cov_runtime.c dumps and _exit(1);
-        run_tests.py sees exit code 1, not a signal, and reports the run as a pass."""
+        """RLIMIT_CPU soft limit (cpu - 1 = 1 s) -> SIGXCPU -> cov_runtime.c dumps, then dies by the
+        signal (before: _exit(1), which run_tests.py reported as a pass)."""
         with tempfile.TemporaryDirectory() as d:
             exe, bmap = build(d, SPIN_C)
             r = run_tests(d, exe, one_test_suite(d, '5'), bmap, '--cpu', '2', '--wall', '30')
@@ -56,10 +55,9 @@ int main(void) {
 
 
 class R2OutOfRangeId(unittest.TestCase):
-    @unittest.expectedFailure
     def test_out_of_range_id_keeps_behaviour(self):
-        """MAX_BRANCHES=2 holds id 1 only. cover() for id 2 returns 0 without evaluating
-        n++ >= 0: the original prints r=10 n=1, the instrumented copy r=0 n=0."""
+        """MAX_BRANCHES=2 holds id 1 only. cover() for id 2 now still evaluates n++ >= 0 and
+        returns its value (before: 0 without evaluating, r=0 n=0 instead of r=10 n=1)."""
         with tempfile.TemporaryDirectory() as d:
             orig, inst, _ = instrument(d, 'r2.c', R2_C)
             expected = build_and_run(d, orig)
@@ -118,11 +116,10 @@ def no_core_dump():
 
 
 class R1StackOverflow(unittest.TestCase):
-    @unittest.expectedFailure
     def test_stack_overflow_keeps_coverage(self):
         """Unbounded recursion: SIGSEGV on stack overflow. The handler in cov_runtime.c runs on
-        the same (full) stack (no sigaltstack), so the process dies and coverage.json is not
-        written."""
+        an alternate stack (sigaltstack); before, it ran on the full stack and coverage.json
+        was not written."""
         with tempfile.TemporaryDirectory() as d:
             _, inst, _ = instrument(d, 'r1.c', R1_C)
             exe = os.path.join(d, 'r1')

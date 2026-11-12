@@ -17,15 +17,16 @@
 // Array for storing hit counts for each branch (unsigned long long: 64 bits on ILP32 and LP64)
 extern unsigned long long branch_counters[MAX_BRANCHES];
 
-// Reports a branch id that does not fit in branch_counters (cov_runtime.c); returns 0
-int __c2obra_cover_out_of_bounds(int branch_id);
+// Reports a branch id that does not fit in branch_counters (cov_runtime.c); returns `value`
+// (the already evaluated condition, 0 or 1), so the program behaves as without cover()
+int __c2obra_cover_out_of_bounds(int branch_id, int value);
 
 // cover() macro - wraps branch conditions to track true/false paths
 #define cover(expr, branch_id) \
     (((branch_id) - 1) * 2 + 1 < MAX_BRANCHES \
         ? ((expr) ? (branch_counters[((branch_id) - 1) * 2]++, 1) \
                   : (branch_counters[((branch_id) - 1) * 2 + 1]++, 0)) \
-        : __c2obra_cover_out_of_bounds(branch_id))
+        : __c2obra_cover_out_of_bounds((branch_id), (expr) ? 1 : 0))
 
 // dump_coverage() - writes coverage data to coverage.json
 void dump_coverage(void);
