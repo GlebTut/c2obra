@@ -1,9 +1,7 @@
 """GNU statement expressions '({ ... })' in if/while/do/for headers.
 
-tree-sitter-c 0.21.3 has no rule for them, so the decision's node is missing (if, while) or
-its condition span is wrong (for: it wrapped the 't' of the init's ({ })). For such headers
-pair_decisions() wraps Clang's condition span instead (clang_branch()). Every other header
-is paired as before.
+The old Tree-sitter scheme (removed in iteration 2) could not parse them; now every condition
+span comes from Clang, so these headers are wrapped like any other.
 
 tests/stmtexpr/stmtexpr_{b,c,d}.c are copies of ~/benchmarks/runs/2026-10-25_stmtexpr/src/.
 
@@ -90,7 +88,7 @@ class BenchmarkCases(unittest.TestCase):
                 compile_and_run(d, inst)
 
     def test_if_branch_map_from_clang(self):
-        # no Tree-sitter if node: line and else labels come from Clang
+        # line and else labels come from Clang
         with tempfile.TemporaryDirectory() as d:
             _, _, _, bmap = instrument(d, os.path.join(CASES, 'stmtexpr_b.c'))
             p = write(d, 'int f(int x) {\n  if (({ x > 1; }))\n    return 1;\n  else\n    return 2;\n}\n')
@@ -102,7 +100,7 @@ class BenchmarkCases(unittest.TestCase):
 
 class ForHeaders(unittest.TestCase):
     def test_plain_for_loops_unchanged(self):
-        # no statement expression: Tree-sitter wraps as before
+        # no statement expression: wrapped as usual
         with tempfile.TemporaryDirectory() as d:
             p = write(d, 'int f(int c) {\n  int i, s = 0;\n  for (; c; i++) s++;\n'
                          '  for (i = 0;; i++) break;\n  return s;\n}\n')
@@ -150,7 +148,7 @@ class OtherShapes(unittest.TestCase):
         self.assertEqual((cov[1]['true'], cov[1]['false']), (2, 1))
 
     def test_ternary_inside_header_statement_expression(self):
-        # the ?: has its own Tree-sitter node; its wrap nests inside the for condition's wrap
+        # the ?: has its own span; its wrap nests inside the for condition's wrap
         with tempfile.TemporaryDirectory() as d:
             p = write(d, 'int main(void) {\n  int i, s = 0, x = 1;\n'
                          '  for (i = 0; i < ({ int t = x ? 2 : 3; t; }); i++) s++;\n  return s;\n}\n')
@@ -164,7 +162,7 @@ class OtherShapes(unittest.TestCase):
         self.assertEqual((cov[2]['true'], cov[2]['false']), (3, 0))
 
     def test_if_inside_while_header_statement_expression(self):
-        # Tree-sitter's error recovery keeps this inner if node: its wrap nests in the while's
+        # the inner if's wrap nests in the while's
         with tempfile.TemporaryDirectory() as d:
             p = write(d, 'int main(void) {\n  int i = 2;\n  while (({ int t = i; if (t) t++; t > 1; })) i--;\n  return i;\n}\n')
             code, out, inst, _ = instrument(d, p)
@@ -176,8 +174,7 @@ class OtherShapes(unittest.TestCase):
         self.assertEqual((cov[2]['true'], cov[2]['false']), (2, 1))
 
     def test_if_inside_for_header_statement_expression_is_instrumented(self):
-        # Tree-sitter had no node for the inner if (decision 2026-10-25: hard error); with
-        # Clang spans both the for condition and the inner if are wrapped
+        # both the for condition and the inner if are wrapped
         with tempfile.TemporaryDirectory() as d:
             p = write(d, 'int f(int i) {\n  for (; i < ({ int t = 2; if (t) t++; t; }); i++) ;\n  return i;\n}\n')
             code, out, inst, _ = instrument(d, p)

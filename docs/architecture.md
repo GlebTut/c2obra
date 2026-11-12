@@ -21,7 +21,7 @@ against test inputs, and generates interactive HTML/CSV coverage reports.
          ▼
 ┌─────────────────────┐
 │    instrument.py    │  clang_scan.py: libclang decides which decisions exist
-│                     │  tree-sitter finds the text range of each one
+│                     │  clang_scan.py also gives the text range of each one
 │                     │  inject cover(true/false, id) calls
 │                     │  assign unique branch IDs
 └─────────────────────┘
@@ -114,9 +114,8 @@ against test inputs, and generates interactive HTML/CSV coverage reports.
 - `counts_as_decision()` decides which are counted; skipped: outside a function body, produced by a macro expansion, `switch` without labels. The skipped counts are printed
 
 ### `src/instrument.py`
-- Parses C source with **tree-sitter**, which is used only to find the text range to rewrite
-- `pair_decisions()` pairs each counted Clang decision with the Tree-sitter node at the same (kind, line, column). A decision with no node, a node with no condition to wrap, or a `switch` whose label count differs from Clang's is a pairing error and instrumentation stops. Tree-sitter constructs with no Clang decision (inactive `#if` arm, outside a function) are not instrumented
-- Exception: for an `if`/`while`/`do`/`for` whose header text contains a GNU statement expression `({ ... })`, the condition span from Clang is used when Tree-sitter has no node or its condition span differs from Clang's
+- Does not parse C itself: every text range to rewrite (condition, `case` label, GNU `a ?: b`) comes from `clang_scan.py`
+- `build_branches()` turns each counted Clang decision into a branch. A decision with no condition span, or a `switch` whose labels cannot be located, is a pairing error and instrumentation stops. Code Clang does not see (inactive `#if` arm, outside a function) is not instrumented
 - Wraps each paired condition in `cover((cond), id)`; a `for(;;)` gets `cover((1), id)` in its empty condition slot
 - Strips conflicting `__VERIFIER_*` definitions and `typedef size_t`
 - Outputs instrumented `.c` and `branch_map.json` with `id`, `line`, `type`, `source_file`
@@ -225,7 +224,7 @@ output/
 | Component | Dependency | Purpose |
 |---|---|---|
 | `clang_scan.py` | `libclang` 18.1.1, Clang 18 (resource dir) | Which decisions exist |
-| `instrument.py` | `tree-sitter`, `tree-sitter-c` 0.21.3 | Text range of each decision |
+| `instrument.py` | none (uses the spans from `clang_scan.py`) | Rewrites the text ranges |
 | `cov_runtime.c` | `gcc`, `libc` | Signal handling, JSON output |
 | `run_tests.py` | Python 3.8+, stdlib only | Test execution, coverage merging |
 | `report.py` | Python 3.8+, stdlib only | HTML/CSV report generation |
@@ -245,7 +244,7 @@ output/
 
 ## References
 
-- Tree-sitter Python bindings: https://github.com/tree-sitter/py-tree-sitter
+- libclang Python bindings: https://pypi.org/project/libclang/
 - GCC, the GNU Compiler Collection: https://gcc.gnu.org
 - Sikraken symbolic execution tool: https://zenodo.org/records/18062402
 - SV-Benchmarks Test-COMP suite: https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks

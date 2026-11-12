@@ -86,8 +86,8 @@ class R3BranchCounters(unittest.TestCase):
 
 class W3bUnbracedSwitchBody(unittest.TestCase):
     def test_unbraced_switch_body_is_instrumented(self):
-        """switch (x) case 1: ... (no braces). Tree-sitter had no switch node here and
-        instrumentation stopped; with Clang positions it is instrumented and still compiles."""
+        """switch (x) case 1: ... (no braces). the old Tree-sitter scheme had no switch node here
+        and stopped; with Clang positions it is instrumented and still compiles."""
         code = 'int f(int x) { switch (x) case 1: return 10; return 20; }\n'
         with tempfile.TemporaryDirectory() as d:
             instrument(d, 'w3.c', code)

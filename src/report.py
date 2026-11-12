@@ -993,13 +993,14 @@ function exportCSV(){{
     print(f"✓ Wrote HTML report to {output_path}")
 
 
-def write_testcov_csv(branch_map_data, coverage, source, csv_path):
+def write_testcov_csv(branch_map_data, coverage, csv_path):
     """--mode testcov: one CSV row per TestCov goal and a SUMMARY row; totals printed."""
     import testcov_goals as G
-    if not source or not os.path.exists(source):
-        print(f"\u274c Error: source file '{source}' not found (give it with --source)")
+    try:
+        r = G.goals(branch_map_data, coverage)
+    except G.MissingGoalFactsError as e:
+        print(f"\u274c Error: {e}")
         sys.exit(1)
-    r = G.goals(branch_map_data, coverage, source)
     pct = r["covered"] / r["total"] * 100 if r["total"] else 0.0
     os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
     with open(csv_path, "w", newline="") as f:
@@ -1008,10 +1009,7 @@ def write_testcov_csv(branch_map_data, coverage, source, csv_path):
         for i, g in enumerate(r["goals"], 1):
             w.writerow([i, g["line"], g["kind"], g["id"], "yes" if g["reached"] else "no"])
         w.writerow(["SUMMARY", "", "", "", f"{r['covered']}/{r['total']} goals ({pct:.1f}%)"])
-    print(f"TestCov goals: {r['covered']}/{r['total']} ({pct:.1f}%)  [--mode testcov, {source}]")
-    if r["unmatched"]:
-        print(f"\u26a0\ufe0f  {len(r['unmatched'])} branch-map entr(y/ies) without a Tree-sitter node, no goal: "
-              + ", ".join(f"id {b['id']} line {b['line']}" for b in r["unmatched"]))
+    print(f"TestCov goals: {r['covered']}/{r['total']} ({pct:.1f}%)  [--mode testcov]")
     print(f"\u2713 Wrote {csv_path}")
 
 
@@ -1028,7 +1026,7 @@ def main():
     parser.add_argument("--mode", choices=["edges", "testcov"], default="edges",
                         help="edges (default): C\u00b2oBra's edge definition. testcov: count TestCov's "
                              "goals from the same counters (docs/testcov_mode.md); writes only --csv")
-    parser.add_argument("--source", help="testcov mode: the original C file (default: source_file of the map)")
+    parser.add_argument("--source", help="no longer needed: --mode testcov reads the branch map only")
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
@@ -1036,8 +1034,7 @@ def main():
     branch_map_data = load_branch_map(args.branch_map)
     coverage        = load_coverage(args.coverage)
     if args.mode == "testcov":
-        return write_testcov_csv(branch_map_data, coverage, args.source or branch_map_data.get("source_file"),
-                                 args.csv)
+        return write_testcov_csv(branch_map_data, coverage, args.csv)
     test_inputs     = load_test_inputs(args.test_inputs)
     try:
         rows   = merge(branch_map_data, coverage)

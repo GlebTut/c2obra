@@ -46,10 +46,7 @@ FLAGS = {
 # FAILs that are known bugs in src/, not yet fixed. They stay FAIL in the table but do not fail
 # the test; any other FAIL does. An entry that no longer FAILs fails the test, so the list is
 # kept up to date when the bug is fixed.
-KNOWN_FAIL = {
-    'corpusC/c09 (with driver)': 'GNU case range `case 1 ... 5:` (tree-sitter-c 0.21.3 makes '
-                                 '`... 5` an ERROR node, get_switch_cases() uses it as the value)',
-}
+KNOWN_FAIL = {}
 
 
 def driver(path):

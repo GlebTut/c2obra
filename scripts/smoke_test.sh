@@ -5,7 +5,7 @@
 
 set -euo pipefail
 TOOL_DIR="$(cd "$(dirname "$0")/.." && pwd)"   # repo root (this script is in scripts/)
-# Same as c2obra.sh: use the project venv (the system python3 has no tree_sitter)
+# Same as c2obra.sh: use the project venv (the system python3 has no libclang)
 if [ -f "$TOOL_DIR/venv/bin/activate" ]; then
     source "$TOOL_DIR/venv/bin/activate"
 fi

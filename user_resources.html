@@ -320,7 +320,7 @@ chmod -R +x ~/sikraken/eclipse/</pre></div>
       </details>
       <details>
         <summary>Why does C²oBra show a higher branch count than other tools?</summary>
-        <div class="faq-body"><p>C²oBra uses syntactic AST-level instrumentation via tree-sitter, so it counts all branches including unreachable ones (dead code, uncalled functions). Tools like TestCov apply post-compilation reachability filtering to reduce the denominator. Reachability-aware filtering is planned for a future iteration.</p></div>
+        <div class="faq-body"><p>C²oBra uses syntactic AST-level instrumentation via Clang, so it counts all branches including unreachable ones (dead code, uncalled functions). Tools like TestCov apply post-compilation reachability filtering to reduce the denominator. Reachability-aware filtering is planned for a future iteration.</p></div>
       </details>
     </section>
 
