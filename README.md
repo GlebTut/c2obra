@@ -200,6 +200,7 @@ c2obra/
 │   ├── report_html.py      # Main HTML page (CSS/JS in report_assets/)
 │   ├── report_assets/      # report.css, report.js
 │   ├── merge_reports.py    # Summary dashboard across multiple benchmarks
+│   ├── summary_assets/     # summary.css, summary.js
 │   ├── cov_runtime.c       # Runtime coverage tracking (signal handlers, dump)
 │   ├── cov_runtime.h       # Runtime header (cov_branch() macro, MAX_BRANCHES)
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions

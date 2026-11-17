@@ -157,7 +157,7 @@ against test inputs, and generates interactive HTML/CSV coverage reports.
 - Reads all `*_inst_coverage.json` files in a directory
 - Builds aggregated summary table with per-file coverage percentages
 - Links to each file's individual `_report.html` and `_source.html`
-- Outputs `summary_report.html`
+- Outputs `summary_report.html` (CSS and JavaScript are in `summary_assets/`)
 
 ---
 
