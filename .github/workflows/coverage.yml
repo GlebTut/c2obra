@@ -205,7 +205,11 @@ jobs:
                   continue
               pct = "N/A"
               total_e = covered_e = 0
-              report = subdir + "/coverage_report.json"
+              report = subdir + "/coverage_report.json"   # folder mode: aggregate written by c2obra.sh
+              if not os.path.exists(report):               # single-file mode: the one *_inst_coverage.json
+                  single = sorted(f for f in os.listdir(subdir) if f.endswith("_inst_coverage.json"))
+                  if len(single) == 1:
+                      report = subdir + "/" + single[0]
               if os.path.exists(report):
                   try:
                       data = json.load(open(report))

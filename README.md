@@ -193,8 +193,14 @@ c2obra/
 │   ├── instrument.py       # Turns the Clang scan's spans into cover() calls
 │   ├── edges.py            # The one place that computes covered/total edges from a branch map
 │   ├── run_tests.py        # Parallel test runner with status classification
-│   ├── report.py           # HTML/CSV/source-view report generator (C²oBra UI)
+│   ├── report.py           # Report command line (entry point)
+│   ├── report_data.py      # Loads and merges branch map + coverage
+│   ├── report_csv.py       # CSV output
+│   ├── report_source.py    # Source-view page
+│   ├── report_html.py      # Main HTML page (CSS/JS in report_assets/)
+│   ├── report_assets/      # report.css, report.js
 │   ├── merge_reports.py    # Summary dashboard across multiple benchmarks
+│   ├── summary_assets/     # summary.css, summary.js
 │   ├── cov_runtime.c       # Runtime coverage tracking (signal handlers, dump)
 │   ├── cov_runtime.h       # Runtime header (cov_branch() macro, MAX_BRANCHES)
 │   └── verifier_stubs.c    # Stubs for SV-COMP verifier functions
