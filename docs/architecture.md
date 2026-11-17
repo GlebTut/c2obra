@@ -144,7 +144,9 @@ against test inputs, and generates interactive HTML/CSV coverage reports.
 - Classifies each run: `pass` / `partial` / `timeout` / `crash`
 - Merges all per-worker coverage JSONs into aggregated `coverage_report.json`
 
-### `src/report.py`
+### `src/report.py` (with `report_data.py`, `report_csv.py`, `report_source.py`, `report_html.py`, `report_assets/`)
+`report.py` is only the command line; the other modules load/merge the data, write the CSV, the source view and the HTML page (CSS and JavaScript are in `report_assets/`).
+
 - Merges `branch_map.json` + `coverage_report.json`
 - Generates interactive HTML report with dark/light mode, sorting, filtering
 - Generates VS Code-style syntax-highlighted source view with branch colour-coding
