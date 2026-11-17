@@ -2235,24 +2235,6 @@
      "test_case": "test_input-2.xml"
     }
    ],
-   "output/test_inputs_log.json": [
-    {
-     "inputs": [
-      "4",
-      "2"
-     ],
-     "status": "pass",
-     "test_case": "test_input-1.xml"
-    },
-    {
-     "inputs": [
-      "-1",
-      "3"
-     ],
-     "status": "pass",
-     "test_case": "test_input-2.xml"
-    }
-   ],
    "sik/calls.txt": "release budget[10] ../in/proj/nondet.c\n"
   }
  },

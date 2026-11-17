@@ -36,6 +36,8 @@ Environment (single-file mode; unset = the behaviour described above):
   SIKRAKEN_SUITE    Test-suite directory to use, or "-" for none; Sikraken is not run.
   LDLIBS            Extra libraries for the gcc link step, e.g. "-lm".
   SIKRAKEN_DIR      Sikraken install. Default: ../sikraken next to this script.
+  C2OBRA_JOBS       (directory mode) files processed at the same time, or "auto"
+                    (from cores and free memory, see src/auto_jobs.py). Default: 1
 
 
 Output files (written to output/<base>/ or output/):
@@ -211,12 +213,16 @@ if [ -d "$1" ]; then
     GLOBAL_MAX=$(echo "$INST_OUTPUT" | grep '^BRANCH_COUNTERS=' | tail -1 | cut -d= -f2)
     echo "Global MAX_BRANCHES: ${GLOBAL_MAX}"
 
-    for src_file in "$SRC"/*.c; do
-        [ -f "$src_file" ] || continue
-        base=$(basename "$src_file" .c)
-        inst="$OUT_DIR/${base}_inst.c"
-        [ -f "$inst" ] || { echo "⚠️ No instrumented file for $base — skipping"; continue; }
+    # Files are independent after Step 1 (own binary, own Sikraken output name, own cwd for
+    # run_tests.py), so C2OBRA_JOBS=N processes N files at the same time. Default 1 = one by one.
+    JOBS="${C2OBRA_JOBS:-1}"
+    [ "$JOBS" = "auto" ] && JOBS="$(python3 src/auto_jobs.py)" && echo "C2OBRA_JOBS=auto -> $JOBS"
+    [[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "❌ C2OBRA_JOBS must be a positive integer (got '$JOBS')"; exit 1; }
+    # run_tests.py already starts cores-1 threads per file: share the cores between the jobs
+    [ "$JOBS" -gt 1 ] && export C2OBRA_RUN_WORKERS=$(( ( $(nproc) - 1 ) / JOBS > 0 ? ( $(nproc) - 1 ) / JOBS : 1 ))
 
+    process_file() {
+        local src_file="$1" base="$2" inst="$OUT_DIR/${2}_inst.c" SUITE_DIR
         echo ""
         echo "--- Processing $base ---"
 
@@ -227,11 +233,10 @@ if [ -d "$1" ]; then
                 SUITE_DIR="-"
             else
                 echo "=== Step 0: Run Sikraken for $base ==="
+                local ABS_SRC REL_SRC
                 ABS_SRC="$(realpath "$src_file")"
                 REL_SRC="$(realpath --relative-to="$SIKRAKEN_DIR" "$ABS_SRC")"
-                cd "$SIKRAKEN_DIR"
-                ./bin/sikraken.sh release budget[10] "$REL_SRC" || true
-                cd "$SCRIPT_DIR"
+                (cd "$SIKRAKEN_DIR" && ./bin/sikraken.sh release budget[10] "$REL_SRC") || true
                 # Exact path: Sikraken writes to sikraken_output/<file name without extension>/
                 SUITE_DIR="$SIKRAKEN_OUT/$base/test-suite"
                 [ -d "$SUITE_DIR" ] || SUITE_DIR=""
@@ -252,25 +257,30 @@ if [ -d "$1" ]; then
             -DMAX_BRANCHES=${GLOBAL_MAX} \
             "${CFLAGS_ARR[@]}" -w 2>/dev/null || true
 
-        [ -f "build/${base}_test" ] || { echo "❌ Compilation failed for $base — skipping"; continue; }
+        [ -f "build/${base}_test" ] || { echo "❌ Compilation failed for $base — skipping"; return 0; }
         echo "✓ Built build/${base}_test"
 
-        # Step 3: Run tests
-        python3 src/run_tests.py \
-            "build/${base}_test" \
+        # Step 3: Run tests. run_tests.py writes output/*.json relative to its cwd, so every
+        # file gets its own work directory (a shared output/ would be overwritten by parallel jobs).
+        local WORK="$OUT_DIR/.work_$base"
+        rm -rf "$WORK"; mkdir -p "$WORK"
+        [ "$SUITE_DIR" = "-" ] || SUITE_DIR="$(realpath "$SUITE_DIR")"
+        (cd "$WORK" && python3 "$SCRIPT_DIR/src/run_tests.py" \
+            "$SCRIPT_DIR/build/${base}_test" \
             "$SUITE_DIR" \
-            "$OUT_DIR/${base}_inst_branch_map.json" || true
+            "$SCRIPT_DIR/$OUT_DIR/${base}_inst_branch_map.json") || true
 
-        if [ -f output/test_inputs_log.json ]; then
-            cp output/test_inputs_log.json "$OUT_DIR/${base}_inst_test_inputs_log.json"
+        if [ -f "$WORK/output/test_inputs_log.json" ]; then
+            cp "$WORK/output/test_inputs_log.json" "$OUT_DIR/${base}_inst_test_inputs_log.json"
         fi
 
-        if [ -f output/coverage_report.json ]; then
-            mv output/coverage_report.json "$OUT_DIR/${base}_inst_coverage.json"
+        if [ -f "$WORK/output/coverage_report.json" ]; then
+            mv "$WORK/output/coverage_report.json" "$OUT_DIR/${base}_inst_coverage.json"
             echo "✓ Saved coverage → $OUT_DIR/${base}_inst_coverage.json"
         else
             echo "⚠️ No coverage_report.json for $base"
         fi
+        rm -rf "$WORK"
 
         # Step 4: Generate per-file HTML report
         python3 src/report.py \
@@ -279,7 +289,26 @@ if [ -d "$1" ]; then
             --output      "$OUT_DIR/${base}_inst_report.html" \
             --csv         "$OUT_DIR/${base}_inst_report.csv" \
             --test-inputs "$OUT_DIR/${base}_inst_test_inputs_log.json" || true
+    }
+
+    LOG_DIR="$(mktemp -d)"
+    trap 'rm -rf "$LOG_DIR"' EXIT
+    ORDER=()
+    for src_file in "$SRC"/*.c; do
+        [ -f "$src_file" ] || continue
+        base=$(basename "$src_file" .c)
+        [ -f "$OUT_DIR/${base}_inst.c" ] || { echo "⚠️ No instrumented file for $base — skipping"; continue; }
+        if [ "$JOBS" -eq 1 ]; then
+            process_file "$src_file" "$base"        # as before: output streams live
+        else
+            while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n || true; done
+            process_file "$src_file" "$base" > "$LOG_DIR/$base.log" 2>&1 &
+            ORDER+=("$base")
+        fi
     done
+    wait || true
+    # parallel mode: print each file's output in file order, so the log reads like a serial run
+    for base in "${ORDER[@]}"; do cat "$LOG_DIR/$base.log"; done
 
     # Step 5: Generate summary report across all files
     echo ""

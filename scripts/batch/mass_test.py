@@ -30,12 +30,14 @@ import sys
 import tarfile
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(REPO, 'src'))
 import stages as S          # noqa: E402
+from auto_jobs import auto_jobs  # noqa: E402
 import merge_reports as M   # noqa: E402  (load_branch_map, load_coverage, compute_stats)
 
 SIK_PREFIX = 'c2b__'        # sikraken_output/<prefix><task id>: directories this driver owns
@@ -46,6 +48,20 @@ TAR_SUITE_OVER = 200        # test-suite/ with more files than this is kept as t
 # ─── Processes ───────────────────────────────────────────────────────────────
 
 MARK_LINE = re.compile(r'^(=== |✅ Done|❌ )')       # c2obra.sh step markers, get a timestamp
+
+
+STOP = threading.Event()          # set on Ctrl-C / SIGTERM: workers must not start or finish anything
+ACTIVE = set()                    # Popen objects of running children (all workers), guarded by ACTIVE_LOCK
+ACTIVE_LOCK = threading.Lock()
+
+
+def stop_all(log=None):
+    """Interrupt: stop new work and kill every running child process group."""
+    STOP.set()
+    with ACTIVE_LOCK:
+        procs = list(ACTIVE)
+    for p in procs:
+        kill_group(p, log or io.StringIO())
 
 
 def stamp(t0):
@@ -63,10 +79,14 @@ def run_proc(cmd, cwd, env, timeout, log, t0):
     On timeout (or Ctrl-C) the whole group gets SIGTERM, then SIGKILL after 5 s: this reaches
     ECLiPSe under prlimit/bash -lc and the test binaries run_tests.py starts."""
     start = time.monotonic()
+    if STOP.is_set():
+        raise KeyboardInterrupt
     log.write(f"{stamp(t0)}$ {' '.join(cmd)}   (cwd {cwd}, timeout {timeout:.0f} s)\n")
     log.flush()
     p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          start_new_session=True)
+    with ACTIVE_LOCK:
+        ACTIVE.add(p)
     chunks, marks = [], []
     names = dict(S.STAGE_MARKERS)
 
@@ -92,6 +112,10 @@ def run_proc(cmd, cwd, env, timeout, log, t0):
         kill_group(p, log)
         raise
     th.join(timeout=10)
+    with ACTIVE_LOCK:
+        ACTIVE.discard(p)
+    if STOP.is_set():                           # killed by stop_all(): this task gets no result.json
+        raise KeyboardInterrupt
     end = time.monotonic()
     if timed_out:
         log.write(f"\n{stamp(t0)}[driver] TIMEOUT after {timeout:.0f} s: process group killed\n")
@@ -247,6 +271,8 @@ class Task:
                    SIKRAKEN_DIR=cfg.sikraken_dir, CFLAGS=f'-DLARGE_INT=1000000 -I{self.src_dir}')
         timing = os.path.join(self.dir, 'instrument_timing.json')      # instrument.py write_timing()
         env['C2OBRA_TIMING_FILE'] = timing
+        if cfg.jobs > 1:    # run_tests.py starts cores-1 threads per task; share the cores between the jobs
+            env['C2OBRA_RUN_WORKERS'] = str(max(1, ((os.cpu_count() or 2) - 1) // cfg.jobs))
         code, timed_out, out, secs, marks = run_proc(['bash', os.path.join(REPO, 'c2obra.sh'), self.src], REPO,
                                                      env, min(cfg.c2obra_timeout, self.left()), self.log, self.t0)
         self.r['c2obra_exit'], self.r['seconds_c2obra'] = code, round(secs, 2)
@@ -415,12 +441,22 @@ def parse_args(argv):
     ap.add_argument('--sikraken-timeout', type=float, default=180)
     ap.add_argument('--c2obra-timeout', type=float, default=600)
     ap.add_argument('--task-timeout', type=float, default=900)
+    ap.add_argument('--jobs', '-j', default='1', metavar='N|auto',
+                    help='tasks run at the same time (default 1 = one after the other); '
+                         'auto = from cores and free memory, see src/auto_jobs.py')
     ap.add_argument('--dry-run', action='store_true', help='print the selected tasks and stop')
     return ap.parse_args(argv)
 
 
 def main(argv=None):
     cfg = parse_args(argv)
+    if cfg.jobs == 'auto':
+        cfg.jobs, why = auto_jobs()
+        print(f"--jobs auto: {why}", flush=True)
+    elif not cfg.jobs.isdigit() or int(cfg.jobs) < 1:
+        sys.exit("❌ --jobs must be a number of at least 1, or auto")
+    else:
+        cfg.jobs = int(cfg.jobs)
     cfg.sample = os.path.abspath(cfg.sample)
     base = os.path.dirname(cfg.sample)
     cfg.sv_root = os.path.abspath(cfg.sv_root or os.path.join(base, 'sv-benchmarks'))
@@ -502,14 +538,22 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, on_term)
     t0 = time.monotonic()
     code = 0
+    # Tasks are independent (own directory, own Sikraken output name), so up to cfg.jobs run at once.
+    # Only this thread prints and rebuilds results.csv/summary.txt, so those files never interleave.
+    pool = ThreadPoolExecutor(max_workers=cfg.jobs)
     try:
-        for i, row in enumerate(to_run, 1):
-            r = Task(cfg, row).run()
+        futures = {pool.submit(lambda row=row: Task(cfg, row).run()): row for row in to_run}
+        for i, fut in enumerate(as_completed(futures), 1):
+            r, row = fut.result(), futures[fut]
             print(f"[{i}/{len(to_run)}] {r['status']:18s} {r['seconds']:7.1f} s  {row['id']}", flush=True)
             rebuild_outputs(cfg, planned, time.monotonic() - t0)
     except KeyboardInterrupt:
-        print('\nInterrupted: the current task has no result.json and will run again on resume.', flush=True)
+        stop_all()
+        pool.shutdown(wait=True, cancel_futures=True)
+        print('\nInterrupted: tasks still running have no result.json and will run again on resume.', flush=True)
         code = 130
+    else:
+        pool.shutdown()
     text = rebuild_outputs(cfg, planned, time.monotonic() - t0)
     print('\n' + text)
     print(f"results: {os.path.join(cfg.run_dir, 'results.csv')}")

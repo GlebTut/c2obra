@@ -361,5 +361,44 @@ class Resume(unittest.TestCase):
             self.assertFalse(alive(int(f.read())))
 
 
+class Parallel(unittest.TestCase):
+    """--jobs N must give the same per-task results as one task at a time."""
+    COLS = ('status', 'stage', 'sikraken_tests', 'decisions', 'edges_covered', 'edges_total', 'pct')
+
+    def test_same_results_as_serial(self):
+        out = {}
+        for jobs in ('1', '4'):
+            root = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, root)
+            rows = build_tree(root)
+            p = driver(root, '--name', 'j', '--sikraken-timeout', '3', '--jobs', jobs)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            res = results(run_dir(root))
+            out[jobs] = {n: tuple(res[r['id']][c] for c in self.COLS) for n, r in rows.items()}
+            self.assertEqual(len(res), len(rows))
+            self.assertNotIn('Traceback', p.stdout + p.stderr)
+        self.assertEqual(out['1'], out['4'])
+
+    def test_ctrl_c_stops_all_running_tasks(self):
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root)
+        build_tree(root)
+        for rel in ('loops/tree-4.c', 'heap/tree-4.c'):
+            with open(os.path.join(root, 'sv-benchmarks', 'c', rel), 'a') as f:
+                f.write('/* FAKE_SLEEP */\n')
+        p = driver(root, '--name', 'c', '--sikraken-timeout', '120', '--jobs', '3', start_new_session=False)
+        pid_file = os.path.join(root, 'sik', 'sleep.pid')
+        deadline = time.time() + 120
+        while not os.path.exists(pid_file) and time.time() < deadline:
+            time.sleep(0.2)
+        time.sleep(1)
+        p.send_signal(signal.SIGINT)
+        out, _ = p.communicate(timeout=60)
+        self.assertEqual(p.returncode, 130, out)
+        time.sleep(0.5)
+        left = subprocess.run(['pgrep', '-f', 'sleep 300'], capture_output=True, text=True).stdout
+        self.assertEqual(left.strip(), '')
+
+
 if __name__ == '__main__':
     unittest.main()

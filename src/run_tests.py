@@ -318,7 +318,7 @@ if __name__ == "__main__":
         print(f"❌ Error: Binary '{args.binary}' is not executable")
         sys.exit(1)
 
-    workers   = max(1, os.cpu_count() - 1)
+    workers   = int(os.environ.get('C2OBRA_RUN_WORKERS') or max(1, os.cpu_count() - 1))   # env: set by mass_test.py --jobs
     work_dirs = []
 
     if args.suite_dir != "-":
