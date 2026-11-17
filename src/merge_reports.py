@@ -8,6 +8,7 @@ Reads all *_branch_map.json + *_coverage.json in a directory and outputs:
 import sys, json, os
 from datetime import datetime
 import edges as E
+from assets import read_asset
 
 
 def load_branch_map(path):
@@ -70,18 +71,6 @@ def collect_file_stats(directory):
         })
     return files
 
-ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "summary_assets")
-
-
-def _asset(name, **values):
-    """Read summary_assets/<name> and fill its @@key@@ placeholders."""
-    with open(os.path.join(ASSETS, name), encoding="utf-8") as f:
-        text = f.read().rstrip("\n")
-    for key, value in values.items():
-        text = text.replace("@@%s@@" % key, str(value))
-    return text
-
-
 def write_summary_html(files, output_path):
     total_edges   = sum(f["total_edges"]   for f in files)
     covered_edges = sum(f["covered_edges"] for f in files)
@@ -112,8 +101,8 @@ def write_summary_html(files, output_path):
             f'</tr>'
         )
 
-    CSS = _asset("summary.css", bar_color=bar_color, overall_pct=f"{overall_pct:.1f}")
-    JS  = _asset("summary.js")
+    CSS = read_asset("summary_assets", "summary.css", bar_color=bar_color, overall_pct=f"{overall_pct:.1f}")
+    JS  = read_asset("summary_assets", "summary.js")
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
