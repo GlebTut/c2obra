@@ -1,0 +1,1279 @@
+diff --git a/.github/workflows/coverage.yml b/.github/workflows/coverage.yml
+index a1c182b..28e49d7 100644
+--- a/.github/workflows/coverage.yml
++++ b/.github/workflows/coverage.yml
+@@ -205,7 +205,11 @@ jobs:
+                   continue
+               pct = "N/A"
+               total_e = covered_e = 0
+-              report = subdir + "/coverage_report.json"
++              report = subdir + "/coverage_report.json"   # folder mode: aggregate written by c2obra.sh
++              if not os.path.exists(report):               # single-file mode: the one *_inst_coverage.json
++                  single = sorted(f for f in os.listdir(subdir) if f.endswith("_inst_coverage.json"))
++                  if len(single) == 1:
++                      report = subdir + "/" + single[0]
+               if os.path.exists(report):
+                   try:
+                       data = json.load(open(report))
+diff --git a/c2obra.sh b/c2obra.sh
+index 0a0f942..58272dc 100755
+--- a/c2obra.sh
++++ b/c2obra.sh
+@@ -171,9 +171,9 @@ if [ -f "$1" ]; then
+         mv "$RUN_CWD/output/test_inputs_log.json" "$OUT/${BASENAME}_inst_test_inputs_log.json"
+     fi
+ 
+-    # Keep coverage_report.json in place for CI index aggregation (copy, not move)
++    # Move (not copy): one file per run. The CI index reads <base>_inst_coverage.json in single-file mode.
+     if [ -f "$RUN_CWD/output/coverage_report.json" ]; then
+-        cp "$RUN_CWD/output/coverage_report.json" "$OUT/${BASENAME}_inst_coverage.json"
++        mv "$RUN_CWD/output/coverage_report.json" "$OUT/${BASENAME}_inst_coverage.json"
+         echo "✓ Saved coverage → $OUT/${BASENAME}_inst_coverage.json"
+     else
+         echo "⚠️ No coverage_report.json produced"
+diff --git a/tests/c2obra_sh/golden_unset.json b/tests/c2obra_sh/golden_unset.json
+index f6b346a..db65e76 100644
+--- a/tests/c2obra_sh/golden_unset.json
++++ b/tests/c2obra_sh/golden_unset.json
+@@ -3,67 +3,6 @@
+   "exit": 0,
+   "files": {
+    "build/d01_if_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 3,
+-      "id": 1,
+-      "line": 2,
+-      "true": 3,
+-      "type": "if_statement"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 2,
+-      "line": 3,
+-      "true": 3,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d01_if_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* if without else: 2 decisions x 2 edges (true, false/implicit else). */\nint both(int x)      { if (cover((x > 0), 1)) return 1; return 0; }   /* decision 1 */\nint only_true(int x) { if (cover((x > 0), 2)) return 1; return 0; }   /* decision 2 */\nint main(void) { both(1); both(-1); only_true(1); return 0; }\n",
+    "output/d01_if_inst_branch_map.json": {
+     "branches": [
+@@ -195,67 +134,6 @@
+   "exit": 0,
+   "files": {
+    "build/d02_else_if_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 3,
+-      "id": 1,
+-      "line": 3,
+-      "true": 3,
+-      "type": "if_statement"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 2,
+-      "line": 4,
+-      "true": 3,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d02_else_if_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* if / else if / else: each \"if\" is its own decision (2 decisions). */\nint f(int x) {\n  if (cover((x < 0), 1)) return -1;        /* decision 1 */\n  else if (cover((x == 0), 2)) return 0;   /* decision 2 */\n  else return 1;\n}\nint main(void) { f(-5); f(0); return 0; }\n",
+    "output/d02_else_if_inst_branch_map.json": {
+     "branches": [
+@@ -387,67 +265,6 @@
+   "exit": 0,
+   "files": {
+    "build/d03_while_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 6,
+-      "id": 1,
+-      "line": 2,
+-      "true": 6,
+-      "type": "while_statement"
+-     },
+-     {
+-      "covered": false,
+-      "false": 3,
+-      "id": 2,
+-      "line": 3,
+-      "true": 0,
+-      "type": "while_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d03_while_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* while: edges = body entered (true), loop exits (false). */\nint both(int n)      { int s = 0; while (cover((n > 0), 1)) { s += n; n--; } return s; }\nint only_exit(int n) { int s = 0; while (cover((n > 0), 2)) { s += n; n--; } return s; }\nint main(void) { both(0); both(2); only_exit(0); return 0; }\n",
+    "output/d03_while_inst_branch_map.json": {
+     "branches": [
+@@ -577,59 +394,6 @@
+   "exit": 0,
+   "files": {
+    "build/d04_for_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 6,
+-      "id": 1,
+-      "line": 2,
+-      "true": 9,
+-      "type": "for_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 100.0,
+-     "coverage_pct": 100.0,
+-     "covered_branches": 2,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 1,
+-     "total_branches_count": 2
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d04_for_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* for with a condition: 1 decision. */\nint f(int n) { int s = 0; for (int i = 0;  cover((i < n), 1) ; i++) s += i; return s; }\nint main(void) { f(3); f(0); return 0; }\n",
+    "output/d04_for_inst_branch_map.json": {
+     "branches": [
+@@ -737,87 +501,26 @@
+   "exit": 0,
+   "files": {
+    "build/d05_do_while_test": "<exists>",
+-   "output/coverage_report.json": {
++   "output/d05_do_while_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* do-while: the body runs once, then the condition decides: repeat (true) or exit (false). */\nint both(int n)      { do { n--; } while (cover((n > 0), 1)); return n; }\nint only_exit(int n) { do { n--; } while (cover((n > 0), 2)); return n; }\nint main(void) { both(3); only_exit(1); return 0; }\n",
++   "output/d05_do_while_inst_branch_map.json": {
+     "branches": [
+      {
+-      "covered": true,
+-      "false": 3,
++      "breaks": [],
+       "id": 1,
+       "line": 2,
+-      "true": 6,
+       "type": "do_statement"
+      },
+      {
+-      "covered": false,
+-      "false": 3,
++      "breaks": [],
+       "id": 2,
+       "line": 3,
+-      "true": 0,
+       "type": "do_statement"
+      }
+     ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+-   "output/d05_do_while_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* do-while: the body runs once, then the condition decides: repeat (true) or exit (false). */\nint both(int n)      { do { n--; } while (cover((n > 0), 1)); return n; }\nint only_exit(int n) { do { n--; } while (cover((n > 0), 2)); return n; }\nint main(void) { both(3); only_exit(1); return 0; }\n",
+-   "output/d05_do_while_inst_branch_map.json": {
+-    "branches": [
+-     {
+-      "breaks": [],
+-      "id": 1,
+-      "line": 2,
+-      "type": "do_statement"
+-     },
+-     {
+-      "breaks": [],
+-      "id": 2,
+-      "line": 3,
+-      "type": "do_statement"
+-     }
+-    ],
+-    "edges": [
+-     {
+-      "id": 1,
+-      "side": "true"
++    "edges": [
++     {
++      "id": 1,
++      "side": "true"
+      },
+      {
+       "id": 1,
+@@ -927,67 +630,6 @@
+   "exit": 0,
+   "files": {
+    "build/d06_while1_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 1,
+-      "line": 4,
+-      "true": 12,
+-      "type": "while_statement"
+-     },
+-     {
+-      "covered": true,
+-      "false": 6,
+-      "id": 2,
+-      "line": 5,
+-      "true": 6,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d06_while1_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* while(1): a constant condition. The false edge can never be taken. */\nint f(int x) {\n  int i = 0;\n  while (cover((1), 1)) {                  /* decision 1: false edge infeasible */\n    if (cover((++i > x), 2)) break;        /* decision 2 */\n  }\n  return i;\n}\nint main(void) { f(2); f(0); return 0; }\n",
+    "output/d06_while1_inst_branch_map.json": {
+     "branches": [
+@@ -1123,67 +765,6 @@
+   "exit": 0,
+   "files": {
+    "build/d07_for_infinite_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 1,
+-      "line": 4,
+-      "true": 12,
+-      "type": "for_statement"
+-     },
+-     {
+-      "covered": true,
+-      "false": 6,
+-      "id": 2,
+-      "line": 5,
+-      "true": 6,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d07_for_infinite_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* for(;;): no condition expression. CONFIRMED 2026-10-16: counted like while(1) (2 edges). */\nint f(int x) {\n  int i = 0;\n  for (;cover((1), 1);) {                   /* decision 1 (if counted) */\n    if (cover((++i > x), 2)) break;        /* decision 2 */\n  }\n  return i;\n}\nint main(void) { f(2); f(0); return 0; }\n",
+    "output/d07_for_infinite_inst_branch_map.json": {
+     "branches": [
+@@ -1319,67 +900,6 @@
+   "exit": 0,
+   "files": {
+    "build/d08_ternary_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 3,
+-      "id": 1,
+-      "line": 2,
+-      "true": 3,
+-      "type": "ternary_expression"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 2,
+-      "line": 3,
+-      "true": 3,
+-      "type": "ternary_expression"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 75.0,
+-     "coverage_pct": 75.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d08_ternary_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* ?: is a decision with 2 edges. */\nint both(int x)      { return cover((x > 0), 1) ? 1 : -1; }\nint only_true(int x) { return cover((x > 0), 2) ? 1 : -1; }\nint main(void) { both(1); both(-1); only_true(1); return 0; }\n",
+    "output/d08_ternary_inst_branch_map.json": {
+     "branches": [
+@@ -1511,100 +1031,31 @@
+   "exit": 0,
+   "files": {
+    "build/d09_switch_default_test": "<exists>",
+-   "output/coverage_report.json": {
++   "output/d09_switch_default_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* switch with default: one edge per label (case 1, case 2, default). */\nint f(int v) {\n  switch (({ __typeof__((v) + 0) __c2obra_sw_1 = (v); if (cover((__c2obra_sw_1) == (1), 1)) ; else if (cover((__c2obra_sw_1) == (2), 2)) ; else cover(1, 3); __c2obra_sw_1; })) {\n    case 1: return 10;\n    case 2: return 20;\n    default: return 0;\n  }\n}\nint main(void) { f(1); f(2); f(3); return 0; }\n",
++   "output/d09_switch_default_inst_branch_map.json": {
+     "branches": [
+      {
+-      "covered": true,
+-      "false": 6,
++      "falls_through": false,
+       "id": 1,
++      "label": "case 1",
+       "line": 4,
+-      "true": 3,
++      "switch_id": 1,
+       "type": "switch_case"
+      },
+      {
+-      "covered": true,
+-      "false": 3,
++      "falls_through": false,
+       "id": 2,
++      "label": "case 2",
+       "line": 5,
+-      "true": 3,
++      "switch_id": 1,
+       "type": "switch_case"
+      },
+      {
+-      "covered": true,
+-      "false": 0,
++      "falls_through": false,
+       "id": 3,
++      "label": "default",
+       "line": 6,
+-      "true": 3,
+-      "type": "switch_case"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 100.0,
+-     "coverage_pct": 100.0,
+-     "covered_branches": 3,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 3,
+-     "total_branches_count": 3
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+-   "output/d09_switch_default_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* switch with default: one edge per label (case 1, case 2, default). */\nint f(int v) {\n  switch (({ __typeof__((v) + 0) __c2obra_sw_1 = (v); if (cover((__c2obra_sw_1) == (1), 1)) ; else if (cover((__c2obra_sw_1) == (2), 2)) ; else cover(1, 3); __c2obra_sw_1; })) {\n    case 1: return 10;\n    case 2: return 20;\n    default: return 0;\n  }\n}\nint main(void) { f(1); f(2); f(3); return 0; }\n",
+-   "output/d09_switch_default_inst_branch_map.json": {
+-    "branches": [
+-     {
+-      "falls_through": false,
+-      "id": 1,
+-      "label": "case 1",
+-      "line": 4,
+-      "switch_id": 1,
+-      "type": "switch_case"
+-     },
+-     {
+-      "falls_through": false,
+-      "id": 2,
+-      "label": "case 2",
+-      "line": 5,
+-      "switch_id": 1,
+-      "type": "switch_case"
+-     },
+-     {
+-      "falls_through": false,
+-      "id": 3,
+-      "label": "default",
+-      "line": 6,
+-      "switch_id": 1,
++      "switch_id": 1,
+       "type": "switch_case"
+      }
+     ],
+@@ -1725,75 +1176,6 @@
+   "exit": 0,
+   "files": {
+    "build/d10_switch_no_default_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 3,
+-      "id": 1,
+-      "line": 4,
+-      "true": 3,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": true,
+-      "false": 0,
+-      "id": 2,
+-      "line": 5,
+-      "true": 3,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 3,
+-      "line": 3,
+-      "true": 0,
+-      "type": "switch_implicit_default"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 66.7,
+-     "coverage_pct": 66.7,
+-     "covered_branches": 2,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 3,
+-     "total_branches_count": 3
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d10_switch_no_default_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* switch without default: edges = case 1, case 2, implicit default (no label matched). CONFIRMED 2026-10-16. */\nint f(int v) {\n  switch (({ __typeof__((v) + 0) __c2obra_sw_1 = (v); if (cover((__c2obra_sw_1) == (1), 1)) ; else if (cover((__c2obra_sw_1) == (2), 2)) ; else cover(1, 3); __c2obra_sw_1; })) {\n    case 1: return 10;\n    case 2: return 20;\n  }\n  return 0;\n}\nint main(void) { f(1); f(2); return 0; }\n",
+    "output/d10_switch_no_default_inst_branch_map.json": {
+     "branches": [
+@@ -1937,75 +1319,6 @@
+   "exit": 0,
+   "files": {
+    "build/d11_switch_fallthrough_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 0,
+-      "id": 1,
+-      "line": 5,
+-      "true": 3,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 2,
+-      "line": 6,
+-      "true": 0,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 3,
+-      "line": 7,
+-      "true": 0,
+-      "type": "switch_case"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 33.3,
+-     "coverage_pct": 33.3,
+-     "covered_branches": 1,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 3,
+-     "total_branches_count": 3
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d11_switch_fallthrough_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* Fall-through: f(1) selects ONLY the label \"case 1\"; the body of case 2 also runs, but the label case 2 was not selected. */\nint f(int v) {\n  int r = 0;\n  switch (({ __typeof__((v) + 0) __c2obra_sw_1 = (v); if (cover((__c2obra_sw_1) == (1), 1)) ; else if (cover((__c2obra_sw_1) == (2), 2)) ; else cover(1, 3); __c2obra_sw_1; })) {\n    case 1: r += 1;            /* falls through */\n    case 2: r += 2; break;\n    default: r = -1;\n  }\n  return r;\n}\nint main(void) { f(1); return 0; }\n",
+    "output/d11_switch_fallthrough_inst_branch_map.json": {
+     "branches": [
+@@ -2122,112 +1435,35 @@
+    "output/d11_switch_fallthrough_inst_report.csv": "file,branch_id,line,type,label,true_label,false_label,true_count,false_count,covered\nin/d11_switch_fallthrough.c,1,5,switch_case,case 1,,,3,0,True\nin/d11_switch_fallthrough.c,2,6,switch_case,case 2,,,0,0,False\nin/d11_switch_fallthrough.c,3,7,switch_case,default,,,0,0,False\nSUMMARY,,,,,,,,,33.3% (1/3 branches)\n",
+    "output/d11_switch_fallthrough_inst_report.html": "<exists>",
+    "output/d11_switch_fallthrough_inst_source.html": "<exists>",
+-   "output/d11_switch_fallthrough_inst_test_inputs_log.json": [
+-    {
+-     "inputs": [
+-      "-1"
+-     ],
+-     "status": "pass",
+-     "test_case": "probe_neg"
+-    },
+-    {
+-     "inputs": [
+-      "2"
+-     ],
+-     "status": "pass",
+-     "test_case": "probe_pos"
+-    },
+-    {
+-     "inputs": [
+-      "0"
+-     ],
+-     "status": "pass",
+-     "test_case": "probe_zero"
+-    }
+-   ]
+-  }
+- },
+- "d12_switch_stacked.c": {
+-  "exit": 0,
+-  "files": {
+-   "build/d12_switch_stacked_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 3,
+-      "id": 1,
+-      "line": 4,
+-      "true": 3,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 3,
+-      "id": 2,
+-      "line": 5,
+-      "true": 0,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": true,
+-      "false": 0,
+-      "id": 3,
+-      "line": 6,
+-      "true": 3,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 4,
+-      "line": 3,
+-      "true": 0,
+-      "type": "switch_implicit_default"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 50.0,
+-     "coverage_pct": 50.0,
+-     "covered_branches": 2,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 4,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
++   "output/d11_switch_fallthrough_inst_test_inputs_log.json": [
++    {
++     "inputs": [
++      "-1"
++     ],
++     "status": "pass",
++     "test_case": "probe_neg"
++    },
++    {
++     "inputs": [
++      "2"
++     ],
++     "status": "pass",
++     "test_case": "probe_pos"
++    },
++    {
++     "inputs": [
++      "0"
++     ],
++     "status": "pass",
++     "test_case": "probe_zero"
++    }
++   ]
++  }
++ },
++ "d12_switch_stacked.c": {
++  "exit": 0,
++  "files": {
++   "build/d12_switch_stacked_test": "<exists>",
+    "output/d12_switch_stacked_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* Stacked labels share one body; each label is its own edge. CONFIRMED 2026-10-16: implicit default counted. */\nint f(int v) {\n  switch (({ __typeof__((v) + 0) __c2obra_sw_1 = (v); if (cover((__c2obra_sw_1) == (1), 1)) ; else if (cover((__c2obra_sw_1) == (2), 2)) ; else if (cover((__c2obra_sw_1) == (3), 3)) ; else cover(1, 4); __c2obra_sw_1; })) {\n    case 1:\n    case 2: return 5;\n    case 3: return 6;\n  }\n  return 0;\n}\nint main(void) { f(1); f(3); return 0; }\n",
+    "output/d12_switch_stacked_inst_branch_map.json": {
+     "branches": [
+@@ -2391,75 +1627,6 @@
+   "exit": 0,
+   "files": {
+    "build/d13_switch_side_effect_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 0,
+-      "id": 1,
+-      "line": 5,
+-      "true": 3,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 2,
+-      "line": 6,
+-      "true": 0,
+-      "type": "switch_case"
+-     },
+-     {
+-      "covered": false,
+-      "false": 0,
+-      "id": 3,
+-      "line": 4,
+-      "true": 0,
+-      "type": "switch_implicit_default"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 33.3,
+-     "coverage_pct": 33.3,
+-     "covered_branches": 1,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 3,
+-     "total_branches_count": 3
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d13_switch_side_effect_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* Behaviour preservation: the switch expression must be evaluated once. Original exits with 1. */\nint main(void) {\n  int i = 0;\n  switch (({ __typeof__((i++) + 0) __c2obra_sw_1 = (i++); if (cover((__c2obra_sw_1) == (0), 1)) ; else if (cover((__c2obra_sw_1) == (1), 2)) ; else cover(1, 3); __c2obra_sw_1; })) {\n    case 0: break;\n    case 1: break;\n  }\n  return i;\n}\n",
+    "output/d13_switch_side_effect_inst_branch_map.json": {
+     "branches": [
+@@ -2603,59 +1770,6 @@
+   "exit": 0,
+   "files": {
+    "build/d14_logical_ops_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 3,
+-      "id": 1,
+-      "line": 3,
+-      "true": 3,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 100.0,
+-     "coverage_pct": 100.0,
+-     "covered_branches": 2,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 1,
+-     "total_branches_count": 2
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d14_logical_ops_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* && and || are inside ONE decision (decision-level): 2 edges, not one per operand. */\nint f(int a, int b, int c) {\n  if (cover(((a && b) || c), 1)) return 1;\n  return 0;\n}\nint main(void) { f(1, 1, 0); f(0, 0, 0); return 0; }\n",
+    "output/d14_logical_ops_inst_branch_map.json": {
+     "branches": [
+@@ -2764,59 +1878,6 @@
+   "exit": 0,
+   "files": {
+    "build/d15_macros_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": false,
+-      "false": 3,
+-      "id": 1,
+-      "line": 7,
+-      "true": 0,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 50.0,
+-     "coverage_pct": 50.0,
+-     "covered_branches": 1,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 3,
+-      "timeout": 0
+-     },
+-     "total_branches": 1,
+-     "total_branches_count": 2
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "-1"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_neg"
+-     },
+-     {
+-      "inputs": [
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_pos"
+-     },
+-     {
+-      "inputs": [
+-       "0"
+-      ],
+-      "status": "pass",
+-      "test_case": "probe_zero"
+-     }
+-    ]
+-   },
+    "output/d15_macros_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n/* Decisions that exist only inside macros are not counted (reported as skipped). */\n#include <assert.h>\n#define MAX(a, b) ((a) > (b) ? (a) : (b))\nint f(int x, int y) {\n  int m = MAX(x, y);           /* macro: contains ?: */\n  assert(m >= 0);              /* macro: contains a decision */\n  if (cover((m > 5), 1))                   /* the only decision written in the file */\n    return 1;\n  return 0;\n}\nint main(void) { f(3, 4); return 0; }\n",
+    "output/d15_macros_inst_branch_map.json": {
+     "branches": [
+@@ -3199,62 +2260,6 @@
+   "exit": 0,
+   "files": {
+    "build/nondet_test": "<exists>",
+-   "output/coverage_report.json": {
+-    "branches": [
+-     {
+-      "covered": true,
+-      "false": 1,
+-      "id": 1,
+-      "line": 5,
+-      "true": 1,
+-      "type": "if_statement"
+-     },
+-     {
+-      "covered": true,
+-      "false": 1,
+-      "id": 2,
+-      "line": 7,
+-      "true": 1,
+-      "type": "if_statement"
+-     }
+-    ],
+-    "summary": {
+-     "branch_coverage_pct": 100.0,
+-     "coverage_pct": 100.0,
+-     "covered_branches": 4,
+-     "resource_limits": {
+-      "cpu_seconds": 30,
+-      "memory_mb": 512,
+-      "wall_timeout": 35
+-     },
+-     "test_run_statuses": {
+-      "crash": 0,
+-      "partial": 0,
+-      "pass": 2,
+-      "timeout": 0
+-     },
+-     "total_branches": 2,
+-     "total_branches_count": 4
+-    },
+-    "test_runs": [
+-     {
+-      "inputs": [
+-       "4",
+-       "2"
+-      ],
+-      "status": "pass",
+-      "test_case": "test_input-1.xml"
+-     },
+-     {
+-      "inputs": [
+-       "-1",
+-       "3"
+-      ],
+-      "status": "pass",
+-      "test_case": "test_input-2.xml"
+-     }
+-    ]
+-   },
+    "output/nondet_inst.c": "#include \"cov_runtime.h\"\n/* verifier stub forward declarations */\nextern void reach_error(void);\nextern void __VERIFIER_error(void);\nextern void __VERIFIER_assume(int);\n\n#include <stdio.h>\nextern int __VERIFIER_nondet_int(void);\nint main(void) {\n    int x = __VERIFIER_nondet_int();\n    if (cover((x > 0), 1)) printf(\"positive\\n\"); else printf(\"non-positive\\n\");\n    int i = __VERIFIER_nondet_int();\n    if (cover((i % 2 == 0), 2)) printf(\"even\\n\"); else printf(\"odd\\n\");\n    return 0;\n}\n",
+    "output/nondet_inst_branch_map.json": {
+     "branches": [
+diff --git a/unittests/test_c2obra_sh.py b/unittests/test_c2obra_sh.py
+index 8aa49aa..f074405 100644
+--- a/unittests/test_c2obra_sh.py
++++ b/unittests/test_c2obra_sh.py
+@@ -202,7 +202,7 @@ class NewEnvVars(unittest.TestCase):
+         for rel, content in self.golden.items():
+             if rel.startswith('output/') and rel.count('/') == 1 and rel != 'output/coverage_report.json':
+                 self.assertEqual(snap['res/' + rel[len('output/'):]], content, rel)
+-        self.assertIn('res/output/coverage_report.json', snap)   # run_tests.py's own file
++        self.assertNotIn('res/output/coverage_report.json', snap)   # moved to <base>_inst_coverage.json, no copy left
+         self.assertIn('res/nondet_test', snap)
+ 
+     def test_sikraken_suite_given_skips_sikraken(self):

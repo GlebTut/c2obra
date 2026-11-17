@@ -171,9 +171,9 @@ if [ -f "$1" ]; then
         mv "$RUN_CWD/output/test_inputs_log.json" "$OUT/${BASENAME}_inst_test_inputs_log.json"
     fi
 
-    # Keep coverage_report.json in place for CI index aggregation (copy, not move)
+    # Move (not copy): one file per run. The CI index reads <base>_inst_coverage.json in single-file mode.
     if [ -f "$RUN_CWD/output/coverage_report.json" ]; then
-        cp "$RUN_CWD/output/coverage_report.json" "$OUT/${BASENAME}_inst_coverage.json"
+        mv "$RUN_CWD/output/coverage_report.json" "$OUT/${BASENAME}_inst_coverage.json"
         echo "✓ Saved coverage → $OUT/${BASENAME}_inst_coverage.json"
     else
         echo "⚠️ No coverage_report.json produced"

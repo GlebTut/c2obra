@@ -202,7 +202,7 @@ class NewEnvVars(unittest.TestCase):
         for rel, content in self.golden.items():
             if rel.startswith('output/') and rel.count('/') == 1 and rel != 'output/coverage_report.json':
                 self.assertEqual(snap['res/' + rel[len('output/'):]], content, rel)
-        self.assertIn('res/output/coverage_report.json', snap)   # run_tests.py's own file
+        self.assertNotIn('res/output/coverage_report.json', snap)   # moved to <base>_inst_coverage.json, no copy left
         self.assertIn('res/nondet_test', snap)
 
     def test_sikraken_suite_given_skips_sikraken(self):
