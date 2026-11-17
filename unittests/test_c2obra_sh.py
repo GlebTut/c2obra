@@ -261,6 +261,45 @@ class NewEnvVars(unittest.TestCase):
         self.assertNotIn('nondet-1', log)
 
 
+class DirectoryJobs(unittest.TestCase):
+    """C2OBRA_JOBS=N in directory mode gives the same files as one by one."""
+    def run_with(self, jobs):
+        with tempfile.TemporaryDirectory() as d:
+            make_sandbox(d)
+            os.makedirs(os.path.join(d, 'in', 'proj'))
+            for i, src in enumerate(['d01_if.c', 'd01_if.c', 'd01_if.c']):
+                shutil.copy(os.path.join(DEFS, src), os.path.join(d, 'in', 'proj', f'f{i}.c'))
+            with open(os.path.join(d, 'in', 'proj', 'nondet.c'), 'w') as f:
+                f.write(NONDET_C)
+            code, log = run_c2obra(d, 'in/proj', C2OBRA_JOBS=jobs)
+            snap = {k: v for k, v in snapshot(d).items() if not k.endswith('summary_report.html')}
+            return code, log, snap
+
+    def test_same_files_as_serial(self):
+        c1, log1, s1 = self.run_with('1')
+        c3, log3, s3 = self.run_with('3')
+        self.assertEqual((c1, c3), (0, 0), log1 + log3)
+        self.assertEqual(s1, s3)
+        for base in ('f0', 'f1', 'f2', 'nondet'):
+            self.assertIn(f'--- Processing {base} ---', log3)
+        self.assertFalse([k for k in s3 if '.work_' in k])
+
+    def test_auto(self):
+        c, log, snap = self.run_with('auto')
+        self.assertEqual(c, 0, log)
+        self.assertIn('C2OBRA_JOBS=auto ->', log)
+        self.assertEqual(snap, self.run_with('1')[2])
+
+    def test_bad_value(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_sandbox(d)
+            os.makedirs(os.path.join(d, 'in', 'proj'))
+            shutil.copy(os.path.join(DEFS, 'd01_if.c'), os.path.join(d, 'in', 'proj'))
+            code, log = run_c2obra(d, 'in/proj', C2OBRA_JOBS='0')
+            self.assertNotEqual(code, 0)
+            self.assertIn('C2OBRA_JOBS must be', log)
+
+
 if __name__ == '__main__':
     if '--regen' in sys.argv:
         os.makedirs(os.path.dirname(GOLDEN), exist_ok=True)
