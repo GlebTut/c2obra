@@ -4,17 +4,7 @@
 import json, os
 from datetime import datetime
 
-ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "report_assets")
-
-
-def _asset(name, **values):
-    """Read report_assets/<name> and fill its @@key@@ placeholders."""
-    with open(os.path.join(ASSETS, name), encoding="utf-8") as f:
-        text = f.read().rstrip("\n")
-    for key, value in values.items():
-        text = text.replace("@@%s@@" % key, str(value))
-    return text
-
+from assets import read_asset
 
 
 def write_html(rows, totals, output_path, source_file, source_html_name=None, test_inputs=None, no_summary=False):
@@ -131,8 +121,8 @@ def write_html(rows, totals, output_path, source_file, source_html_name=None, te
             f'</tr>'
         )
 
-    CSS = _asset("report.css", bar_color=bar_color, pct=f"{pct:.1f}")
-    JS  = _asset("report.js", status_col=status_col, headers_js=headers_js,
+    CSS = read_asset("report_assets", "report.css", bar_color=bar_color, pct=f"{pct:.1f}")
+    JS  = read_asset("report_assets", "report.js", status_col=status_col, headers_js=headers_js,
                  branch_rows_json=branch_rows_json, test_inputs_json=test_inputs_json,
                  tc_idx=tc_idx, fc_idx=fc_idx)
 
